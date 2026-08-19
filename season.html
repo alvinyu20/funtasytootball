@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>League Records</title>
+  <title>Season</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -16,44 +16,37 @@
       <li><a class="nav-link" href="index.html">Home</a></li>
       <li><a class="nav-link" href="history.html">History</a></li>
       <li><a class="nav-link" href="teams.html">Teams</a></li>
-      <li><a class="nav-link" href="season.html">Seasons</a></li>
-      <li><a class="nav-link active" href="records.html">Records</a></li>
+      <li><a class="nav-link active" href="season.html">Seasons</a></li>
+      <li><a class="nav-link" href="records.html">Records</a></li>
       <li><a class="nav-link" href="newsletters.html">Newsletters</a></li>
     </ul>
   </nav>
 
   <section class="scoreboard">
-    <p class="scoreboard-eyebrow">RECORD BOOK</p>
-    <h1 class="scoreboard-title">Fun Stats &amp; Records</h1>
-    <p class="scoreboard-sub" id="sb-sub">Loading…</p>
+    <p class="scoreboard-eyebrow">SEASON REWIND</p>
+    <h1 class="scoreboard-title" id="sb-title">Loading…</h1>
+    <p class="scoreboard-sub" id="sb-sub"></p>
+    <div class="season-pills" id="season-picker"></div>
   </section>
 
   <div class="wrap">
-    <div id="records-error" class="error-state" style="display:none;"></div>
+    <div id="season-error" class="error-state" style="display:none;"></div>
     <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
   </div>
 
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">All-Time</span>
-    <div class="line"></div>
-  </div>
-
-  <main class="wrap">
-    <div class="records-grid" id="records-grid">
-      <div class="loading">Crunching every season's scores, drafts, and transactions…</div>
-    </div>
+  <main>
+    <div id="season-content" style="display:none;"></div>
   </main>
 
   <footer class="site-footer">
-    Draft value is judged against where a player was picked that same season, not across years.
+    Draft value is judged against where a player was picked that same season.
   </footer>
 
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/sleeper-api.js"></script>
   <script src="js/deep-history.js"></script>
-  <script src="js/records.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/season.js"></script>
 </body>
 </html>

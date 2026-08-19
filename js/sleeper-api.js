@@ -142,8 +142,8 @@ const SleeperAPI = {
     return null;
   },
 
-  // Builds a standings array: [{ rosterId, userId, teamName, avatar, wins,
-  // losses, ties, fpts, fptsAgainst }], sorted by wins then points.
+  // Builds a standings array: [{ rosterId, userId, teamName, username, avatar,
+  // wins, losses, ties, fpts, fptsAgainst }], sorted by wins then points.
   buildStandings(rosters, users) {
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     return rosters
@@ -154,6 +154,7 @@ const SleeperAPI = {
           rosterId: r.roster_id,
           userId: r.owner_id,
           teamName: SleeperAPI.teamName(user, r.roster_id),
+          username: user ? user.display_name : null,
           avatar: user ? SleeperAPI.avatarUrl(user.avatar) : null,
           wins: s.wins || 0,
           losses: s.losses || 0,

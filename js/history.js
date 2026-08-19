@@ -42,17 +42,18 @@ async function renderHistory() {
     const fullLedger = [...sleeperLedger, ...manualLedger].sort((a, b) => b.year - a.year);
 
     document.getElementById("champions-ledger").innerHTML = fullLedger
-      .map(
-        (row) => `
-      <div class="ledger-row">
+      .map((row) => {
+        const inner = `
         <span class="year">${row.year}</span>
         <div>
           <div class="champ-name">${escapeHtml(row.champion)}</div>
           ${row.notes ? `<div class="champ-sub">${escapeHtml(row.notes)}</div>` : ""}
         </div>
-        <span class="badge">${row.sourceBadge}</span>
-      </div>`
-      )
+        <span class="badge">${row.sourceBadge}</span>`;
+        return row.sourceBadge === "Sleeper"
+          ? `<a class="ledger-row" href="season.html#${row.year}" style="text-decoration:none; color:inherit; cursor:pointer;">${inner}</a>`
+          : `<div class="ledger-row">${inner}</div>`;
+      })
       .join("");
 
     // ---- All-time career standings, aggregated by Sleeper user_id ----

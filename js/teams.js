@@ -54,7 +54,7 @@ function renderFromHash() {
         (m, i) => `
       <a class="leaderboard-row" href="#${encodeURIComponent(m.userId)}">
         <span class="rank">${i + 1}</span>
-        <span class="name">${escapeHtml(m.teamName)}</span>
+        <span class="name">${escapeHtml(m.username || m.teamName)}</span>
         <span class="record">${m.careerWins}-${m.careerLosses}${m.careerTies ? "-" + m.careerTies : ""}</span>
         <span class="rings">${m.championships ? "🏆".repeat(Math.min(m.championships, 5)) : "—"}</span>
       </a>`
@@ -115,7 +115,8 @@ function renderManagerDetail(m) {
     <a class="back-link" href="#">&larr; All teams</a>
     <div class="scoreboard" style="margin-top:16px;">
       <p class="scoreboard-eyebrow">TEAM PROFILE</p>
-      <h1 class="scoreboard-title">${escapeHtml(m.teamName)}</h1>
+      <h1 class="scoreboard-title">${escapeHtml(m.username || m.teamName)}</h1>
+      <p class="scoreboard-sub">${escapeHtml(m.teamName)}</p>
       <div class="scoreboard-ticker">
         <div class="ticker-stat"><span class="label">Career Record</span><span class="value">${m.careerWins}-${m.careerLosses}${m.careerTies ? "-" + m.careerTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Win %</span><span class="value">${winPct}%</span></div>

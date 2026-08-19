@@ -101,11 +101,12 @@ const DeepHistory = {
     const managers = new Map(); // user_id -> career record
     const playerNameOverrides = new Map(); // player_id -> name, filled in from draft metadata
 
-    function getManager(userId, fallbackName) {
+    function getManager(userId, fallbackName, fallbackUsername) {
       if (!managers.has(userId)) {
         managers.set(userId, {
           userId,
           teamName: fallbackName,
+          username: fallbackUsername || null,
           seasons: [],
           careerWins: 0,
           careerLosses: 0,
@@ -121,6 +122,7 @@ const DeepHistory = {
       }
       const m = managers.get(userId);
       m.teamName = fallbackName || m.teamName; // keep most recent team name
+      m.username = fallbackUsername || m.username;
       return m;
     }
 
@@ -154,12 +156,13 @@ const DeepHistory = {
       const season = league.season;
 
       const usersById = new Map(users.map((u) => [u.user_id, u]));
-      const rosterInfo = new Map(); // roster_id -> { userId, teamName }
+      const rosterInfo = new Map(); // roster_id -> { userId, teamName, username }
       rosters.forEach((r) => {
         const user = usersById.get(r.owner_id);
         rosterInfo.set(r.roster_id, {
           userId: r.owner_id,
           teamName: SleeperAPI.teamName(user, r.roster_id),
+          username: user ? user.display_name : null,
         });
       });
 
@@ -171,7 +174,7 @@ const DeepHistory = {
 
       standings.forEach((s, rank) => {
         if (!s.userId) return;
-        const m = getManager(s.userId, s.teamName);
+        const m = getManager(s.userId, s.teamName, s.username);
         const seasonEntry = {
           season,
           rosterId: s.rosterId,
@@ -213,7 +216,7 @@ const DeepHistory = {
           matchups.forEach((m) => {
             const info = rosterInfo.get(m.roster_id);
             if (!info || !info.userId) return;
-            const mgr = getManager(info.userId, info.teamName);
+            const mgr = getManager(info.userId, info.teamName, info.username);
             (m.players || []).forEach((pid) => {
               mgr.playerCounts.set(pid, (mgr.playerCounts.get(pid) || 0) + 1);
             });
@@ -255,7 +258,7 @@ const DeepHistory = {
               { info: bInfo, own: b.points || 0, opp: a.points || 0 },
             ].forEach(({ info, own, opp }) => {
               if (!info.userId) return;
-              const mgr = getManager(info.userId, info.teamName);
+              const mgr = getManager(info.userId, info.teamName, info.username);
               const result = own > opp ? "W" : own < opp ? "L" : "T";
               mgr.gameLog.push({ result, season, week });
             });
@@ -313,14 +316,14 @@ const DeepHistory = {
             (tx.roster_ids || []).forEach((rid) => {
               const info = rosterInfo.get(rid);
               if (!info || !info.userId) return;
-              getManager(info.userId, info.teamName).transactionCounts.trades += 1;
+              getManager(info.userId, info.teamName, info.username).transactionCounts.trades += 1;
             });
           } else if (tx.type === "waiver" || tx.type === "free_agent") {
             const key = tx.type === "waiver" ? "waiver" : "freeAgent";
             Object.values(tx.adds || {}).forEach((rid) => {
               const info = rosterInfo.get(rid);
               if (!info || !info.userId) return;
-              getManager(info.userId, info.teamName).transactionCounts[key] += 1;
+              getManager(info.userId, info.teamName, info.username).transactionCounts[key] += 1;
             });
           }
         });
@@ -383,5 +386,176 @@ const DeepHistory = {
       .sort((a, b) => b.careerWins - a.careerWins || b.careerPF - a.careerPF);
 
     return { managers: managerList, records };
+  },
+
+  /*
+    Same idea as computeStats, but scoped to ONE season — this is what
+    powers the Season page's charts (weekly scoring trend, team averages,
+    scoring by position, that season's extremes and draft standouts).
+  */
+  computeSeasonSummary(seasonEntry, deep, playerDirectory) {
+    const { league, rosters, users, bracket } = seasonEntry;
+    const usersById = new Map(users.map((u) => [u.user_id, u]));
+    const rosterInfo = new Map();
+    rosters.forEach((r) => {
+      const user = usersById.get(r.owner_id);
+      rosterInfo.set(r.roster_id, {
+        userId: r.owner_id,
+        teamName: SleeperAPI.teamName(user, r.roster_id),
+        username: user ? user.display_name : null,
+      });
+    });
+
+    const standings = SleeperAPI.buildStandings(rosters, users);
+    const championRosterId = SleeperAPI.findChampionRosterId(bracket);
+
+    const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+    function normalizedPosition(pid) {
+      const p = playerDirectory && playerDirectory[pid];
+      const pos = p && p.position;
+      return KNOWN_POS.has(pos) ? pos : "OTHER";
+    }
+
+    function pick(current, candidate, better) {
+      return !current || better(candidate, current) ? candidate : current;
+    }
+
+    const weeklyLeagueAvg = [];
+    const teamTotals = new Map(); // rosterId -> {sum, games, teamName, username}
+    const teamPositionTotals = new Map(); // rosterId -> {QB:0, RB:0, ...}
+    const seasonPlayerPoints = new Map(); // player_id -> total points
+
+    let highestWeekScore = null;
+    let lowestWeekScore = null;
+    let biggestBlowout = null;
+    let closestGame = null;
+
+    (deep ? deep.weeks : []).forEach(({ week, matchups }) => {
+      let weekSum = 0;
+      let weekCount = 0;
+
+      matchups.forEach((m) => {
+        const info = rosterInfo.get(m.roster_id);
+        if (!info) return;
+        weekSum += m.points || 0;
+        weekCount += 1;
+
+        const t = teamTotals.get(m.roster_id) || { sum: 0, games: 0, teamName: info.teamName, username: info.username };
+        t.sum += m.points || 0;
+        t.games += 1;
+        teamTotals.set(m.roster_id, t);
+
+        const posTotals = teamPositionTotals.get(m.roster_id) || {};
+        (m.starters || []).forEach((pid) => {
+          if (!pid || pid === "0") return;
+          const pos = normalizedPosition(pid);
+          const pts = (m.players_points && m.players_points[pid]) || 0;
+          posTotals[pos] = (posTotals[pos] || 0) + pts;
+        });
+        teamPositionTotals.set(m.roster_id, posTotals);
+
+        Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+          seasonPlayerPoints.set(pid, (seasonPlayerPoints.get(pid) || 0) + (pts || 0));
+        });
+
+        const entry = { points: m.points || 0, teamName: info.teamName, week };
+        highestWeekScore = pick(highestWeekScore, entry, (a, b) => a.points > b.points);
+        lowestWeekScore = pick(lowestWeekScore, entry, (a, b) => a.points < b.points);
+      });
+
+      if (weekCount > 0) weeklyLeagueAvg.push({ week, avg: weekSum / weekCount });
+
+      const byMatchupId = new Map();
+      matchups.forEach((m) => {
+        if (m.matchup_id == null) return;
+        if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
+        byMatchupId.get(m.matchup_id).push(m);
+      });
+      byMatchupId.forEach((pair) => {
+        if (pair.length < 2) return;
+        const [a, b] = pair;
+        const aInfo = rosterInfo.get(a.roster_id);
+        const bInfo = rosterInfo.get(b.roster_id);
+        if (!aInfo || !bInfo) return;
+        const margin = Math.abs((a.points || 0) - (b.points || 0));
+        const winner = a.points >= b.points ? aInfo.teamName : bInfo.teamName;
+        const loser = a.points >= b.points ? bInfo.teamName : aInfo.teamName;
+        const marginEntry = { margin, winner, loser, week };
+        biggestBlowout = pick(biggestBlowout, marginEntry, (x, y) => x.margin > y.margin);
+        closestGame = pick(closestGame, marginEntry, (x, y) => x.margin < y.margin);
+      });
+    });
+
+    // ---- Draft standouts, this season only ----
+    const playerNameOverrides = new Map();
+    function playerName(pid) {
+      const fromDir = SleeperAPI.playerName(playerDirectory, pid);
+      if (!fromDir.startsWith("Unknown Player")) return fromDir;
+      return playerNameOverrides.get(pid) || fromDir;
+    }
+
+    let bestValuePick = null;
+    let worstValuePick = null;
+    if (deep && deep.draft && deep.draft.picks && deep.draft.picks.length) {
+      const picks = deep.draft.picks;
+      const maxRound = Math.max(...picks.map((p) => p.round || 1));
+      const lateThreshold = Math.max(2, Math.ceil(maxRound * 0.6));
+      const earlyThreshold = Math.max(1, Math.ceil(maxRound * 0.25));
+      picks.forEach((p) => {
+        if (!p.player_id) return;
+        if (p.metadata && (p.metadata.first_name || p.metadata.last_name)) {
+          playerNameOverrides.set(p.player_id, `${p.metadata.first_name || ""} ${p.metadata.last_name || ""}`.trim());
+        }
+        const pts = seasonPlayerPoints.get(p.player_id) || 0;
+        const info = rosterInfo.get(p.roster_id);
+        const entry = { player: playerName(p.player_id), round: p.round, pickNo: p.pick_no, points: pts, teamName: info ? info.teamName : "Unknown" };
+        if (p.round >= lateThreshold) bestValuePick = pick(bestValuePick, entry, (a, b) => a.points > b.points);
+        if (p.round <= earlyThreshold) worstValuePick = pick(worstValuePick, entry, (a, b) => a.points < b.points);
+      });
+    }
+
+    let pointsLeader = null;
+    seasonPlayerPoints.forEach((pts, pid) => {
+      pointsLeader = pick(pointsLeader, { player: playerName(pid), points: pts }, (a, b) => a.points > b.points);
+    });
+
+    const teamAverages = [...teamTotals.entries()]
+      .map(([rosterId, t]) => ({
+        rosterId,
+        teamName: t.teamName,
+        username: t.username,
+        average: t.games ? t.sum / t.games : 0,
+        total: t.sum,
+      }))
+      .sort((a, b) => b.average - a.average);
+
+    const positionRows = [...teamPositionTotals.entries()]
+      .map(([rosterId, segments]) => {
+        const info = rosterInfo.get(rosterId);
+        return { rosterId, label: info ? info.teamName : `Roster ${rosterId}`, segments };
+      })
+      .sort((a, b) => {
+        const totalA = Object.values(a.segments).reduce((s, v) => s + v, 0);
+        const totalB = Object.values(b.segments).reduce((s, v) => s + v, 0);
+        return totalB - totalA;
+      });
+
+    return {
+      season: league.season,
+      status: league.status,
+      standings,
+      championRosterId,
+      weeksPlayed: deep ? deep.weeks.length : 0,
+      weeklyLeagueAvg,
+      teamAverages,
+      positionRows,
+      highestWeekScore,
+      lowestWeekScore,
+      biggestBlowout,
+      closestGame,
+      bestValuePick,
+      worstValuePick,
+      pointsLeader,
+    };
   },
 };

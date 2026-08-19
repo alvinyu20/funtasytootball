@@ -87,33 +87,49 @@ They'll merge into the History page's champions ledger and, if you included
 - `history.html` / `js/history.js` — walks every past season via Sleeper's
   `previous_league_id` chain, builds an all-time champions ledger and career
   win/loss/points records per manager, and merges in `manual-history.json`
-- `teams.html` / `js/teams.js` — a manager leaderboard; click into any team
-  for its season-by-season record, most-rostered players, and full draft
-  history per season
+- `teams.html` / `js/teams.js` — a manager leaderboard (listed by Sleeper
+  username); click into any team for its season-by-season record,
+  most-rostered players, and full draft history per season
+- `season.html` / `js/season.js` — pick any year for a deep dive: final
+  standings, a weekly league-scoring trend line, each team's scoring
+  average, scoring broken down by position per team, that season's
+  highest/lowest scores and closest/most lopsided games, and draft
+  standouts (best steal, biggest bust, points leader)
 - `records.html` / `js/records.js` — league-wide fun stats: highest/lowest
   scores, biggest blowout, closest game, win/lose streaks, best late-round
   steal, biggest draft bust, most trades, most waiver adds, and more
 - `newsletters.html` / `js/newsletters.js` — lists issues from
   `data/newsletters.json`; clicking one opens its full text on the same page
 - `js/sleeper-api.js` — every call to Sleeper's API lives here
-- `js/deep-history.js` — the heavier engine behind Teams and Records: pulls
-  every season's weekly scores, starting lineups, waiver/trade activity, and
-  draft board, then computes all the career and league-wide stats
+- `js/deep-history.js` — the heavier engine behind Teams, Season, and
+  Records: pulls every season's weekly scores, starting lineups,
+  waiver/trade activity, and draft board, then computes career, league-wide,
+  and single-season stats
+- `js/charts.js` — small dependency-free bar/stacked-bar/line chart
+  renderers used on the Season page
 - `css/styles.css` — the whole visual design (edit `:root` at the top to
   retheme colors/fonts)
 
-### About the Teams and Records pages
+Note: the Teams page shows each manager's **Sleeper username**; every other
+page (History, Records, Season, the Home dashboard) shows the **custom team
+name** they've set in Sleeper instead. Say the word if you'd rather make
+that consistent one way or the other everywhere.
 
-These two pull a lot more data than the rest of the site — every week's
-scores and lineups, every trade and waiver claim, and the full draft board,
-for every season. To keep that fast:
+### About the Teams, Season, and Records pages
+
+These pages pull a lot more data than the rest of the site — every week's
+scores and lineups, every trade and waiver claim, and the full draft board.
+To keep that fast:
 
 - **Finished seasons are cached in the visitor's browser** (`localStorage`)
   after the first load, since a completed season's data never changes.
   Repeat visits skip straight to the cache.
 - **The current, in-progress season is always fetched fresh.**
-- The full NFL player directory (~5MB, used to turn player IDs into names)
-  is also cached and only re-fetched once a week.
+- The full NFL player directory (~5MB, used to turn player IDs into names
+  and positions) is also cached and only re-fetched once a week.
+- The Season page only fetches the ONE year you're viewing, so it's fast
+  even on a first visit — Teams and Records need every season at once
+  (for career totals), so those two are the ones with a longer first load.
 
 First-ever visit to Teams or Records may take several seconds for a
 league with many seasons — there's a status line showing progress while
