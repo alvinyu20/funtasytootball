@@ -87,19 +87,53 @@ They'll merge into the History page's champions ledger and, if you included
 - `history.html` / `js/history.js` — walks every past season via Sleeper's
   `previous_league_id` chain, builds an all-time champions ledger and career
   win/loss/points records per manager, and merges in `manual-history.json`
+- `teams.html` / `js/teams.js` — a manager leaderboard; click into any team
+  for its season-by-season record, most-rostered players, and full draft
+  history per season
+- `records.html` / `js/records.js` — league-wide fun stats: highest/lowest
+  scores, biggest blowout, closest game, win/lose streaks, best late-round
+  steal, biggest draft bust, most trades, most waiver adds, and more
 - `newsletters.html` / `js/newsletters.js` — lists issues from
   `data/newsletters.json`; clicking one opens its full text on the same page
 - `js/sleeper-api.js` — every call to Sleeper's API lives here
+- `js/deep-history.js` — the heavier engine behind Teams and Records: pulls
+  every season's weekly scores, starting lineups, waiver/trade activity, and
+  draft board, then computes all the career and league-wide stats
 - `css/styles.css` — the whole visual design (edit `:root` at the top to
   retheme colors/fonts)
+
+### About the Teams and Records pages
+
+These two pull a lot more data than the rest of the site — every week's
+scores and lineups, every trade and waiver claim, and the full draft board,
+for every season. To keep that fast:
+
+- **Finished seasons are cached in the visitor's browser** (`localStorage`)
+  after the first load, since a completed season's data never changes.
+  Repeat visits skip straight to the cache.
+- **The current, in-progress season is always fetched fresh.**
+- The full NFL player directory (~5MB, used to turn player IDs into names)
+  is also cached and only re-fetched once a week.
+
+First-ever visit to Teams or Records may take several seconds for a
+league with many seasons — there's a status line showing progress while
+it works. Every visit after that is fast.
+
+**Draft value stats** (best late-round steal / biggest bust) compare a
+player's total points that season to which round they were drafted in
+*that same season* — not across years, and not against a "true" ADP.
 
 ## Known limitations / ideas for later
 
 - Champion detection relies on Sleeper's playoff bracket data (`p: 1` game).
   Leagues with unusual playoff formats may need a manual override — ask me
   and I'll add one.
-- No per-player box scores yet (just team totals) — happy to add a roster/
-  player-level view if you want it.
+- No week-by-week starting lineup browser yet (e.g. "show me Team X's exact
+  Week 3 2022 lineup") — the site currently uses that data for aggregate
+  stats (most-rostered players) rather than a full lineup viewer. Ask if
+  you want that added.
+- Win/lose streaks are computed across season boundaries (a streak can
+  carry from the end of one season into the start of the next).
 - Newsletters are added by hand today. If you want it hands-off, I can set
   up a GitHub Action that runs weekly, pulls that week's results, and drafts
   a newsletter automatically — just ask.

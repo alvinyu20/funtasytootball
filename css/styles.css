@@ -345,6 +345,121 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 .back-link { font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* ==========================================================================
+   LEADERBOARD (Teams list page)
+   ========================================================================== */
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--turf-line);
+  text-decoration: none;
+  color: inherit;
+}
+.leaderboard-row:last-child { border-bottom: none; }
+.leaderboard-row:hover { background: rgba(255,255,255,0.02); }
+.leaderboard-row .rank { font-family: var(--font-mono); color: var(--gold); }
+.leaderboard-row .name { font-size: 15px; color: var(--chalk); }
+.leaderboard-row .record {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--chalk-dim);
+  white-space: nowrap;
+}
+.leaderboard-row .rings {
+  font-size: 13px;
+  color: var(--gold);
+  white-space: nowrap;
+  min-width: 60px;
+  text-align: right;
+}
+
+/* ==========================================================================
+   PLAYER CHIPS (most-rostered players)
+   ========================================================================== */
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.player-chip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--turf-line);
+  border-radius: 20px;
+  padding: 6px 12px;
+  color: var(--chalk);
+  white-space: nowrap;
+}
+.player-chip .count { color: var(--gold); margin-left: 6px; }
+
+/* ==========================================================================
+   RECORD CARDS (Records page)
+   ========================================================================== */
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.record-card {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.record-card .record-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 10px;
+}
+.record-card .record-value {
+  font-family: var(--font-display);
+  font-size: 30px;
+  color: var(--chalk);
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+.record-card .record-detail {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--chalk-dim);
+  margin-top: 8px;
+}
+
+/* ==========================================================================
+   DRAFT PICKS DISCLOSURE
+   ========================================================================== */
+details.draft-details {
+  margin-top: 8px;
+  border-top: 1px dashed var(--turf-line);
+  padding-top: 8px;
+}
+details.draft-details summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  list-style: none;
+}
+details.draft-details summary::-webkit-details-marker { display: none; }
+details.draft-details summary::before { content: "▸ "; }
+details.draft-details[open] summary::before { content: "▾ "; }
+.draft-pick-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--chalk-dim);
+}
+.draft-pick-row .pick-player { color: var(--chalk); font-family: var(--font-body); }
+.draft-pick-row .pick-points { color: var(--gold); }
+
+/* ==========================================================================
    MISC / UTILITY
    ========================================================================== */
 .empty-state {

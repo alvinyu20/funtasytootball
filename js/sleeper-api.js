@@ -36,6 +36,41 @@ const SleeperAPI = {
   getWinnersBracket: (leagueId) => sleeperGet(`/league/${leagueId}/winners_bracket`),
   getTransactions: (leagueId, week) => sleeperGet(`/league/${leagueId}/transactions/${week}`),
   getNflState: () => sleeperGet(`/state/nfl`),
+  getDrafts: (leagueId) => sleeperGet(`/league/${leagueId}/drafts`),
+  getDraftPicks: (draftId) => sleeperGet(`/draft/${draftId}/picks`),
+
+  /*
+    The full NFL player directory is ~5MB and Sleeper explicitly asks
+    that it not be fetched more than once a day per client, so this is
+    cached in localStorage (not the in-memory _cache, which resets on
+    every page load) with a timestamp. Reused across every page and
+    every visit until it's a week old.
+  */
+  async getPlayerDirectory() {
+    const CACHE_KEY = "sleeper_players_nfl_v1";
+    const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
+    try {
+      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      if (cached && Date.now() - cached.fetchedAt < MAX_AGE_MS) {
+        return cached.players;
+      }
+    } catch (err) {
+      // corrupt cache entry — fall through and refetch
+    }
+    const players = await sleeperGet(`/players/nfl`);
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), players }));
+    } catch (err) {
+      console.warn("Couldn't cache player directory (localStorage full/unavailable):", err);
+    }
+    return players;
+  },
+
+  playerName(playerDirectory, playerId) {
+    const p = playerDirectory && playerDirectory[playerId];
+    if (!p) return playerId === "0" ? "Empty" : `Unknown Player (${playerId})`;
+    return p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || playerId;
+  },
 
   avatarUrl(avatarId, thumb = true) {
     if (!avatarId) return null;
@@ -96,6 +131,14 @@ const SleeperAPI = {
     // Sleeper marks the game that decides 1st place with p: 1.
     const finalGame = bracket.find((g) => g.p === 1);
     if (finalGame && finalGame.w != null) return finalGame.w;
+    return null;
+  },
+
+  // Same idea as findChampionRosterId, but the loser of the championship game.
+  findRunnerUpRosterId(bracket) {
+    if (!Array.isArray(bracket) || bracket.length === 0) return null;
+    const finalGame = bracket.find((g) => g.p === 1);
+    if (finalGame && finalGame.l != null) return finalGame.l;
     return null;
   },
 
