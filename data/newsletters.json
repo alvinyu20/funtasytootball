@@ -1,0 +1,10 @@
+[
+  {
+    "slug": "welcome-issue",
+    "issue": "Issue 00",
+    "title": "Welcome To The Weekly Snap",
+    "date": "2026-08-19",
+    "summary": "This is a starter newsletter so you can see the format — replace or delete it once real recaps start rolling in.",
+    "content": "This is where your league's weekly (or whenever-you-feel-like-it) recap will live.\n\nTo add a new issue: come back and tell me what happened this week — closest game, biggest blowout, best/worst waiver pickup, trash talk worth immortalizing — and I'll draft the write-up. Once you're happy with it, add a new object to the TOP of this array in data/newsletters.json with the same shape as this one (unique slug, issue label, title, date, a one-line summary for the list preview, and the full content), then push it to GitHub.\n\nEach issue gets its own page automatically — nothing else to wire up."
+  }
+]

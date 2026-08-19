@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Newsletters</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="brand" href="index.html">LEAGUE<span>.</span></a>
+    <ul class="nav-links">
+      <li><a class="nav-link" href="index.html">Home</a></li>
+      <li><a class="nav-link" href="history.html">History</a></li>
+      <li><a class="nav-link active" href="newsletters.html">Newsletters</a></li>
+    </ul>
+  </nav>
+
+  <section class="scoreboard">
+    <p class="scoreboard-eyebrow">THE PRESS BOX</p>
+    <h1 class="scoreboard-title">Weekly Snap</h1>
+    <p class="scoreboard-sub">League recaps, awards, and trash talk — issue by issue</p>
+  </section>
+
+  <div class="yard-divider">
+    <span class="tick"></span>
+    <div class="line"></div>
+    <span class="label">Issues</span>
+    <div class="line"></div>
+  </div>
+
+  <main class="wrap">
+    <div id="newsletter-list-view">
+      <div class="loading">Loading issues…</div>
+    </div>
+    <div id="newsletter-detail-view" style="display:none;"></div>
+  </main>
+
+  <footer class="site-footer">
+    New issues get added to data/newsletters.json — just ask for a draft after game day.
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/sleeper-api.js"></script>
+  <script src="js/newsletters.js"></script>
+</body>
+</html>

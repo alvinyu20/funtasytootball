@@ -1,0 +1,16 @@
+{
+  "_instructions": "Fill in one object per pre-Sleeper season and delete this note. 'standings' is optional — include it if you want that year's full table on the History page, or leave it as an empty array if you only know the champion. Delete this whole file's contents down to just { \"seasons\": [] } if you don't need this.",
+
+  "seasons": [
+    {
+      "year": 2014,
+      "champion": "REPLACE_WITH_MANAGER_OR_TEAM_NAME",
+      "runnerUp": "REPLACE_WITH_MANAGER_OR_TEAM_NAME",
+      "notes": "e.g. League's first season, played on ESPN",
+      "standings": [
+        { "team": "REPLACE_WITH_TEAM_NAME", "wins": 10, "losses": 3, "pointsFor": 1450.2 },
+        { "team": "REPLACE_WITH_TEAM_NAME", "wins": 9, "losses": 4, "pointsFor": 1402.8 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>League History</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="brand" href="index.html">LEAGUE<span>.</span></a>
+    <ul class="nav-links">
+      <li><a class="nav-link" href="index.html">Home</a></li>
+      <li><a class="nav-link active" href="history.html">History</a></li>
+      <li><a class="nav-link" href="newsletters.html">Newsletters</a></li>
+    </ul>
+  </nav>
+
+  <section class="scoreboard">
+    <p class="scoreboard-eyebrow" id="sb-eyebrow">ALL-TIME</p>
+    <h1 class="scoreboard-title" id="sb-title">Loading…</h1>
+    <p class="scoreboard-sub" id="sb-sub"></p>
+  </section>
+
+  <div class="wrap">
+    <div id="hist-error" class="error-state" style="display:none;"></div>
+  </div>
+
+  <div class="yard-divider">
+    <span class="tick"></span>
+    <div class="line"></div>
+    <span class="label">Champions By Year</span>
+    <div class="line"></div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel" id="champions-ledger-panel">
+      <div id="champions-ledger">
+        <div class="loading">Loading championship history…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="yard-divider">
+    <span class="tick"></span>
+    <div class="line"></div>
+    <span class="label">Career Records</span>
+    <div class="line"></div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel">
+      <table class="stat-table">
+        <thead>
+          <tr><th>#</th><th>Manager</th><th>Career Record</th><th>Career PF</th><th>🏆</th></tr>
+        </thead>
+        <tbody id="career-body">
+          <tr><td colspan="5" class="loading">Loading career records…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="pre-sleeper-section" style="display:none;">
+    <div class="yard-divider">
+      <span class="tick"></span>
+      <div class="line"></div>
+      <span class="label">Pre-Sleeper Seasons</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <table class="stat-table">
+          <thead>
+            <tr><th>Team</th><th>Record</th><th>PF</th><th>Champ</th></tr>
+          </thead>
+          <tbody id="pre-sleeper-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    Career records are aggregated automatically from every season Sleeper has on file for this league.
+  </footer>
+
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/sleeper-api.js"></script>
+  <script src="js/history.js"></script>
+</body>
+</html>

@@ -1,0 +1,375 @@
+/* ==========================================================================
+   DESIGN TOKENS
+   Palette: night-game turf + stadium-light scoreboard
+   ========================================================================== */
+:root {
+  --turf-dark: #14261C;
+  --turf-mid: #1F3B2C;
+  --turf-line: #2A4A36;
+  --chalk: #EDEAE0;
+  --chalk-dim: #9BAE9F;
+  --gold: #E8B23D;
+  --gold-dim: #B98F30;
+  --rust: #B5502F;
+
+  --font-display: "Anton", "Arial Narrow", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", monospace;
+
+  --radius: 8px;
+  --max-width: 1080px;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--turf-dark);
+  background-image:
+    repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 64px);
+  color: var(--chalk);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--gold); }
+a:focus-visible, button:focus-visible, .nav-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+.wrap {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* ==========================================================================
+   TOP NAV
+   ========================================================================== */
+.site-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--turf-line);
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+.site-nav .brand {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  font-size: 22px;
+  color: var(--chalk);
+  text-decoration: none;
+}
+.site-nav .brand span { color: var(--gold); }
+.nav-links { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
+.nav-link {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--chalk-dim);
+  text-decoration: none;
+  padding-bottom: 4px;
+  border-bottom: 2px solid transparent;
+}
+.nav-link:hover, .nav-link.active {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+/* ==========================================================================
+   SCOREBOARD HERO  (signature element, reused per-page with different content)
+   ========================================================================== */
+.scoreboard {
+  margin: 28px auto 0;
+  max-width: var(--max-width);
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  position: relative;
+  overflow: hidden;
+}
+.scoreboard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(232,178,61,0.06), transparent);
+  pointer-events: none;
+}
+.scoreboard-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 6px;
+}
+.scoreboard-title {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 6vw, 56px);
+  line-height: 1;
+  margin: 0;
+  color: var(--chalk);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+.scoreboard-sub {
+  font-family: var(--font-mono);
+  color: var(--chalk-dim);
+  font-size: 14px;
+  margin-top: 10px;
+}
+.scoreboard-ticker {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--turf-line);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+.ticker-stat .label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  display: block;
+  margin-bottom: 4px;
+}
+.ticker-stat .value {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   YARD-LINE DIVIDER
+   ========================================================================== */
+.yard-divider {
+  max-width: var(--max-width);
+  margin: 36px auto 24px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.yard-divider .tick {
+  width: 2px;
+  height: 10px;
+  background: var(--turf-line);
+}
+.yard-divider .line { flex: 1; height: 1px; background: var(--turf-line); }
+.yard-divider .label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--chalk-dim);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   LAYOUT / SECTIONS
+   ========================================================================== */
+main { padding-bottom: 80px; }
+
+.section-grid {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 20px;
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 24px;
+}
+@media (max-width: 800px) {
+  .section-grid { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+}
+.panel h2 {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 20px;
+  margin: 0 0 16px;
+  color: var(--chalk);
+}
+
+/* ==========================================================================
+   TABLES (standings, box scores)
+   ========================================================================== */
+table.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+table.stat-table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  font-weight: 400;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--turf-line);
+}
+table.stat-table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--chalk);
+  font-variant-numeric: tabular-nums;
+}
+table.stat-table tr:last-child td { border-bottom: none; }
+table.stat-table td.rank {
+  color: var(--gold);
+  width: 28px;
+}
+table.stat-table td.team-cell {
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
+
+/* ==========================================================================
+   MATCHUP CARDS
+   ========================================================================== */
+.matchup-list { display: flex; flex-direction: column; gap: 10px; }
+.matchup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--turf-line);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.matchup .side { display: flex; flex-direction: column; gap: 2px; width: 42%; }
+.matchup .side.right { text-align: right; align-items: flex-end; }
+.matchup .name { font-family: var(--font-body); font-size: 13px; color: var(--chalk); }
+.matchup .pts { font-size: 16px; color: var(--gold); }
+.matchup .pts.lead { color: var(--gold); }
+.matchup .pts.trail { color: var(--chalk-dim); }
+.matchup .vs { font-size: 11px; color: var(--chalk-dim); letter-spacing: 0.1em; }
+
+/* ==========================================================================
+   TROPHY CASE / CHAMPIONS LEDGER (history page)
+   ========================================================================== */
+.ledger-row {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--turf-line);
+}
+.ledger-row:last-child { border-bottom: none; }
+.ledger-row .year {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--gold);
+}
+.ledger-row .champ-name { font-size: 15px; color: var(--chalk); }
+.ledger-row .champ-sub { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); margin-top: 2px; }
+.ledger-row .badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  border: 1px solid var(--gold-dim);
+  border-radius: 20px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   NEWSLETTER CARDS
+   ========================================================================== */
+.newsletter-card {
+  display: block;
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.newsletter-card:hover { border-color: var(--gold-dim); }
+.newsletter-card .issue {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.newsletter-card h3 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+  color: var(--chalk);
+}
+.newsletter-card p { color: var(--chalk-dim); margin: 0; font-size: 14px; }
+.newsletter-body {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  max-width: var(--max-width);
+  margin: 0 auto;
+}
+.newsletter-body h1 { font-family: var(--font-display); text-transform: uppercase; font-size: 32px; }
+.newsletter-body .content { white-space: pre-wrap; line-height: 1.7; }
+.back-link { font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ==========================================================================
+   MISC / UTILITY
+   ========================================================================== */
+.empty-state {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--chalk-dim);
+  padding: 24px 8px;
+}
+.loading { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); padding: 24px 8px; }
+.error-state {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--rust);
+  padding: 16px;
+  border: 1px solid var(--rust);
+  border-radius: var(--radius);
+  margin: 20px;
+}
+.site-footer {
+  max-width: var(--max-width);
+  margin: 40px auto 0;
+  padding: 20px 20px 40px;
+  border-top: 1px solid var(--turf-line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--chalk-dim);
+  letter-spacing: 0.04em;
+}
