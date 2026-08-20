@@ -53,6 +53,24 @@ const NEWSLETTERS_FILE = "data/newsletters.json";
 const SEASON_AWARDS_FILE = "data/season-awards.json";
 
 /*
+  TEAM_STRENGTH_FILE
+  --------------------
+  Path to manually-entered "Rest of Season" team strength rankings, pulled
+  from FantasyPros' League Analyzer (My Playbook) — see
+  data/team-strength.json for the format. Update it any time you check
+  FantasyPros; the Home page shows whatever's in there.
+*/
+const TEAM_STRENGTH_FILE = "data/team-strength.json";
+
+/*
+  POWER_RANK_HISTORY_FILE
+  --------------------
+  Weekly Power Rank snapshots, used to show week-over-week movement on
+  the Power Rankings page — see data/power-rank-history.json.
+*/
+const POWER_RANK_HISTORY_FILE = "data/power-rank-history.json";
+
+/*
   LAST_FANTASY_WEEK
   ------------------
   The last NFL week that actually counts for this league's fantasy season.

@@ -78,9 +78,10 @@ const DeepHistory = {
     const { league } = seasonEntry;
     const leagueId = league.league_id;
     const isComplete = league.status === "complete";
-    // v2: bumped from v1 because earlier cached data could include week 18,
-    // which LAST_FANTASY_WEEK now excludes — this forces a clean refetch.
-    const cacheKey = `deep_season_v2_${leagueId}`;
+    // v3: bumped from v2 to split out scheduleWeeks (see below) and to
+    // make sure "played weeks" is judged by actual scoring, not just
+    // whether the API returned a non-empty array.
+    const cacheKey = `deep_season_v3_${leagueId}`;
 
     if (isComplete) {
       try {
@@ -96,9 +97,15 @@ const DeepHistory = {
 
     onProgress && onProgress(league.season, "fetching");
 
-    // Walk weeks 1..LAST_FANTASY_WEEK until we hit a week with no data —
-    // that's the reliable signal we've run past the end of that season.
-    const weeksRaw = [];
+    // Walk weeks 1..LAST_FANTASY_WEEK until we hit a week with no data at
+    // all. Sleeper generates the whole season's matchup pairings upfront,
+    // so this array is often non-empty for future weeks too — it just has
+    // no score yet. We keep everything fetched as `scheduleWeeks` (needed
+    // for the Monte Carlo playoff simulator's remaining schedule), and
+    // separately filter down to `weeks` — weeks where a game has actually
+    // been played — since that's what every other stat on the site should
+    // be built from.
+    const scheduleWeeksRaw = [];
     for (let week = 1; week <= LAST_FANTASY_WEEK; week++) {
       let matchups;
       try {
@@ -107,13 +114,15 @@ const DeepHistory = {
         break;
       }
       if (!matchups || matchups.length === 0) break;
-      weeksRaw.push({ week, matchups });
+      scheduleWeeksRaw.push({ week, matchups });
     }
+    const weeksRaw = scheduleWeeksRaw.filter(({ matchups }) => matchups.some((m) => (m.points || 0) > 0));
 
-    // Transactions, one call per week we found data for. Limited
-    // concurrency so we're not firing 15+ requests at once.
+    // Transactions, one call per week we found ANY data for (so this
+    // still includes the current in-progress week). Limited concurrency
+    // so we're not firing 15+ requests at once.
     const txPerWeek = await mapWithConcurrency(
-      weeksRaw.map((w) => w.week),
+      scheduleWeeksRaw.map((w) => w.week),
       4,
       (week) => SleeperAPI.getTransactions(leagueId, week).catch(() => [])
     );
@@ -131,7 +140,7 @@ const DeepHistory = {
       draft = null;
     }
 
-    const result = { leagueId, season: league.season, weeks: weeksRaw, transactions, draft };
+    const result = { leagueId, season: league.season, weeks: weeksRaw, scheduleWeeks: scheduleWeeksRaw, transactions, draft };
 
     if (isComplete) {
       try {
@@ -1532,6 +1541,299 @@ const DeepHistory = {
       worstValuePick,
       pointsLeader,
       bracket: null,
+    };
+  },
+
+  // Mimics scipy.stats.rankdata's default "average" tie-breaking: tied
+  // values share the average of the ranks they'd occupy. `ascending`
+  // controls whether the smallest or largest value gets rank 1.
+  rankData(values, ascending = true) {
+    const n = values.length;
+    const order = values.map((v, i) => i).sort((a, b) => (ascending ? values[a] - values[b] : values[b] - values[a]));
+    const ranks = new Array(n);
+    let i = 0;
+    while (i < n) {
+      let j = i;
+      while (j + 1 < n && values[order[j + 1]] === values[order[i]]) j++;
+      const avgRank = (i + 1 + (j + 1)) / 2;
+      for (let k = i; k <= j; k++) ranks[order[k]] = avgRank;
+      i = j + 1;
+    }
+    return ranks;
+  },
+
+  /*
+    Boom/bust counts per roster: how many times a starter cleared the
+    "boom" threshold for their position that week, or fell below the
+    "bust" threshold, across every played week. Thresholds are the same
+    regardless of which literal slot a player started in (dedicated,
+    flex, or superflex) — only their real-world position matters.
+  */
+  computeBoomBust(rosterInfo, deepWeeks, playerDirectory) {
+    const BOOM = { QB: 25, RB: 20, WR: 20, TE: 20, K: 15, DEF: 15 };
+    const BUST = { QB: 10, RB: 5, WR: 5, TE: 5, K: 4, DEF: 4 };
+    const KNOWN_POS = new Set(Object.keys(BOOM));
+    function nativePosition(pid) {
+      const p = playerDirectory && playerDirectory[pid];
+      return p && KNOWN_POS.has(p.position) ? p.position : null;
+    }
+    const counts = new Map(); // rosterId -> {boom, bust}
+    (deepWeeks || []).forEach(({ matchups }) => {
+      matchups.forEach((m) => {
+        if (!rosterInfo.has(m.roster_id)) return;
+        const rec = counts.get(m.roster_id) || { boom: 0, bust: 0 };
+        const pointsMap = m.players_points || {};
+        (m.starters || []).forEach((pid) => {
+          if (!pid || pid === "0") return;
+          const pos = nativePosition(pid);
+          if (!pos) return;
+          const pts = pointsMap[pid] || 0;
+          if (pts > BOOM[pos]) rec.boom += 1;
+          else if (pts < BUST[pos]) rec.bust += 1;
+        });
+        counts.set(m.roster_id, rec);
+      });
+    });
+    return counts;
+  },
+
+  /*
+    Monte Carlo playoff-odds simulation. For each of `iterations` random
+    "seasons," every team's rest-of-season scoring is sampled around a
+    simulated skill level derived from their FantasyPros ROS power score
+    (falls back to the field's average score, or a neutral default, for
+    any team without one yet), remaining games are played out according
+    to the real schedule, and the final standings are tallied (ties
+    broken by points-for, same as Sleeper itself). Returns, for each
+    roster_id, the probability (%) of finishing in each possible final
+    rank — works for any number of teams.
+  */
+  simulatePlayoffOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations) {
+    const n = rosterIds.length;
+    const knownPts = rosterIds.map((id) => rosPtByRoster.get(id)).filter((v) => v != null);
+    const fallbackPt = knownPts.length ? knownPts.reduce((a, b) => a + b, 0) / knownPts.length : 70;
+
+    const finishCounts = new Map();
+    rosterIds.forEach((id) => finishCounts.set(id, new Array(n).fill(0)));
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const teamMean = new Map();
+      rosterIds.forEach((id) => {
+        const pt = rosPtByRoster.has(id) ? rosPtByRoster.get(id) : fallbackPt;
+        teamMean.set(id, gaussianRandom(pt / 2 + 30, 5));
+      });
+
+      const wins = new Map();
+      const losses = new Map();
+      const ties = new Map();
+      const pf = new Map();
+      rosterIds.forEach((id) => {
+        const rec = currentRecordByRoster.get(id) || { wins: 0, losses: 0, ties: 0, pf: 0 };
+        wins.set(id, rec.wins);
+        losses.set(id, rec.losses);
+        ties.set(id, rec.ties || 0);
+        pf.set(id, rec.pf);
+      });
+
+      remainingWeeks.forEach((pairs) => {
+        pairs.forEach(([a, b]) => {
+          const scoreA = gaussianRandom(teamMean.get(a), 20);
+          const scoreB = gaussianRandom(teamMean.get(b), 20);
+          pf.set(a, pf.get(a) + scoreA);
+          pf.set(b, pf.get(b) + scoreB);
+          if (scoreA > scoreB) {
+            wins.set(a, wins.get(a) + 1);
+            losses.set(b, losses.get(b) + 1);
+          } else if (scoreB > scoreA) {
+            wins.set(b, wins.get(b) + 1);
+            losses.set(a, losses.get(a) + 1);
+          } else {
+            ties.set(a, ties.get(a) + 1);
+            ties.set(b, ties.get(b) + 1);
+          }
+        });
+      });
+
+      const ranked = [...rosterIds].sort((x, y) => {
+        const gx = wins.get(x) + losses.get(x) + ties.get(x);
+        const gy = wins.get(y) + losses.get(y) + ties.get(y);
+        const pctX = gx ? wins.get(x) / gx : 0;
+        const pctY = gy ? wins.get(y) / gy : 0;
+        if (pctY !== pctX) return pctY - pctX;
+        return pf.get(y) - pf.get(x);
+      });
+      ranked.forEach((id, idx) => {
+        finishCounts.get(id)[idx] += 1;
+      });
+    }
+
+    const result = new Map();
+    rosterIds.forEach((id) => result.set(id, finishCounts.get(id).map((c) => (c / iterations) * 100)));
+    return result;
+  },
+
+  /*
+    Builds the full Power Rankings table for the current season: actual
+    record, all-play "Overall" record, scoring average/std-dev, boom/bust
+    counts, ROS rank (from team-strength.json), and simulated playoff/bye
+    odds — combined into one composite "PR Score" (a weighted average of
+    ranks, lower is better) that determines each team's Power Rank.
+    Works for any number of teams (not hardcoded to any one league size).
+  */
+  computePowerRankings(seasonEntry, deep, playerDirectory, teamStrengthTeams, iterations = 1000) {
+    const { league, rosters, users } = seasonEntry;
+    const usersById = new Map(users.map((u) => [u.user_id, u]));
+    const rosterInfo = new Map();
+    rosters.forEach((r) => {
+      const user = usersById.get(r.owner_id);
+      rosterInfo.set(r.roster_id, {
+        userId: r.owner_id,
+        teamName: user ? user.display_name || SleeperAPI.teamName(user, r.roster_id) : SleeperAPI.teamName(user, r.roster_id),
+        username: user ? user.display_name : null,
+      });
+    });
+
+    const standings = SleeperAPI.buildStandings(rosters, users);
+    const rosterIds = standings.map((s) => s.rosterId);
+    const weeksPlayed = deep ? deep.weeks.length : 0;
+
+    const playoffStart = league.settings && league.settings.playoff_week_start;
+    const overallByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : [], playoffStart);
+    const boomBustByRoster = DeepHistory.computeBoomBust(rosterInfo, deep ? deep.weeks : [], playerDirectory);
+
+    // ROS rank/pt, keyed to roster via Sleeper username.
+    const rosRankByRoster = new Map();
+    const rosPtByRoster = new Map();
+    standings.forEach((s) => {
+      const entry = s.username && teamStrengthTeams ? teamStrengthTeams[s.username] : null;
+      if (entry && entry.rank != null) rosRankByRoster.set(s.rosterId, entry.rank);
+      if (entry && entry.pt != null) rosPtByRoster.set(s.rosterId, entry.pt);
+    });
+    const knownRanks = [...rosRankByRoster.values()];
+    const fallbackRank = knownRanks.length ? (Math.min(...knownRanks) + Math.max(...knownRanks)) / 2 : (rosterIds.length + 1) / 2;
+
+    // Remaining schedule, from weeks that were fetched but haven't been
+    // played yet (see fetchSeasonDeep's scheduleWeeks).
+    const playedWeekNumbers = new Set((deep ? deep.weeks : []).map((w) => w.week));
+    const scheduleSource = deep && deep.scheduleWeeks ? deep.scheduleWeeks : [];
+    const remainingWeeks = scheduleSource
+      .filter((w) => !playedWeekNumbers.has(w.week) && (playoffStart == null || w.week < playoffStart))
+      .map(({ matchups }) => {
+        const byMatchupId = new Map();
+        matchups.forEach((m) => {
+          if (m.matchup_id == null) return;
+          if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
+          byMatchupId.get(m.matchup_id).push(m.roster_id);
+        });
+        return [...byMatchupId.values()].filter((pair) => pair.length === 2);
+      });
+
+    const currentRecordByRoster = new Map();
+    standings.forEach((s) => {
+      currentRecordByRoster.set(s.rosterId, { wins: s.wins, losses: s.losses, ties: s.ties, pf: s.fpts });
+    });
+
+    const playoffOddsByRoster = DeepHistory.simulatePlayoffOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations);
+
+    // How many teams make the playoffs / get a first-round bye, read
+    // straight from the league's own settings — not hardcoded to any one
+    // league size. Sleeper's bracket only comes in 4/6/8-team sizes.
+    const playoffTeams = (league.settings && league.settings.playoff_teams) || Math.min(6, rosterIds.length);
+    const byeTeams = playoffTeams === 6 ? 2 : 0;
+
+    const rows = standings.map((s) => {
+      const overall = overallByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
+      const bb = boomBustByRoster.get(s.rosterId) || { boom: 0, bust: 0 };
+      const dist = playoffOddsByRoster.get(s.rosterId) || [];
+      const playoffPct = dist.slice(0, playoffTeams).reduce((a, b) => a + b, 0);
+      const byePct = byeTeams ? dist.slice(0, byeTeams).reduce((a, b) => a + b, 0) : null;
+      const avgPpg = weeksPlayed ? s.fpts / weeksPlayed : 0;
+
+      return {
+        rosterId: s.rosterId,
+        userId: s.userId,
+        teamName: s.username || s.teamName,
+        wins: s.wins,
+        losses: s.losses,
+        ties: s.ties,
+        record: `${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}`,
+        overallWins: overall.wins,
+        overallRecord: `${overall.wins}-${overall.losses}${overall.ties ? "-" + overall.ties : ""}`,
+        avgPpg,
+        playoffPct,
+        byePct,
+        rosRank: rosRankByRoster.has(s.rosterId) ? rosRankByRoster.get(s.rosterId) : null,
+        boom: bb.boom,
+        bust: bb.bust,
+        finishDistribution: dist,
+      };
+    });
+
+    // Std dev of weekly points (population formula — divide by N).
+    const weeklyByRoster = new Map(rosterIds.map((id) => [id, []]));
+    (deep ? deep.weeks : []).forEach(({ matchups }) => {
+      matchups.forEach((m) => {
+        if (weeklyByRoster.has(m.roster_id)) weeklyByRoster.get(m.roster_id).push(m.points || 0);
+      });
+    });
+    rows.forEach((row) => {
+      const pts = weeklyByRoster.get(row.rosterId) || [];
+      if (!pts.length) {
+        row.stdDev = 0;
+        return;
+      }
+      const mean = pts.reduce((a, b) => a + b, 0) / pts.length;
+      row.stdDev = Math.sqrt(pts.reduce((a, b) => a + (b - mean) ** 2, 0) / pts.length);
+    });
+
+    // Composite PR Score: a weighted average of ranks (1 = best in every
+    // term), so a lower PR Score always means a stronger team overall.
+    const recordRank = DeepHistory.rankData(rows.map((r) => r.wins), false);
+    const overallRank = DeepHistory.rankData(rows.map((r) => r.overallWins), false);
+    const ppgRank = DeepHistory.rankData(rows.map((r) => r.avgPpg), false);
+    const playoffOddsRank = DeepHistory.rankData(rows.map((r) => r.playoffPct), false);
+    const rosRankValues = rows.map((r) => (r.rosRank != null ? r.rosRank : fallbackRank));
+
+    const WEIGHTS = { record: 4, overall: 4, ppg: 5, playoffOdds: 3, ros: 4 };
+    const weightSum = WEIGHTS.record + WEIGHTS.overall + WEIGHTS.ppg + WEIGHTS.playoffOdds + WEIGHTS.ros;
+
+    rows.forEach((row, i) => {
+      row.prScore =
+        (recordRank[i] * WEIGHTS.record +
+          overallRank[i] * WEIGHTS.overall +
+          ppgRank[i] * WEIGHTS.ppg +
+          playoffOddsRank[i] * WEIGHTS.playoffOdds +
+          rosRankValues[i] * WEIGHTS.ros) /
+        weightSum;
+    });
+
+    const powerRank = DeepHistory.rankData(rows.map((r) => r.prScore), true); // lower score = better = rank 1
+    rows.forEach((row, i) => {
+      row.powerRank = powerRank[i];
+    });
+
+    // "Luck Rank" (1 = luckiest): teams whose actual win% is running well
+    // ahead of their all-play win% get the lowest (best/luckiest) rank.
+    const luckDiff = rows.map((r) => {
+      const games = r.wins + r.losses + r.ties;
+      const overallGames = r.overallWins + (overallByRoster.get(r.rosterId) ? overallByRoster.get(r.rosterId).losses + overallByRoster.get(r.rosterId).ties : 0);
+      const actualPct = games ? r.wins / games : 0;
+      const overallPct = overallGames ? r.overallWins / overallGames : 0;
+      return overallPct - actualPct;
+    });
+    const luckRank = DeepHistory.rankData(luckDiff, true);
+    rows.forEach((row, i) => {
+      row.luckRank = luckRank[i];
+    });
+
+    rows.sort((a, b) => a.powerRank - b.powerRank);
+
+    return {
+      season: league.season,
+      week: weeksPlayed,
+      playoffTeams,
+      byeTeams,
+      rows,
     };
   },
 };

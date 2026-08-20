@@ -2,11 +2,12 @@ async function renderDashboard() {
   const errorBox = document.getElementById("dash-error");
 
   try {
-    const [league, rosters, users, nflState] = await Promise.all([
+    const [league, rosters, users, nflState, teamStrength] = await Promise.all([
       SleeperAPI.getLeague(LEAGUE_ID),
       SleeperAPI.getRosters(LEAGUE_ID),
       SleeperAPI.getUsers(LEAGUE_ID),
       SleeperAPI.getNflState(),
+      fetchJsonSafe(TEAM_STRENGTH_FILE, { teams: {} }),
     ]);
 
     if (!league || league.detail === "not found") {
@@ -35,18 +36,26 @@ async function renderDashboard() {
 
     // ---- Standings ----
     const standings = SleeperAPI.buildStandings(rosters, users);
+    const strengthByUsername = (teamStrength && teamStrength.teams) || {};
     const tbody = document.getElementById("standings-body");
     tbody.innerHTML = standings
-      .map(
-        (t, i) => `
+      .map((t, i) => {
+        const strength = t.username && strengthByUsername[t.username];
+        return `
       <tr>
         <td class="rank">${i + 1}</td>
         <td class="team-cell">${escapeHtml(t.teamName)}</td>
         <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
         <td>${t.fpts.toFixed(1)}</td>
-      </tr>`
-      )
+        <td>${strength ? "#" + strength.rank : "—"}</td>
+      </tr>`;
+      })
       .join("");
+
+    const rosNoteEl = document.getElementById("ros-note");
+    if (rosNoteEl) {
+      rosNoteEl.textContent = teamStrength && teamStrength.asOf ? `ROS strength as of ${teamStrength.asOf}, via FantasyPros` : "";
+    }
 
     // ---- This week's matchups + ticker stats ----
     const matchupsEl = document.getElementById("matchups-list");

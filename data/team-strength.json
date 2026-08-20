@@ -1,0 +1,9 @@
+{
+  "_instructions": "Rest-of-Season (ROS) team strength, pulled from FantasyPros' League Analyzer (My Playbook) whenever you check it — FantasyPros' expert consensus rankings aren't available live on this site, so this gets updated by hand. To update: open your league in FantasyPros' League Analyzer, note each team's RANK (1 = strongest roster for the rest of the season) and their power SCORE/grade (the numeric value, usually 0-100), and edit the 'teams' object below using the SLEEPER USERNAME as the key (not the team name). Update 'asOf' to today's date so the site can show how fresh the numbers are. Both 'rank' and 'pt' are used — 'rank' feeds directly into the Power Rankings score, and 'pt' feeds the Monte Carlo playoff-odds simulation (it generates a realistic range of simulated weekly scores for each team). Delete a team's entry (or leave it out) if a team hasn't been ranked yet — e.g. before the draft, when there are no rosters to rank.",
+
+  "asOf": "",
+
+  "teams": {
+    "REPLACE_WITH_SLEEPER_USERNAME": { "rank": 1, "pt": 90 }
+  }
+}

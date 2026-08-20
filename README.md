@@ -250,6 +250,57 @@ add them to the file's `winnerName`→`username` mapping if you want that
 fixed. To add a new year, open the file and add a new entry under
 `seasons` following the same shape.
 
+**Rest-of-Season team strength** on the Home page's standings table
+(the "ROS" column) is manually entered in `data/team-strength.json`,
+since FantasyPros doesn't have a free, live API suitable for an ongoing
+site like this one. Whenever you check FantasyPros' League Analyzer,
+open that file (right on GitHub, no need to touch anything else) and
+update each team's rank under their Sleeper username, plus the `asOf`
+date. Teams with no entry just show "—" — exactly what you'll see before
+the draft, when there's nothing to rank yet.
+
+## Power Rankings
+
+`power-rankings.html` / `js/power-rankings.js` — a weekly composite
+ranking ported from your Python/Colab script, generalized to work with
+any number of teams (not just 10). It combines, into one weighted "PR
+Score" (lower is better): actual record, all-play "Overall" record,
+scoring average, simulated playoff odds, and ROS rank — same weights as
+your script (4/4/5/3/4). Also included: Luck Rank, scoring std-dev,
+boom/bust counts, and a full Monte Carlo playoff-odds breakdown (1,000
+simulated seasons, using your ROS power score to seed each team's
+simulated scoring range) showing the probability of finishing in every
+possible final position, not just make/miss playoffs.
+
+**`data/team-strength.json`** now stores a `pt` (power score, ~0-100)
+alongside `rank` for each team — the Monte Carlo sim needs it as a
+FantasyPros League Analyzer shows both.
+
+**`data/power-rank-history.json`** tracks weekly snapshots so the page
+can show week-over-week movement (the Δ column). There's no backend to
+auto-save this the way your Colab script wrote to a CSV, so the page
+prints a ready-to-paste JSON snippet each week — add it to the file (or
+ask Claude to) and next week's Δ will populate.
+
+A few things I changed while porting, worth knowing about:
+- **`current_week` is no longer manual input** — the site figures out how
+  many weeks have actually been played by checking for real scores, so
+  there's nothing to update by hand each week.
+- **Boom/bust and the position-scoring pieces reuse this site's existing
+  (more careful) lineup-slot logic** rather than the original script's
+  hardcoded slot indices — notably, SUPERFLEX is only treated as a second
+  QB when it's actually a QB that week, not assumed by position.
+- **Playoff/bye team counts come from your league's own settings**
+  (`playoff_teams`), not hardcoded to 6/2 — this is what makes it work
+  whether you're at 10 teams or 12.
+- While in here, I also fixed a subtle data issue that affects every page
+  on the site: Sleeper generates each season's full schedule upfront, so
+  the matchups endpoint isn't empty for future weeks — it just has no
+  score yet. The site now explicitly checks for real scores to tell
+  "played" from "scheduled," which is what makes the Monte Carlo sim's
+  remaining schedule possible, and doubles as a safety fix for every
+  other weekly stat on the site.
+
 **Overall Record and Luck**, shown on the Season page's Final Standings
 and on each manager's Season By Season table on Teams: "Overall" is the
 record a team would have if they'd played every other team every week

@@ -60,3 +60,12 @@ function luckBadge(pct) {
   const text = pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
   return `<span class="${cls}">${text}</span>`;
 }
+
+// Box-Muller transform — draws one sample from a normal distribution.
+// Used by the Monte Carlo playoff-odds simulator.
+function gaussianRandom(mean = 0, stdev = 1) {
+  const u = 1 - Math.random(); // (0,1]
+  const v = Math.random();
+  const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return z * stdev + mean;
+}
