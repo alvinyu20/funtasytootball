@@ -120,6 +120,43 @@ function recordCard(label, value, detail) {
     </div>`;
 }
 
+function lineupRows(lineup) {
+  return lineup
+    .map(
+      (p) => `
+      <div class="draft-pick-row">
+        <span>${escapeHtml(p.slot)}</span>
+        <span class="pick-player">${escapeHtml(p.player)}</span>
+        <span class="pick-points">${p.points.toFixed(1)}</span>
+      </div>`
+    )
+    .join("");
+}
+
+function lineupSectionsHtml(sections) {
+  return sections
+    .filter((s) => s.lineup && s.lineup.length)
+    .map((s) => `<div class="bracket-lineup-team-name">${escapeHtml(s.teamName)}</div>${lineupRows(s.lineup)}`)
+    .join("");
+}
+
+// Same as recordCard, but expandable to reveal one team's starting lineup
+// for that week. Falls back to a plain (non-expandable) card if there's
+// no lineup data to show.
+function expandableRecordCard(label, value, detail, lineupSections) {
+  const hasLineup = lineupSections.some((s) => s.lineup && s.lineup.length);
+  if (!hasLineup) return recordCard(label, value, detail);
+  return `
+    <details class="record-card record-card-expandable">
+      <summary>
+        <span class="record-label">${escapeHtml(label)}</span>
+        <span class="record-value">${value}</span>
+        ${detail ? `<span class="record-detail">${detail}</span>` : ""}
+      </summary>
+      <div class="bracket-lineup-section">${lineupSectionsHtml(lineupSections)}</div>
+    </details>`;
+}
+
 function renderPositionTable(positionTable) {
   if (!positionTable.columns.length || !positionTable.rows.length) {
     return `<div class="empty-state">No lineup data available for this season.</div>`;
@@ -159,17 +196,26 @@ function renderPositionTable(positionTable) {
     <p class="heatmap-note">Each column is colored independently — gold is that column's best, rust is its worst.</p>`;
 }
 
-function renderRankList(items, describe) {
+function renderRankList(items, describe, getLineupSections) {
   if (!items.length) return `<div class="empty-state">Not enough games played yet.</div>`;
   return `<div class="rank-list">${items
     .map((item, i) => {
       const d = describe(item);
-      return `
-    <div class="rank-list-row">
+      const summary = `
       <span class="rank-num">${i + 1}</span>
       <span class="desc">${d.main}<span class="sub">${d.sub}</span></span>
-      <span class="val">${d.value}</span>
-    </div>`;
+      <span class="val">${d.value}</span>`;
+
+      const sections = getLineupSections ? getLineupSections(item) : null;
+      const hasLineup = sections && sections.some((s) => s.lineup && s.lineup.length);
+      if (!hasLineup) {
+        return `<div class="rank-list-row">${summary}</div>`;
+      }
+      return `
+      <details class="rank-list-item">
+        <summary class="rank-list-row">${summary}</summary>
+        <div class="bracket-lineup-section">${lineupSectionsHtml(sections)}</div>
+      </details>`;
     })
     .join("")}</div>`;
 }
@@ -177,21 +223,6 @@ function renderRankList(items, describe) {
 function renderBracket(bracketData) {
   if (!bracketData || !bracketData.rounds.length) {
     return `<div class="empty-state">No bracket yet — check back once the playoffs start.</div>`;
-  }
-
-  function lineupBlock(team) {
-    if (!team.lineup.length) return "";
-    const rows = team.lineup
-      .map(
-        (p) => `
-      <div class="draft-pick-row">
-        <span>${escapeHtml(p.slot)}</span>
-        <span class="pick-player">${escapeHtml(p.player)}</span>
-        <span class="pick-points">${p.points.toFixed(1)}</span>
-      </div>`
-      )
-      .join("");
-    return `<div class="bracket-lineup-team-name">${escapeHtml(team.name)}</div>${rows}`;
   }
 
   const columns = bracketData.rounds
@@ -206,7 +237,10 @@ function renderBracket(bracketData) {
           </span>`;
           const hasLineups = g.team1.lineup.length || g.team2.lineup.length;
           const lineupSection = hasLineups
-            ? `<div class="bracket-lineup-section">${lineupBlock(g.team1)}${lineupBlock(g.team2)}</div>`
+            ? `<div class="bracket-lineup-section">${lineupSectionsHtml([
+                { teamName: g.team1.name, lineup: g.team1.lineup },
+                { teamName: g.team2.name, lineup: g.team2.lineup },
+              ])}</div>`
             : "";
           return `
           <details class="bracket-game${g.isChampionship ? " championship" : ""}">
@@ -273,22 +307,46 @@ function renderSummary(s) {
   const positionTableHtml = renderPositionTable(s.positionTable);
 
   const extremeCards = [
-    s.highestWeekScore && recordCard("Highest Score", s.highestWeekScore.points.toFixed(1), `${escapeHtml(s.highestWeekScore.teamName)} · Week ${s.highestWeekScore.week}${yearTag(s.highestWeekScore)}`),
-    s.lowestWeekScore && recordCard("Lowest Score", s.lowestWeekScore.points.toFixed(1), `${escapeHtml(s.lowestWeekScore.teamName)} · Week ${s.lowestWeekScore.week}${yearTag(s.lowestWeekScore)}`),
+    s.highestWeekScore &&
+      expandableRecordCard(
+        "Highest Score",
+        s.highestWeekScore.points.toFixed(1),
+        `${escapeHtml(s.highestWeekScore.teamName)} · Week ${s.highestWeekScore.week}${yearTag(s.highestWeekScore)}`,
+        [{ teamName: s.highestWeekScore.teamName, lineup: s.highestWeekScore.lineup }]
+      ),
+    s.lowestWeekScore &&
+      expandableRecordCard(
+        "Lowest Score",
+        s.lowestWeekScore.points.toFixed(1),
+        `${escapeHtml(s.lowestWeekScore.teamName)} · Week ${s.lowestWeekScore.week}${yearTag(s.lowestWeekScore)}`,
+        [{ teamName: s.lowestWeekScore.teamName, lineup: s.lowestWeekScore.lineup }]
+      ),
   ]
     .filter(Boolean)
     .join("");
 
-  const closestListHtml = renderRankList(s.top5Closest, (m) => ({
-    main: `${escapeHtml(m.winner)} def. ${escapeHtml(m.loser)}`,
-    sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
-    value: `${m.margin.toFixed(1)} pt`,
-  }));
-  const blowoutListHtml = renderRankList(s.top5Blowouts, (m) => ({
-    main: `${escapeHtml(m.winner)} over ${escapeHtml(m.loser)}`,
-    sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
-    value: `${m.margin.toFixed(1)} pt`,
-  }));
+  const matchupLineupSections = (m) => [
+    { teamName: m.winner, lineup: m.winnerLineup },
+    { teamName: m.loser, lineup: m.loserLineup },
+  ];
+  const closestListHtml = renderRankList(
+    s.top5Closest,
+    (m) => ({
+      main: `${escapeHtml(m.winner)} def. ${escapeHtml(m.loser)}`,
+      sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
+      value: `${m.margin.toFixed(1)} pt`,
+    }),
+    matchupLineupSections
+  );
+  const blowoutListHtml = renderRankList(
+    s.top5Blowouts,
+    (m) => ({
+      main: `${escapeHtml(m.winner)} over ${escapeHtml(m.loser)}`,
+      sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
+      value: `${m.margin.toFixed(1)} pt`,
+    }),
+    matchupLineupSections
+  );
 
   const luckiestListHtml = isTotal
     ? renderRankList(s.top5Luckiest, (t) => ({

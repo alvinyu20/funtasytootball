@@ -52,6 +52,24 @@ const DeepHistory = {
     return (wins / games - overallWins / overallGames) * 100;
   },
 
+  // Turns one team's raw matchup object for a week into a display-ready
+  // starting lineup: [{ slot, player, points }], using that season's own
+  // roster_positions to label each starter's slot correctly.
+  lineupForMatchup(m, slotTypes, playerDirectory) {
+    if (!m) return [];
+    const pointsMap = m.players_points || {};
+    return (m.starters || [])
+      .map((pid, i) => {
+        if (!pid || pid === "0") return null;
+        return {
+          slot: SleeperAPI.friendlySlotLabel(slotTypes[i] || "?"),
+          player: SleeperAPI.playerName(playerDirectory, pid),
+          points: pointsMap[pid] || 0,
+        };
+      })
+      .filter(Boolean);
+  },
+
   /*
     Fetches everything for one season. Returns:
     { leagueId, season, weeks: [{week, matchups}], transactions: [...], draft: {draftId, picks} | null }
@@ -559,6 +577,9 @@ const DeepHistory = {
     });
     const championRosterId = SleeperAPI.findChampionRosterId(bracket);
 
+    const EXCLUDE_SLOTS = new Set(["BN", "IR", "TAXI"]);
+    const slotTypes = (league.roster_positions || []).filter((p) => !EXCLUDE_SLOTS.has(p));
+
     const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
 
     function pick(current, candidate, better) {
@@ -611,7 +632,13 @@ const DeepHistory = {
           }
         });
 
-        const entry = { points: m.points || 0, teamName: info.teamName, week, season: league.season };
+        const entry = {
+          points: m.points || 0,
+          teamName: info.teamName,
+          week,
+          season: league.season,
+          lineup: DeepHistory.lineupForMatchup(m, slotTypes, playerDirectory),
+        };
         highestWeekScore = pick(highestWeekScore, entry, (a, b) => a.points > b.points);
         lowestWeekScore = pick(lowestWeekScore, entry, (a, b) => a.points < b.points);
       });
@@ -635,7 +662,19 @@ const DeepHistory = {
         const loser = a.points >= b.points ? bInfo.teamName : aInfo.teamName;
         const winnerPts = Math.max(a.points || 0, b.points || 0);
         const loserPts = Math.min(a.points || 0, b.points || 0);
-        allMargins.push({ margin, winner, loser, winnerPts, loserPts, week, season: league.season });
+        const winnerM = a.points >= b.points ? a : b;
+        const loserM = a.points >= b.points ? b : a;
+        allMargins.push({
+          margin,
+          winner,
+          loser,
+          winnerPts,
+          loserPts,
+          week,
+          season: league.season,
+          winnerLineup: DeepHistory.lineupForMatchup(winnerM, slotTypes, playerDirectory),
+          loserLineup: DeepHistory.lineupForMatchup(loserM, slotTypes, playerDirectory),
+        });
       });
     });
 
@@ -762,12 +801,6 @@ const DeepHistory = {
       return p && KNOWN_POS.has(p.position) ? p.position : null;
     }
 
-    function friendlyFlexLabel(slotType) {
-      if (slotType === "FLEX") return "FLEX";
-      if (slotType === "SUPER_FLEX") return "SFLX";
-      return slotType.replace(/_FLEX$/, "").replace(/_/g, "") + " FLEX";
-    }
-
     const slotCounts = {}; // literal slot type -> Map(playerId -> starts)
     let weeksCounted = 0;
 
@@ -804,22 +837,48 @@ const DeepHistory = {
     }
 
     // ---- Who acquired each player, and how (Draft / Trade / Waivers /
-    //      Free Agency) — latest event wins if a player was added more
-    //      than once. Falls back to "Roster" for keeper/dynasty holdovers
-    //      with no transaction this season. ----
+    //      Free Agency) — latest genuine acquisition wins if a player was
+    //      added more than once. Falls back to "Roster" for keeper/
+    //      dynasty holdovers with no transaction this season.
+    //
+    //      Sleeper sometimes logs an internal roster move (e.g. activating
+    //      someone off IR) as a transaction that adds AND drops the same
+    //      player on the same roster at once. That's not a real
+    //      acquisition, so those are explicitly ignored — otherwise a
+    //      drafted player could wrongly flip to "Free Agency" the moment
+    //      their IR status changes. A player only counts as re-acquired
+    //      if they were genuinely dropped by this roster at some earlier
+    //      point and then later actually added back. ----
     const acquisitionByPlayer = new Map();
+    const onRoster = new Set(); // players currently considered rostered, as we replay the season
     if (deep && deep.draft && deep.draft.picks) {
       deep.draft.picks.forEach((p) => {
-        if (p.roster_id === rosterId && p.player_id) acquisitionByPlayer.set(p.player_id, "Draft");
+        if (p.roster_id === rosterId && p.player_id) {
+          acquisitionByPlayer.set(p.player_id, "Draft");
+          onRoster.add(p.player_id);
+        }
       });
     }
     if (deep && deep.transactions) {
-      deep.transactions.forEach((tx) => {
+      const sortedTx = [...deep.transactions].sort((a, b) => (a.leg || 0) - (b.leg || 0));
+      sortedTx.forEach((tx) => {
         if (!tx || tx.status !== "complete") return;
         const label = tx.type === "trade" ? "Trade" : tx.type === "waiver" ? "Waivers" : tx.type === "free_agent" ? "Free Agency" : null;
+        const adds = tx.adds || {};
+        const drops = tx.drops || {};
+        // A player added AND dropped by the SAME roster within this same
+        // transaction is a same-team toggle, not a real transfer — skip it.
+        const selfToggled = new Set(Object.keys(adds).filter((pid) => drops[pid] != null && drops[pid] === adds[pid]));
+
+        Object.entries(drops).forEach(([playerId, rid]) => {
+          if (rid === rosterId && !selfToggled.has(playerId)) onRoster.delete(playerId);
+        });
         if (!label) return;
-        Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
-          if (rid === rosterId) acquisitionByPlayer.set(playerId, label);
+        Object.entries(adds).forEach(([playerId, rid]) => {
+          if (rid !== rosterId || selfToggled.has(playerId)) return;
+          if (onRoster.has(playerId)) return; // already considered rostered — not a new acquisition
+          acquisitionByPlayer.set(playerId, label);
+          onRoster.add(playerId);
         });
       });
     }
@@ -899,7 +958,7 @@ const DeepHistory = {
     });
     seenFlexTypes.forEach((slotType) => {
       const top = topN(slotCounts[slotType], 1)[0];
-      pushSlot(friendlyFlexLabel(slotType), top ? top[0] : null, top ? top[1] : 0);
+      pushSlot(SleeperAPI.friendlySlotLabel(slotType), top ? top[0] : null, top ? top[1] : 0);
     });
 
     return { slots, weeksCounted };
@@ -929,14 +988,7 @@ const DeepHistory = {
     }
 
     function lineupFor(m) {
-      if (!m) return [];
-      const pointsMap = m.players_points || {};
-      return (m.starters || [])
-        .map((pid, i) => {
-          if (!pid || pid === "0") return null;
-          return { slot: slotTypes[i] || "?", player: SleeperAPI.playerName(playerDirectory, pid), points: pointsMap[pid] || 0 };
-        })
-        .filter(Boolean);
+      return DeepHistory.lineupForMatchup(m, slotTypes, playerDirectory);
     }
 
     const maxRound = Math.max(...bracket.map((g) => g.r));
@@ -1038,12 +1090,6 @@ const DeepHistory = {
     const FLEX_ELIGIBLE = { FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"] };
     const FLEX_PRIORITY = ["FLEX", "SUPER_FLEX"];
 
-    function friendlyFlexLabel(slotType) {
-      if (slotType === "FLEX") return "FLEX";
-      if (slotType === "SUPER_FLEX") return "SFLX";
-      return slotType.replace(/_FLEX$/, "").replace(/_/g, "") + " FLEX";
-    }
-
     // Fixed, sensible column order: standard positions first (numbered if
     // there's more than one dedicated slot), then flex-type slots, then
     // anything unrecognized (e.g. IDP leagues) in whatever order it appears.
@@ -1061,7 +1107,7 @@ const DeepHistory = {
     });
     slotTypes.forEach((t) => {
       if (POSITION_ORDER.includes(t)) return;
-      addColumn(t, friendlyFlexLabel(t));
+      addColumn(t, SleeperAPI.friendlySlotLabel(t));
     });
 
     const teamColumnTotals = new Map(); // rosterId -> { colKey -> {sum, weeks} }
@@ -1182,11 +1228,6 @@ const DeepHistory = {
     }
     const FLEX_ELIGIBLE = { FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"] };
     const FLEX_PRIORITY = ["FLEX", "SUPER_FLEX"];
-    function friendlyFlexLabel(slotType) {
-      if (slotType === "FLEX") return "FLEX";
-      if (slotType === "SUPER_FLEX") return "SFLX";
-      return slotType.replace(/_FLEX$/, "").replace(/_/g, "") + " FLEX";
-    }
 
     const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
     const maxCountByType = {};
@@ -1217,7 +1258,7 @@ const DeepHistory = {
       const count = maxCountByType[pos] || 0;
       for (let i = 1; i <= count; i++) addColumn(count > 1 ? `${pos}${i}` : pos, count > 1 ? `${pos}${i}` : pos);
     });
-    seenFlexTypes.forEach((t) => addColumn(t, friendlyFlexLabel(t)));
+    seenFlexTypes.forEach((t) => addColumn(t, SleeperAPI.friendlySlotLabel(t)));
 
     const userColumnTotals = new Map();
     const userNameById = new Map();

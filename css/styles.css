@@ -420,6 +420,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
   padding: 18px 20px;
 }
 .record-card .record-label {
+  display: block;
   font-family: var(--font-mono);
   font-size: 11px;
   letter-spacing: 0.1em;
@@ -428,6 +429,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
   margin: 0 0 10px;
 }
 .record-card .record-value {
+  display: block;
   font-family: var(--font-display);
   font-size: 30px;
   color: var(--chalk);
@@ -435,11 +437,33 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
   text-transform: uppercase;
 }
 .record-card .record-detail {
+  display: block;
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--chalk-dim);
   margin-top: 8px;
 }
+
+details.record-card-expandable {
+  cursor: pointer;
+}
+details.record-card-expandable:hover { border-color: var(--gold-dim); }
+details.record-card-expandable summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.record-card-expandable summary::-webkit-details-marker { display: none; }
+details.record-card-expandable summary::after {
+  content: "▾ tap for lineup";
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--chalk-dim);
+  margin-top: 10px;
+  opacity: 0.75;
+}
+details.record-card-expandable[open] summary::after { content: "▴ hide lineup"; }
 
 /* ==========================================================================
    DRAFT PICKS DISCLOSURE
@@ -589,15 +613,14 @@ table.stat-table td.heat-cell.empty {
    RANK LIST (top-5 closest games / blowouts)
    ========================================================================== */
 .rank-list { display: flex; flex-direction: column; }
+.rank-list > *:not(:last-child) { border-bottom: 1px solid var(--turf-line); }
 .rank-list-row {
   display: grid;
   grid-template-columns: 24px 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 10px 4px;
-  border-bottom: 1px solid var(--turf-line);
 }
-.rank-list-row:last-child { border-bottom: none; }
 .rank-list-row .rank-num { font-family: var(--font-mono); color: var(--gold); font-size: 13px; }
 .rank-list-row .desc { font-size: 13px; color: var(--chalk); }
 .rank-list-row .desc .sub {
@@ -613,6 +636,14 @@ table.stat-table td.heat-cell.empty {
   font-size: 13px;
   white-space: nowrap;
 }
+
+details.rank-list-item { cursor: pointer; }
+details.rank-list-item summary.rank-list-row {
+  list-style: none;
+  cursor: pointer;
+}
+details.rank-list-item summary::-webkit-details-marker { display: none; }
+details.rank-list-item .bracket-lineup-section { padding-bottom: 12px; }
 
 /* ==========================================================================
    PLAYOFF BRACKET

@@ -213,6 +213,16 @@ const SleeperAPI = {
     return bracket.filter((g) => relevant.has(g.m));
   },
 
+  // Turns a literal roster_positions slot-type string into a short
+  // display label — e.g. "SUPER_FLEX" -> "SFLX". Plain positions (QB, RB,
+  // K, DEF...) pass through unchanged. Used anywhere a slot type is shown.
+  friendlySlotLabel(slotType) {
+    if (slotType === "FLEX") return "FLEX";
+    if (slotType === "SUPER_FLEX") return "SFLX";
+    if (slotType.includes("FLEX")) return slotType.replace(/_FLEX$/, "").replace(/_/g, "") + " FLEX";
+    return slotType;
+  },
+
   // Builds a standings array: [{ rosterId, userId, teamName, username, avatar,
   // wins, losses, ties, fpts, fptsAgainst }], sorted by wins then points.
   buildStandings(rosters, users) {

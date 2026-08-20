@@ -42,12 +42,15 @@ function interpolateColor(hexLow, hexHigh, t) {
   return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
 }
 
-// Maps a value to a color between two endpoints, scaled to that value's
-// own min/max range — used so each heatmap column is standardized
-// independently rather than against a single shared scale.
-function heatColor(value, min, max, lowHex = "#B5502F", highHex = "#E8B23D") {
-  if (max === min) return interpolateColor(lowHex, highHex, 0.5);
-  return interpolateColor(lowHex, highHex, (value - min) / (max - min));
+// Maps a value to a color scaled to that value's own min/max range — used
+// so each heatmap column is standardized independently rather than
+// against a single shared scale. Three-stop gradient: red (low) through
+// yellow (middle) to green (high).
+function heatColor(value, min, max, lowHex = "#D9534F", midHex = "#E8C13D", highHex = "#5CB85C") {
+  if (max === min) return midHex;
+  const t = (value - min) / (max - min);
+  if (t <= 0.5) return interpolateColor(lowHex, midHex, t / 0.5);
+  return interpolateColor(midHex, highHex, (t - 0.5) / 0.5);
 }
 
 // Formats a "Luck" percentage (actual win% minus overall/all-play win%)

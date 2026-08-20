@@ -213,7 +213,23 @@ season week, plus any playoff week that team was still alive for a top-3
 finish — the 5th-place game and any games after elimination are excluded.
 Each player is also tagged with how they were acquired that season —
 Draft, Trade, Waivers, or Free Agency (falling back to "Roster" for
-keeper/dynasty holdovers with no transaction that year).
+keeper/dynasty holdovers with no transaction that year). Note: Sleeper
+sometimes logs an internal roster move (like activating someone off IR)
+as a transaction that adds *and* drops the same player on the same roster
+at once — those are explicitly ignored, so they don't wrongly overwrite a
+drafted player's label. A player only counts as freshly re-acquired if
+they were genuinely dropped by that roster at some point and later
+actually added back.
+
+**The scoring-by-slot table's heatmap** runs red (that column's worst) →
+yellow (middle) → green (that column's best), scaled independently per
+column same as before — just a different color scheme now.
+
+**Season Extremes and the Top 5 Closest/Blowout lists** are tappable:
+Highest Score and Lowest Score expand to show that one team's starting
+lineup and each player's points for that week. The Top 5 lists expand to
+show the full matchup — both teams' lineups — the same way playoff
+bracket games do.
 
 **Overall Record and Luck**, shown on the Season page's Final Standings
 and on each manager's Season By Season table on Teams: "Overall" is the
