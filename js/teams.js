@@ -74,6 +74,21 @@ function renderManagerDetail(m) {
         .join("")
     : `<span class="empty-state">No roster data yet.</span>`;
 
+  const h2hRows = m.headToHead.length
+    ? m.headToHead
+        .map((h) => {
+          const total = h.wins + h.losses + h.ties;
+          const pct = total ? ((h.wins / total) * 100).toFixed(0) : "0";
+          return `
+        <tr>
+          <td class="team-cell">${escapeHtml(h.opponentName)}</td>
+          <td>${h.wins}-${h.losses}${h.ties ? "-" + h.ties : ""}</td>
+          <td>${pct}%</td>
+        </tr>`;
+        })
+        .join("")
+    : "";
+
   const seasonRows = [...m.seasons]
     .sort((a, b) => b.season - a.season)
     .map((s) => {
@@ -134,6 +149,20 @@ function renderManagerDetail(m) {
     <div class="wrap">
       <div class="panel">
         <div class="chip-row">${chips}</div>
+      </div>
+    </div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Head-to-Head Records</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <table class="stat-table">
+          <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th></tr></thead>
+          <tbody>${h2hRows || `<tr><td colspan="3" class="empty-state">No matchups recorded yet.</td></tr>`}</tbody>
+        </table>
       </div>
     </div>
 

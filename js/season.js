@@ -24,25 +24,31 @@ async function renderSeasonPage() {
   }
 }
 
+function isTotalSelected() {
+  return decodeURIComponent(location.hash.replace(/^#/, "")) === "total";
+}
+
 function getSelectedSeasonEntry() {
   const hashYear = decodeURIComponent(location.hash.replace(/^#/, ""));
-  if (hashYear) {
+  if (hashYear && hashYear !== "total") {
     const match = SEASON_CHAIN.find((s) => String(s.league.season) === hashYear);
     if (match) return match;
   }
   return SEASON_CHAIN[SEASON_CHAIN.length - 1]; // default to most recent
 }
 
-function renderPicker(selectedYear) {
+function renderPicker(selectedKey) {
   const picker = document.getElementById("season-picker");
-  picker.innerHTML = [...SEASON_CHAIN]
+  const totalPill = `<a class="season-pill ${selectedKey === "total" ? "active" : ""}" href="#total">TOTAL</a>`;
+  const yearPills = [...SEASON_CHAIN]
     .reverse() // newest first
     .map((s) => {
       const year = s.league.season;
-      const isActive = String(year) === String(selectedYear);
+      const isActive = String(year) === String(selectedKey);
       return `<a class="season-pill ${isActive ? "active" : ""}" href="#${year}">${year}</a>`;
     })
     .join("");
+  picker.innerHTML = totalPill + yearPills;
 }
 
 async function renderSelectedSeason() {
@@ -51,6 +57,29 @@ async function renderSelectedSeason() {
   const progressBox = document.getElementById("progress-status");
 
   try {
+    if (isTotalSelected()) {
+      renderPicker("total");
+      content.style.display = "none";
+      errorBox.style.display = "none";
+      progressBox.style.display = "block";
+
+      const deepSeasons = await DeepHistory.buildAll(SEASON_CHAIN, (season, status) => {
+        progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
+      });
+
+      const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY);
+
+      progressBox.style.display = "none";
+      content.style.display = "";
+      content.innerHTML = renderSummary(summary);
+
+      const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
+      document.title = (SITE_TITLE || leagueName || "League") + " — All-Time";
+      document.getElementById("sb-title").textContent = "All-Time";
+      document.getElementById("sb-sub").textContent = `${SEASON_CHAIN.length} season${SEASON_CHAIN.length === 1 ? "" : "s"} combined`;
+      return;
+    }
+
     const seasonEntry = getSelectedSeasonEntry();
     renderPicker(seasonEntry.league.season);
 
@@ -77,7 +106,7 @@ async function renderSelectedSeason() {
   } catch (err) {
     console.error(err);
     progressBox.style.display = "none";
-    errorBox.textContent = "Couldn't load that season — " + err.message;
+    errorBox.textContent = "Couldn't load that view — " + err.message;
     errorBox.style.display = "block";
   }
 }
@@ -145,13 +174,44 @@ function renderRankList(items, describe) {
     .join("")}</div>`;
 }
 
+function renderBracket(bracketData) {
+  if (!bracketData || !bracketData.rounds.length) {
+    return `<div class="empty-state">No bracket yet — check back once the playoffs start.</div>`;
+  }
+  const columns = bracketData.rounds
+    .map((round) => {
+      const games = round.games
+        .map((g) => {
+          const label = g.specialLabel ? `<div class="bracket-game-label">${escapeHtml(g.specialLabel)}</div>` : "";
+          const teamRow = (team) => `
+          <div class="bracket-team ${team.isWinner ? "winner" : ""}">
+            <span>${escapeHtml(team.name)}</span>
+            ${team.score != null ? `<span class="bracket-score">${team.score.toFixed(1)}</span>` : ""}
+          </div>`;
+          return `<div class="bracket-game">${label}${teamRow(g.team1)}${teamRow(g.team2)}</div>`;
+        })
+        .join("");
+      return `
+      <div class="bracket-round">
+        <div class="bracket-round-label">${escapeHtml(round.label)}</div>
+        ${games}
+      </div>`;
+    })
+    .join("");
+
+  return `<div class="bracket">${columns}</div>`;
+}
+
 function renderSummary(s) {
+  const isTotal = s.season === "All-Time";
+  const yearTag = (item) => (isTotal && item && item.season ? ` (${item.season})` : "");
+
   const standingsRows = s.standings
     .map(
       (t, i) => `
     <tr>
       <td class="rank">${i + 1}</td>
-      <td class="team-cell">${escapeHtml(t.teamName)}${t.rosterId === s.championRosterId ? " 🏆" : ""}</td>
+      <td class="team-cell">${escapeHtml(t.teamName)}${t.rosterId === s.championRosterId ? " 🏆" : ""}${isTotal && t.championships ? ` ${"🏆".repeat(Math.min(t.championships, 5))}` : ""}</td>
       <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
       <td>${t.fpts.toFixed(1)}</td>
       <td>${t.fptsAgainst.toFixed(1)}</td>
@@ -171,20 +231,20 @@ function renderSummary(s) {
   const positionTableHtml = renderPositionTable(s.positionTable);
 
   const extremeCards = [
-    s.highestWeekScore && recordCard("Highest Score", s.highestWeekScore.points.toFixed(1), `${escapeHtml(s.highestWeekScore.teamName)} · Week ${s.highestWeekScore.week}`),
-    s.lowestWeekScore && recordCard("Lowest Score", s.lowestWeekScore.points.toFixed(1), `${escapeHtml(s.lowestWeekScore.teamName)} · Week ${s.lowestWeekScore.week}`),
+    s.highestWeekScore && recordCard("Highest Score", s.highestWeekScore.points.toFixed(1), `${escapeHtml(s.highestWeekScore.teamName)} · Week ${s.highestWeekScore.week}${yearTag(s.highestWeekScore)}`),
+    s.lowestWeekScore && recordCard("Lowest Score", s.lowestWeekScore.points.toFixed(1), `${escapeHtml(s.lowestWeekScore.teamName)} · Week ${s.lowestWeekScore.week}${yearTag(s.lowestWeekScore)}`),
   ]
     .filter(Boolean)
     .join("");
 
   const closestListHtml = renderRankList(s.top5Closest, (m) => ({
     main: `${escapeHtml(m.winner)} def. ${escapeHtml(m.loser)}`,
-    sub: `Week ${m.week} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
+    sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
     value: `${m.margin.toFixed(1)} pt`,
   }));
   const blowoutListHtml = renderRankList(s.top5Blowouts, (m) => ({
     main: `${escapeHtml(m.winner)} over ${escapeHtml(m.loser)}`,
-    sub: `Week ${m.week} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
+    sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
     value: `${m.margin.toFixed(1)} pt`,
   }));
 
@@ -193,14 +253,14 @@ function renderSummary(s) {
     .map(([pos, label]) => {
       const x = s.bestByPosition[pos];
       if (!x) return "";
-      return recordCard(`Best ${label} Week`, x.points.toFixed(1), `${escapeHtml(x.player)} · ${escapeHtml(x.teamName)} · Wk ${x.week}`);
+      return recordCard(`Best ${label} Week`, x.points.toFixed(1), `${escapeHtml(x.player)} · ${escapeHtml(x.teamName)} · Wk ${x.week}${yearTag(x)}`);
     })
     .join("");
 
   const draftCards = [
-    s.bestValuePick && recordCard("Best Late-Round Steal", escapeHtml(s.bestValuePick.player), `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts`),
-    s.worstValuePick && recordCard("Biggest Draft Bust", escapeHtml(s.worstValuePick.player), `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts`),
-    s.pointsLeader && recordCard("Season Points Leader", escapeHtml(s.pointsLeader.player), `${s.pointsLeader.points.toFixed(1)} total points`),
+    s.bestValuePick && recordCard("Best Late-Round Steal", escapeHtml(s.bestValuePick.player), `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${yearTag(s.bestValuePick)}`),
+    s.worstValuePick && recordCard("Biggest Draft Bust", escapeHtml(s.worstValuePick.player), `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${yearTag(s.worstValuePick)}`),
+    s.pointsLeader && recordCard("Season Points Leader", escapeHtml(s.pointsLeader.player), `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
   ]
     .filter(Boolean)
     .join("");
@@ -218,13 +278,27 @@ function renderSummary(s) {
       </table>
     </div></div>
 
+    ${
+      s.bracket
+        ? `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Playoff Bracket</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      ${renderBracket(s.bracket)}
+    </div></div>`
+        : ""
+    }
+
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
       <span class="label">Weekly Scoring Trend</span>
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <h2>League Average Score By Week</h2>
+      <h2>${isTotal ? "Average Score By Week Of Season (All Years)" : "League Average Score By Week"}</h2>
       ${weeklyTrendChart}
     </div></div>
 

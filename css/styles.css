@@ -614,6 +614,56 @@ table.stat-table td.heat-cell.empty {
 }
 
 /* ==========================================================================
+   PLAYOFF BRACKET
+   ========================================================================== */
+.bracket { display: flex; gap: 28px; overflow-x: auto; padding: 8px 4px 16px; }
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 20px;
+  min-width: 190px;
+  flex-shrink: 0;
+}
+.bracket-round-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-align: center;
+  margin-bottom: 2px;
+}
+.bracket-game {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--turf-line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.bracket-game-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  margin-bottom: 6px;
+  text-align: center;
+}
+.bracket-team {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--chalk-dim);
+}
+.bracket-team span:first-child { font-family: var(--font-body); font-size: 13px; }
+.bracket-team.winner { color: var(--gold); font-weight: 600; }
+.bracket-score { font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
    MISC / UTILITY
    ========================================================================== */
 .empty-state {

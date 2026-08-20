@@ -101,13 +101,16 @@ They'll merge into the History page's champions ledger and, if you included
   win/loss/points records per manager, and merges in `manual-history.json`
 - `teams.html` / `js/teams.js` — a manager leaderboard (listed by Sleeper
   username); click into any team for its season-by-season record,
-  most-rostered players, and full draft history per season
-- `season.html` / `js/season.js` — pick any year for a deep dive: final
-  standings, a weekly league-scoring trend line, each team's scoring
-  average, a heatmapped table of average score per week by starting-lineup
-  slot, that season's highest/lowest scores, its top 5 closest and top 5
-  most lopsided matchups, the single best weekly performance at each
-  position, and draft standouts (best steal, biggest bust, points leader)
+  head-to-head record against every other manager, most-rostered players,
+  and full draft history per season
+- `season.html` / `js/season.js` — pick any year (or "TOTAL" for every
+  season combined) for a deep dive: final standings, a playoff bracket,
+  a weekly league-scoring trend line, each team's scoring average, a
+  heatmapped table of average score per week by starting-lineup slot,
+  that season's highest/lowest scores, its top 5 closest and top 5 most
+  lopsided matchups, the single best weekly performance at each position,
+  and draft standouts (best steal, biggest bust, points leader). Teams are
+  shown by Sleeper username here too.
 - `records.html` / `js/records.js` — league-wide fun stats: highest/lowest
   scores, biggest blowout, closest game, win/lose streaks, best late-round
   steal, biggest draft bust, most trades, most waiver adds, and more
@@ -164,6 +167,24 @@ line: FLEX always shows that position's weakest starter, and if the same
 position fills both FLEX and SUPERFLEX in the same week, FLEX gets the
 lower of the two and SUPERFLEX gets the higher one — regardless of which
 literal slot each player was actually dragged into.
+
+**The "TOTAL" pill** on the Season page combines every season into one
+view — same sections as an individual year, but cumulative. A couple of
+these needed their own definition: the weekly trend chart shows the
+average score at each week-*of-season* across every year (so "Week 1"
+means "every year's Week 1, averaged"), and the scoring-by-slot table
+pools every season's lineups together per person rather than per
+roster (roster IDs reset each year; people don't). If your league ever
+changed its number of RB/WR/etc. slots, the Total table uses the largest
+count seen in any season, so e.g. an RB3 column only fills in for the
+years that slot actually existed.
+
+**Head-to-head records** live on each manager's Teams page — click into
+anyone to see their all-time record against every opponent they've faced.
+
+**The playoff bracket** on each Season page is read directly from
+Sleeper's own bracket data, with scores filled in from that round's actual
+matchup results where available.
 
 ## Known limitations / ideas for later
 
