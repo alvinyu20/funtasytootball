@@ -151,6 +151,68 @@ const SleeperAPI = {
     return null;
   },
 
+  // Resolves the roster_id in a bracket game's t1/t2 slot, following
+  // t1_from/t2_from (winner-of or loser-of an earlier game) when that
+  // slot isn't filled in directly yet.
+  resolveBracketTeamId(bracket, game, slotKey) {
+    if (game[slotKey] != null) return game[slotKey];
+    const from = game[slotKey + "_from"];
+    if (!from) return null;
+    const gameById = new Map(bracket.map((g) => [g.m, g]));
+    if (from.w != null) {
+      const src = gameById.get(from.w);
+      return src ? src.w : null;
+    }
+    if (from.l != null) {
+      const src = gameById.get(from.l);
+      return src ? src.l : null;
+    }
+    return null;
+  },
+
+  // Returns { round, t1Id, t2Id } for the 5th-place game (Sleeper marks
+  // it with p: 5), or null if the league doesn't play one. Used to leave
+  // it out of the bracket display and out of Playoff Head-to-Head.
+  findFifthPlaceGame(bracket) {
+    if (!Array.isArray(bracket) || bracket.length === 0) return null;
+    const game = bracket.find((g) => g.p === 5);
+    if (!game) return null;
+    return {
+      round: game.r,
+      t1Id: SleeperAPI.resolveBracketTeamId(bracket, game, "t1"),
+      t2Id: SleeperAPI.resolveBracketTeamId(bracket, game, "t2"),
+    };
+  },
+
+  // Walks backward from the championship (p:1) and 3rd-place (p:3) games
+  // through their t1_from/t2_from references to find every earlier-round
+  // game that's genuinely on the path to a top-3 finish. Anything NOT
+  // reached this way (the 5th-place game and whatever consolation games
+  // feed only into it) is not "relevant" — this is what lets the site
+  // know which playoff weeks actually count for a given team once
+  // they're no longer in contention for 1st or 3rd.
+  relevantBracketGames(bracket) {
+    if (!Array.isArray(bracket) || bracket.length === 0) return [];
+    const gameById = new Map(bracket.map((g) => [g.m, g]));
+    const relevant = new Set();
+    function markRelevant(matchupId) {
+      if (matchupId == null || relevant.has(matchupId)) return;
+      const game = gameById.get(matchupId);
+      if (!game) return;
+      relevant.add(matchupId);
+      [game.t1_from, game.t2_from].forEach((from) => {
+        if (!from) return;
+        if (from.w != null) markRelevant(from.w);
+        if (from.l != null) markRelevant(from.l);
+      });
+    }
+    const champGame = bracket.find((g) => g.p === 1);
+    const thirdGame = bracket.find((g) => g.p === 3);
+    if (champGame) markRelevant(champGame.m);
+    if (thirdGame) markRelevant(thirdGame.m);
+    return bracket.filter((g) => relevant.has(g.m));
+  },
+
   // Builds a standings array: [{ rosterId, userId, teamName, username, avatar,
   // wins, losses, ties, fpts, fptsAgainst }], sorted by wins then points.
   buildStandings(rosters, users) {

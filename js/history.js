@@ -21,14 +21,16 @@ async function renderHistory() {
     const sleeperLedger = seasons.map(({ league, rosters, users, bracket }) => {
       const champRosterId = SleeperAPI.findChampionRosterId(bracket);
       let champName = "In progress";
+      let champUsername = null;
       if (champRosterId != null) {
         const roster = rosters.find((r) => r.roster_id === champRosterId);
         const user = users.find((u) => u.user_id === (roster && roster.owner_id));
         champName = SleeperAPI.teamName(user, champRosterId);
+        champUsername = user ? user.display_name : null;
       } else if (league.status === "complete") {
         champName = "Unavailable"; // completed but bracket data missing/unusual format
       }
-      return { year: league.season, champion: champName, sourceBadge: "Sleeper", notes: "" };
+      return { year: league.season, champion: champName, championUsername: champUsername, sourceBadge: "Sleeper", notes: "" };
     });
 
     // ---- Manual pre-Sleeper seasons ----
@@ -46,7 +48,7 @@ async function renderHistory() {
         const inner = `
         <span class="year">${row.year}</span>
         <div>
-          <div class="champ-name">${escapeHtml(row.champion)}</div>
+          <div class="champ-name">${escapeHtml(row.champion)}${row.championUsername && row.championUsername !== row.champion ? ` <span class="muted-inline">(${escapeHtml(row.championUsername)})</span>` : ""}</div>
           ${row.notes ? `<div class="champ-sub">${escapeHtml(row.notes)}</div>` : ""}
         </div>
         <span class="badge">${row.sourceBadge}</span>`;

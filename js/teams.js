@@ -110,6 +110,19 @@ function renderManagerDetail(m) {
             .join("")
         : `<div class="empty-state">No draft data for this season.</div>`;
 
+      const lineupHtml = s.startingLineup && s.startingLineup.slots.length
+        ? s.startingLineup.slots
+            .map(
+              (slot) => `
+          <div class="draft-pick-row">
+            <span>${escapeHtml(slot.slot)}</span>
+            <span class="pick-player">${slot.player ? escapeHtml(slot.player) : "—"}</span>
+            <span class="pick-points">${slot.starts ? `${slot.starts} gm${slot.starts === 1 ? "" : "s"}` : ""}</span>
+          </div>`
+            )
+            .join("")
+        : `<div class="empty-state">No lineup data for this season.</div>`;
+
       return `
         <tr>
           <td class="team-cell">${s.season}</td>
@@ -123,6 +136,10 @@ function renderManagerDetail(m) {
         </tr>
         <tr>
           <td colspan="8" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
+            <details class="draft-details">
+              <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
+              ${lineupHtml}
+            </details>
             <details class="draft-details">
               <summary>Draft picks (${s.draftPicks.length})</summary>
               ${picksHtml}

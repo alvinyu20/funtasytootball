@@ -186,7 +186,22 @@ that season's `playoff_week_start`).
 
 **The playoff bracket** on each Season page is read directly from
 Sleeper's own bracket data, with scores filled in from that round's actual
-matchup results where available.
+matchup results where available. The 5th-place game (if your league plays
+one) is left out of the bracket display and out of Playoff Head-to-Head —
+"relevant" playoff games are only ones on the genuine path to 1st or 3rd
+place, traced backward through Sleeper's own bracket structure, so this
+adapts automatically to different bracket sizes.
+
+**History page champions** show the winning team's Sleeper username in
+smaller, muted text right after the team name (skipped if they're the
+same, so an unrenamed team doesn't show its name twice).
+
+**Starting Lineup**, a dropdown next to Draft Picks on each season row in
+Teams: whichever player filled each roster slot most often that season.
+"That season" means every regular-season week, plus any playoff week that
+team was still alive for a top-3 finish — the 5th-place game and any
+games after elimination are excluded, using the same backward-traced
+bracket logic as Playoff Head-to-Head.
 
 **Overall Record and Luck**, shown on the Season page's Final Standings
 and on each manager's Season By Season table on Teams: "Overall" is the

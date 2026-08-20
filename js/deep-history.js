@@ -209,6 +209,7 @@ const DeepHistory = {
 
     seasonChain.forEach((seasonEntry, idx) => {
       const { league, rosters, users, bracket } = seasonEntry;
+      const chainEntry = seasonEntry; // kept under this name since `seasonEntry` gets shadowed below
       const deep = deepSeasons[idx];
       const season = league.season;
 
@@ -228,6 +229,8 @@ const DeepHistory = {
       const runnerUpRosterId = SleeperAPI.findRunnerUpRosterId(bracket);
       const thirdPlaceRosterId = SleeperAPI.findThirdPlaceRosterId(bracket);
       const playoffStart = league.settings && league.settings.playoff_week_start;
+      const fifthPlaceGame = SleeperAPI.findFifthPlaceGame(bracket);
+      const fifthPlaceWeek = fifthPlaceGame && playoffStart != null ? playoffStart + (fifthPlaceGame.round - 1) : null;
       const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : [], playoffStart);
 
       const seasonEntryByRosterId = new Map(); // this season only, for attaching draft picks below
@@ -252,6 +255,7 @@ const DeepHistory = {
           isChampion: s.rosterId === championRosterId,
           isRunnerUp: s.rosterId === runnerUpRosterId,
           isThirdPlace: s.rosterId === thirdPlaceRosterId,
+          startingLineup: DeepHistory.buildStartingLineup(s.rosterId, chainEntry, deep, playerDirectory),
           draftPicks: [],
         };
         m.seasons.push(seasonEntry);
@@ -334,7 +338,12 @@ const DeepHistory = {
             if (aInfo.userId && bInfo.userId && aInfo.userId !== bInfo.userId) {
               const aRec = h2hRecord(aInfo.userId, bInfo.userId);
               const bRec = h2hRecord(bInfo.userId, aInfo.userId);
-              const isPlayoffWeek = playoffStart != null && week >= playoffStart;
+              const isFifthPlaceGame =
+                fifthPlaceGame &&
+                week === fifthPlaceWeek &&
+                ((a.roster_id === fifthPlaceGame.t1Id && b.roster_id === fifthPlaceGame.t2Id) ||
+                  (a.roster_id === fifthPlaceGame.t2Id && b.roster_id === fifthPlaceGame.t1Id));
+              const isPlayoffWeek = playoffStart != null && week >= playoffStart && !isFifthPlaceGame;
               const aPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(aInfo.userId, bInfo.userId) : null;
               const bPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(bInfo.userId, aInfo.userId) : null;
               if (a.points > b.points) {
@@ -706,6 +715,94 @@ const DeepHistory = {
     null if the league doesn't have bracket data (e.g. season hasn't
     reached the playoffs yet).
   */
+  /*
+    Reconstructs a team's "typical" starting lineup for one season: for
+    each roster slot, whichever player filled it most often. Counts every
+    regular-season week, plus any playoff week that team was still in
+    genuine contention for 1st or 3rd place (via relevantBracketGames) —
+    the 5th-place game and anything after elimination don't count.
+  */
+  buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {
+    const { league, bracket } = seasonEntry;
+    const playoffStart = league.settings && league.settings.playoff_week_start;
+
+    const relevantPlayoffWeeks = new Set();
+    if (bracket && bracket.length) {
+      SleeperAPI.relevantBracketGames(bracket).forEach((g) => {
+        const t1Id = SleeperAPI.resolveBracketTeamId(bracket, g, "t1");
+        const t2Id = SleeperAPI.resolveBracketTeamId(bracket, g, "t2");
+        if (playoffStart != null && (t1Id === rosterId || t2Id === rosterId)) {
+          relevantPlayoffWeeks.add(playoffStart + (g.r - 1));
+        }
+      });
+    }
+
+    const weeks = (deep ? deep.weeks : []).filter(
+      (w) => playoffStart == null || w.week < playoffStart || relevantPlayoffWeeks.has(w.week)
+    );
+
+    const EXCLUDE = new Set(["BN", "IR", "TAXI"]);
+    const slotTypes = (league.roster_positions || []).filter((p) => !EXCLUDE.has(p));
+    const countByType = {};
+    slotTypes.forEach((t) => {
+      countByType[t] = (countByType[t] || 0) + 1;
+    });
+
+    function friendlyFlexLabel(slotType) {
+      if (slotType === "FLEX") return "FLEX";
+      if (slotType === "SUPER_FLEX") return "SFLX";
+      return slotType.replace(/_FLEX$/, "").replace(/_/g, "") + " FLEX";
+    }
+
+    const slotCounts = {}; // literal slot type -> Map(playerId -> starts)
+    let weeksCounted = 0;
+
+    weeks.forEach(({ matchups }) => {
+      const m = matchups.find((mm) => mm.roster_id === rosterId);
+      if (!m) return;
+      weeksCounted += 1;
+      (m.starters || []).forEach((pid, i) => {
+        const slotType = slotTypes[i];
+        if (!slotType || !pid || pid === "0") return;
+        if (!slotCounts[slotType]) slotCounts[slotType] = new Map();
+        slotCounts[slotType].set(pid, (slotCounts[slotType].get(pid) || 0) + 1);
+      });
+    });
+
+    const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
+    const slots = [];
+    POSITION_ORDER.forEach((pos) => {
+      const count = countByType[pos] || 0;
+      if (count === 0) return;
+      const ranked = [...(slotCounts[pos] || new Map()).entries()].sort((a, b) => b[1] - a[1]);
+      for (let i = 0; i < count; i++) {
+        const entry = ranked[i];
+        slots.push({
+          slot: count > 1 ? `${pos}${i + 1}` : pos,
+          player: entry ? SleeperAPI.playerName(playerDirectory, entry[0]) : null,
+          starts: entry ? entry[1] : 0,
+        });
+      }
+    });
+
+    const seenFlexTypes = [];
+    slotTypes.forEach((t) => {
+      if (POSITION_ORDER.includes(t) || seenFlexTypes.includes(t)) return;
+      seenFlexTypes.push(t);
+    });
+    seenFlexTypes.forEach((slotType) => {
+      const ranked = [...(slotCounts[slotType] || new Map()).entries()].sort((a, b) => b[1] - a[1]);
+      const top = ranked[0];
+      slots.push({
+        slot: friendlyFlexLabel(slotType),
+        player: top ? SleeperAPI.playerName(playerDirectory, top[0]) : null,
+        starts: top ? top[1] : 0,
+      });
+    });
+
+    return { slots, weeksCounted };
+  },
+
   buildBracket(seasonEntry, deep) {
     const { league, rosters, users, bracket } = seasonEntry;
     if (!bracket || !bracket.length) return null;
@@ -717,23 +814,7 @@ const DeepHistory = {
       teamNameById.set(r.roster_id, user ? user.display_name || SleeperAPI.teamName(user, r.roster_id) : SleeperAPI.teamName(user, r.roster_id));
     });
 
-    const gameById = new Map(bracket.map((g) => [g.m, g]));
     const playoffStart = league.settings && league.settings.playoff_week_start;
-
-    function resolveTeamId(game, slotKey) {
-      if (game[slotKey] != null) return game[slotKey];
-      const from = game[slotKey + "_from"];
-      if (!from) return null;
-      if (from.w != null) {
-        const src = gameById.get(from.w);
-        return src ? src.w : null;
-      }
-      if (from.l != null) {
-        const src = gameById.get(from.l);
-        return src ? src.l : null;
-      }
-      return null;
-    }
 
     function scoreFor(rosterId, round) {
       if (rosterId == null || !playoffStart || !deep) return null;
@@ -754,7 +835,7 @@ const DeepHistory = {
     }
 
     function teamSlot(game, slotKey) {
-      const id = resolveTeamId(game, slotKey);
+      const id = SleeperAPI.resolveBracketTeamId(bracket, game, slotKey);
       return {
         name: id != null ? teamNameById.get(id) || `Roster ${id}` : "TBD",
         score: scoreFor(id, game.r),
@@ -764,6 +845,7 @@ const DeepHistory = {
 
     const byRound = new Map();
     [...bracket]
+      .filter((g) => g.p !== 5) // 5th-place game isn't shown
       .sort((a, b) => a.r - b.r || a.m - b.m)
       .forEach((g) => {
         const specialLabel = g.p === 1 ? "Championship" : g.p === 3 ? "3rd Place" : null;
