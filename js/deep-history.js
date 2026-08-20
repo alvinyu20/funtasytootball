@@ -41,6 +41,46 @@ const DeepHistory = {
     return byRoster;
   },
 
+  /*
+    Each roster's REAL win/loss/tie record (their actual head-to-head
+    result each week, not the all-play comparison above), optionally
+    filtered down to specific matchups via `pairFilter(week, rosterA,
+    rosterB)`. Used for Regular Season record (filter: week before
+    playoffs) and Playoff record (filter: genuinely on the path to 1st
+    or 3rd place, via relevantPlayoffPairs).
+  */
+  computeActualRecords(deepWeeks, pairFilter) {
+    const byRoster = new Map(); // roster_id -> {wins, losses, ties}
+    (deepWeeks || []).forEach(({ week, matchups }) => {
+      const byMatchupId = new Map();
+      matchups.forEach((m) => {
+        if (m.matchup_id == null) return;
+        if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
+        byMatchupId.get(m.matchup_id).push(m);
+      });
+      byMatchupId.forEach((pair) => {
+        if (pair.length < 2) return;
+        const [a, b] = pair;
+        if (pairFilter && !pairFilter(week, a.roster_id, b.roster_id)) return;
+        const recA = byRoster.get(a.roster_id) || { wins: 0, losses: 0, ties: 0 };
+        const recB = byRoster.get(b.roster_id) || { wins: 0, losses: 0, ties: 0 };
+        if (a.points > b.points) {
+          recA.wins += 1;
+          recB.losses += 1;
+        } else if (a.points < b.points) {
+          recA.losses += 1;
+          recB.wins += 1;
+        } else {
+          recA.ties += 1;
+          recB.ties += 1;
+        }
+        byRoster.set(a.roster_id, recA);
+        byRoster.set(b.roster_id, recB);
+      });
+    });
+    return byRoster;
+  },
+
   // "Luck" = actual win% minus overall (all-play) win%, as a percentage
   // point difference. Positive means their real record is better than
   // their underlying scoring deserved (lucky schedule); negative means
@@ -199,6 +239,14 @@ const DeepHistory = {
           championships: 0,
           runnerUps: 0,
           thirdPlaceFinishes: 0,
+          winningSeasons: 0,
+          losingSeasons: 0,
+          careerRegularSeasonWins: 0,
+          careerRegularSeasonLosses: 0,
+          careerRegularSeasonTies: 0,
+          careerPlayoffWins: 0,
+          careerPlayoffLosses: 0,
+          careerPlayoffTies: 0,
           playerCounts: new Map(),
           gameLog: [],
           transactionCounts: { trades: 0, waiver: 0, freeAgent: 0 },
@@ -256,9 +304,23 @@ const DeepHistory = {
       const runnerUpRosterId = SleeperAPI.findRunnerUpRosterId(bracket);
       const thirdPlaceRosterId = SleeperAPI.findThirdPlaceRosterId(bracket);
       const playoffStart = league.settings && league.settings.playoff_week_start;
-      const fifthPlaceGame = SleeperAPI.findFifthPlaceGame(bracket);
-      const fifthPlaceWeek = fifthPlaceGame && playoffStart != null ? playoffStart + (fifthPlaceGame.round - 1) : null;
+      // Exact set of (week, roster-pair) matchups that are genuinely on the
+      // path to 1st or 3rd place, so Playoff H2H only counts real playoff
+      // games — not the 5th-place game or any other consolation-bracket
+      // matchup that happens to fall in a "playoff week."
+      const relevantPlayoffPairs = new Set();
+      if (bracket && bracket.length && playoffStart != null) {
+        SleeperAPI.relevantBracketGames(bracket).forEach((g) => {
+          const t1Id = SleeperAPI.resolveBracketTeamId(bracket, g, "t1");
+          const t2Id = SleeperAPI.resolveBracketTeamId(bracket, g, "t2");
+          if (t1Id == null || t2Id == null) return;
+          const week = playoffStart + (g.r - 1);
+          relevantPlayoffPairs.add(`${week}:${Math.min(t1Id, t2Id)}-${Math.max(t1Id, t2Id)}`);
+        });
+      }
       const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : [], playoffStart);
+      const regularSeasonByRoster = DeepHistory.computeActualRecords(deep ? deep.weeks : [], (week) => playoffStart == null || week < playoffStart);
+      const playoffByRoster = DeepHistory.computeActualRecords(deep ? deep.weeks : [], (week, a, b) => relevantPlayoffPairs.has(`${week}:${Math.min(a, b)}-${Math.max(a, b)}`));
 
       const seasonEntryByRosterId = new Map(); // this season only, for attaching draft picks below
 
@@ -266,6 +328,8 @@ const DeepHistory = {
         if (!s.userId) return;
         const m = getManager(s.userId, s.teamName, s.username);
         const overall = overallRecordByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
+        const regSeason = regularSeasonByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
+        const playoff = playoffByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
         const seasonEntry = {
           season,
           rosterId: s.rosterId,
@@ -279,6 +343,14 @@ const DeepHistory = {
           overallLosses: overall.losses,
           overallTies: overall.ties,
           luckPct: DeepHistory.luckPercent(s.wins, s.losses, s.ties, overall.wins, overall.losses, overall.ties),
+          regularSeasonWins: regSeason.wins,
+          regularSeasonLosses: regSeason.losses,
+          regularSeasonTies: regSeason.ties,
+          playoffWins: playoff.wins,
+          playoffLosses: playoff.losses,
+          playoffTies: playoff.ties,
+          isWinningSeason: regSeason.wins > regSeason.losses,
+          isLosingSeason: regSeason.losses > regSeason.wins,
           isChampion: s.rosterId === championRosterId,
           isRunnerUp: s.rosterId === runnerUpRosterId,
           isThirdPlace: s.rosterId === thirdPlaceRosterId,
@@ -292,6 +364,14 @@ const DeepHistory = {
         m.careerTies += s.ties;
         m.careerPF += s.fpts;
         m.careerPA += s.fptsAgainst;
+        m.careerRegularSeasonWins += regSeason.wins;
+        m.careerRegularSeasonLosses += regSeason.losses;
+        m.careerRegularSeasonTies += regSeason.ties;
+        m.careerPlayoffWins += playoff.wins;
+        m.careerPlayoffLosses += playoff.losses;
+        m.careerPlayoffTies += playoff.ties;
+        if (seasonEntry.isWinningSeason) m.winningSeasons += 1;
+        if (seasonEntry.isLosingSeason) m.losingSeasons += 1;
         if (s.rosterId === championRosterId) m.championships += 1;
         if (s.rosterId === runnerUpRosterId) m.runnerUps += 1;
         if (s.rosterId === thirdPlaceRosterId) m.thirdPlaceFinishes += 1;
@@ -365,12 +445,7 @@ const DeepHistory = {
             if (aInfo.userId && bInfo.userId && aInfo.userId !== bInfo.userId) {
               const aRec = h2hRecord(aInfo.userId, bInfo.userId);
               const bRec = h2hRecord(bInfo.userId, aInfo.userId);
-              const isFifthPlaceGame =
-                fifthPlaceGame &&
-                week === fifthPlaceWeek &&
-                ((a.roster_id === fifthPlaceGame.t1Id && b.roster_id === fifthPlaceGame.t2Id) ||
-                  (a.roster_id === fifthPlaceGame.t2Id && b.roster_id === fifthPlaceGame.t1Id));
-              const isPlayoffWeek = playoffStart != null && week >= playoffStart && !isFifthPlaceGame;
+              const isPlayoffWeek = relevantPlayoffPairs.has(`${week}:${Math.min(a.roster_id, b.roster_id)}-${Math.max(a.roster_id, b.roster_id)}`);
               const aPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(aInfo.userId, bInfo.userId) : null;
               const bPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(bInfo.userId, aInfo.userId) : null;
               if (a.points > b.points) {

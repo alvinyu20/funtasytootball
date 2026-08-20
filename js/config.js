@@ -71,6 +71,15 @@ const TEAM_STRENGTH_FILE = "data/team-strength.json";
 const POWER_RANK_HISTORY_FILE = "data/power-rank-history.json";
 
 /*
+  POWER_RANK_CSV_HISTORY_FILE
+  --------------------
+  Historical Power Rank (and, for 2024+, PR Score) data recovered from
+  past seasons that predate this site — see
+  data/power-rank-csv-history.json. Graphed on each season's page.
+*/
+const POWER_RANK_CSV_HISTORY_FILE = "data/power-rank-csv-history.json";
+
+/*
   LAST_FANTASY_WEEK
   ------------------
   The last NFL week that actually counts for this league's fantasy season.

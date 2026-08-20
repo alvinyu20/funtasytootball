@@ -1,14 +1,16 @@
 let SEASON_CHAIN = null;
 let PLAYER_DIRECTORY = null;
 let SEASON_AWARDS = null;
+let POWER_RANK_CSV_HISTORY = null;
 
 async function renderSeasonPage() {
   const errorBox = document.getElementById("season-error");
   try {
-    const [seasonChain, playerDirectory, seasonAwards] = await Promise.all([
+    const [seasonChain, playerDirectory, seasonAwards, powerRankCsvHistory] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }),
+      fetchJsonSafe(POWER_RANK_CSV_HISTORY_FILE, { seasons: {} }),
     ]);
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
@@ -17,6 +19,7 @@ async function renderSeasonPage() {
     SEASON_CHAIN = seasonChain;
     PLAYER_DIRECTORY = playerDirectory;
     SEASON_AWARDS = seasonAwards;
+    POWER_RANK_CSV_HISTORY = powerRankCsvHistory;
 
     await renderSelectedSeason();
     window.addEventListener("hashchange", renderSelectedSeason);
@@ -279,6 +282,67 @@ function renderBracket(bracketData) {
   return `<div class="bracket-wrap"><div class="bracket">${columns}</div>${championSidebar}</div>`;
 }
 
+function renderPowerRankHistorySection(season) {
+  if (!POWER_RANK_CSV_HISTORY || !POWER_RANK_CSV_HISTORY.seasons) return "";
+  const yearData = POWER_RANK_CSV_HISTORY.seasons[String(season)];
+  if (!yearData || !yearData.ranks) return "";
+
+  function toSeries(dataset) {
+    const entries = Object.entries(dataset);
+    return entries.map(([key, team], i) => ({
+      name: team.label || key,
+      color: MULTI_LINE_COLORS[i % MULTI_LINE_COLORS.length],
+      points: [{ x: "Pre", y: team.pre }, ...team.weekly.map((v, wi) => ({ x: `W${wi + 1}`, y: v }))],
+    }));
+  }
+
+  // Playoff Odds has no "Pre" value (tracking starts at Week 1) and is
+  // stored as a flat array per team rather than {pre, weekly}.
+  function toFlatSeries(dataset) {
+    const entries = Object.entries(dataset);
+    return entries.map(([key, weekly], i) => ({
+      name: key,
+      color: MULTI_LINE_COLORS[i % MULTI_LINE_COLORS.length],
+      points: weekly.map((v, wi) => ({ x: `W${wi + 1}`, y: v })),
+    }));
+  }
+
+  const rankChart = Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, formatter: (v) => v.toFixed(1) });
+  const hasUnknowns = Object.keys(yearData.ranks).some((k) => k.startsWith("unknown-"));
+
+  const scoreSection = yearData.scores
+    ? `
+    <div class="wrap"><div class="panel">
+      <h2>Power Score History</h2>
+      ${Charts.multiLineChart(toSeries(yearData.scores), { invertY: true, formatter: (v) => v.toFixed(2) })}
+      <p class="heatmap-note">Raw weighted PR Score each week — lower is better, same as the rank chart above.</p>
+    </div></div>`
+    : "";
+
+  const oddsSection = yearData.playoffOdds
+    ? `
+    <div class="wrap"><div class="panel">
+      <h2>Playoff Odds History</h2>
+      ${Charts.multiLineChart(toFlatSeries(yearData.playoffOdds), { formatter: (v) => v.toFixed(1) + "%" })}
+      <p class="heatmap-note">Simulated chance of making the playoffs each week — higher is better, unlike the two charts above.</p>
+    </div></div>`
+    : "";
+
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Power Rank History</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      <h2>Power Rank By Week</h2>
+      ${rankChart}
+      <p class="heatmap-note">Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season haven't been identified yet and are labeled by their preseason rank — see data/power-rank-csv-history.json." : ""}</p>
+    </div></div>
+    ${scoreSection}
+    ${oddsSection}`;
+}
+
 function renderAwardsSection(season) {
   if (!SEASON_AWARDS || !SEASON_AWARDS.seasons) return "";
   const yearAwards = SEASON_AWARDS.seasons[String(season)];
@@ -449,6 +513,8 @@ function renderSummary(s) {
       <h2>${isTotal ? "Average Score By Week Of Season (All Years)" : "League Average Score By Week"}</h2>
       ${weeklyTrendChart}
     </div></div>
+
+    ${isTotal ? "" : renderPowerRankHistorySection(s.season)}
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>

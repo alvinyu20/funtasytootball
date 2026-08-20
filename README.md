@@ -181,8 +181,17 @@ years that slot actually existed.
 
 **Head-to-head records** live on each manager's Teams page — click into
 anyone to see their all-time record against every opponent they've faced,
-plus a separate table for playoff meetings only (any matchup at or after
-that season's `playoff_week_start`).
+plus a separate table for playoff meetings only. "Playoff" here means
+genuinely on the path to 1st or 3rd place — the 5th-place game, and any
+other consolation-bracket game, are excluded, no matter how big or small
+the league's bracket is.
+
+Each Team Profile also shows: **Regular Season record** and **Playoff
+record** (computed separately, from actual weekly results — not from
+Sleeper's own win/loss counter, which lumps the two together),
+**Championship Games** (career championship-game record, wins vs.
+runner-up finishes), and **Winning/Losing Seasons** (a count of how many
+years their regular-season record finished above vs. below .500).
 
 **The playoff bracket** on each Season page is read directly from
 Sleeper's own bracket data, with scores filled in from that round's actual
@@ -258,6 +267,16 @@ open that file (right on GitHub, no need to touch anything else) and
 update each team's rank under their Sleeper username, plus the `asOf`
 date. Teams with no entry just show "—" — exactly what you'll see before
 the draft, when there's nothing to rank yet.
+
+**Power Rank History**, on each Season page — a chart of every team's
+Power Rank, Power Score (2024+), and Playoff Odds (2024+) week by week,
+recovered from your old tracking spreadsheets and put in
+`data/power-rank-csv-history.json`. Only shows up for years that have
+data in that file (currently 2021–2025; 2020 is intentionally omitted —
+that data was never recovered). Note: `Pathieu` (2021–2022) and `paty23`
+(2023+) are two different people, both named Patrick — Pathieu left the
+league and paty23 joined afterward — so they're kept as separate entries
+in the data, not merged into one.
 
 ## Power Rankings
 

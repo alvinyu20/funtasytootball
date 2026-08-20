@@ -113,4 +113,89 @@ const Charts = {
         </svg>
       </div>`;
   },
+
+  // Multiple teams' trajectories on one chart. series: [{ name, color,
+  // points: [{x, y}] }] — every series should share the same x values
+  // (e.g. "Pre", "W1", "W2", ...). Set invertY: true for rank-style data
+  // where smaller is better (so rank 1 plots at the top).
+  multiLineChart(series, { width = 720, height = 360, formatter = (v) => v.toFixed(1), invertY = false } = {}) {
+    const validSeries = series.filter((s) => s.points && s.points.length);
+    if (!validSeries.length) return `<div class="empty-state">Not enough data yet.</div>`;
+
+    const padL = 40, padR = 16, padT = 16, padB = 32;
+    const innerW = width - padL - padR;
+    const innerH = height - padT - padB;
+
+    const allY = validSeries.flatMap((s) => s.points.map((p) => p.y));
+    const minY = Math.min(...allY);
+    const maxY = Math.max(...allY);
+    const yRange = maxY - minY || 1;
+
+    function yFor(value) {
+      const t = (value - minY) / yRange;
+      return invertY ? padT + t * innerH : padT + innerH - t * innerH;
+    }
+
+    const pointCount = validSeries[0].points.length;
+    const xStep = pointCount > 1 ? innerW / (pointCount - 1) : 0;
+    function xFor(i) {
+      return padL + i * xStep;
+    }
+
+    const gridLines = [0, 0.5, 1]
+      .map((f) => {
+        const y = padT + innerH * f;
+        return `<line class="lc-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}" />`;
+      })
+      .join("");
+
+    const paths = validSeries
+      .map((s) => {
+        const d = s.points.map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i).toFixed(1)},${yFor(p.y).toFixed(1)}`).join(" ");
+        const dots = s.points
+          .map(
+            (p, i) =>
+              `<circle class="lc-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.y).toFixed(1)}" r="2.5" style="fill:${s.color}"><title>${escapeHtml(
+                s.name
+              )} · ${escapeHtml(String(p.x))}: ${formatter(p.y)}</title></circle>`
+          )
+          .join("");
+        return `<path class="lc-line" style="stroke:${s.color}" d="${d}"></path>${dots}`;
+      })
+      .join("");
+
+    const labelEvery = Math.max(1, Math.ceil(pointCount / 14));
+    const xLabels = validSeries[0].points
+      .filter((_, i) => i % labelEvery === 0)
+      .map((p, idx) => {
+        const i = idx * labelEvery;
+        return `<text class="lc-axis-label" x="${xFor(i).toFixed(1)}" y="${height - 8}" text-anchor="middle">${escapeHtml(String(p.x))}</text>`;
+      })
+      .join("");
+
+    const yLabels = [minY, (minY + maxY) / 2, maxY]
+      .map((v) => `<text class="lc-value-label" x="${padL - 8}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end">${formatter(v)}</text>`)
+      .join("");
+
+    const legend = validSeries
+      .map((s) => `<span><span class="swatch" style="background:${s.color}"></span>${escapeHtml(s.name)}</span>`)
+      .join("");
+
+    return `
+      <div class="line-chart-wrap">
+        <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="xMinYMin meet">
+          ${gridLines}
+          ${yLabels}
+          ${paths}
+          ${xLabels}
+        </svg>
+      </div>
+      <div class="chart-legend">${legend}</div>`;
+  },
 };
+
+// A qualitative color palette for up to 10 distinct trajectory lines.
+const MULTI_LINE_COLORS = [
+  "#E8B23D", "#B5502F", "#4F8F6B", "#7C8FA6", "#D9534F",
+  "#9B7EDE", "#4FC3D9", "#E091B5", "#A8B84F", "#E8823D",
+];

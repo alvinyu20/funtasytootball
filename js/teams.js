@@ -190,8 +190,11 @@ function renderManagerDetail(m) {
       <div class="scoreboard-ticker">
         <div class="ticker-stat"><span class="label">Career Record</span><span class="value">${m.careerWins}-${m.careerLosses}${m.careerTies ? "-" + m.careerTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Win %</span><span class="value">${winPct}%</span></div>
-        <div class="ticker-stat"><span class="label">Championships</span><span class="value">${m.championships}</span></div>
-        <div class="ticker-stat"><span class="label">Runner-ups</span><span class="value">${m.runnerUps}</span></div>
+        <div class="ticker-stat"><span class="label">Regular Season</span><span class="value">${m.careerRegularSeasonWins}-${m.careerRegularSeasonLosses}${m.careerRegularSeasonTies ? "-" + m.careerRegularSeasonTies : ""}</span></div>
+        <div class="ticker-stat"><span class="label">Playoff Record</span><span class="value">${m.careerPlayoffWins}-${m.careerPlayoffLosses}${m.careerPlayoffTies ? "-" + m.careerPlayoffTies : ""}</span></div>
+        <div class="ticker-stat"><span class="label">Championship Games</span><span class="value">${m.championships}-${m.runnerUps}</span></div>
+        <div class="ticker-stat"><span class="label">Winning Seasons</span><span class="value">${m.winningSeasons}</span></div>
+        <div class="ticker-stat"><span class="label">Losing Seasons</span><span class="value">${m.losingSeasons}</span></div>
         <div class="ticker-stat"><span class="label">3rd Place</span><span class="value">${m.thirdPlaceFinishes}</span></div>
         <div class="ticker-stat"><span class="label">Career PF</span><span class="value">${m.careerPF.toFixed(1)}</span></div>
       </div>
