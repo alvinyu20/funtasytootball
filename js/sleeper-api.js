@@ -77,6 +77,15 @@ const SleeperAPI = {
     return `https://sleepercdn.com/avatars/${thumb ? "thumbs/" : ""}${avatarId}`;
   },
 
+  // Undocumented but well-established Sleeper CDN pattern for player
+  // headshots (mirrors the avatar URL convention above). Not every player
+  // has a photo (notably team defenses), so callers should handle a
+  // failed image load gracefully — see utils.js's playerPhotoHtml().
+  playerImageUrl(playerId) {
+    if (!playerId) return null;
+    return `https://sleepercdn.com/content/nfl/players/${playerId}.jpg`;
+  },
+
   // Prefer a manager's custom team name if they set one, fall back to
   // their Sleeper display name, then to a generic label.
   teamName(user, rosterId) {

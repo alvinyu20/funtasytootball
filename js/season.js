@@ -272,8 +272,13 @@ function renderBracket(bracketData) {
         bracketData.champion.mvp
           ? `
       <div class="bracket-sidebar-label" style="margin-top:20px;">Finals MVP</div>
-      <div class="bracket-sidebar-value">⭐ ${escapeHtml(bracketData.champion.mvp.player)}</div>
-      <div class="bracket-sidebar-sub">${bracketData.champion.mvp.points.toFixed(1)} pts</div>`
+      <div class="player-rep-card" style="gap:12px; margin-top:8px;">
+        ${playerPhotoHtml(bracketData.champion.mvp.playerId, bracketData.champion.mvp.player, "player-photo-sm")}
+        <div>
+          <div class="bracket-sidebar-value" style="font-size:15px;">${escapeHtml(bracketData.champion.mvp.player)}</div>
+          <div class="bracket-sidebar-sub">${bracketData.champion.mvp.points.toFixed(1)} pts</div>
+        </div>
+      </div>`
           : ""
       }
     </div>`

@@ -1144,7 +1144,7 @@ const DeepHistory = {
         (m.starters || []).forEach((pid) => {
           if (!pid || pid === "0") return;
           const pts = (m.players_points && m.players_points[pid]) || 0;
-          if (!mvp || pts > mvp.points) mvp = { player: SleeperAPI.playerName(playerDirectory, pid), points: pts };
+          if (!mvp || pts > mvp.points) mvp = { player: SleeperAPI.playerName(playerDirectory, pid), playerId: pid, points: pts };
         });
       }
       champion = { name: teamNameById.get(champRosterId) || `Roster ${champRosterId}`, mvp };

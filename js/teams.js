@@ -200,6 +200,26 @@ function renderManagerDetail(m) {
       </div>
     </div>
 
+    ${
+      m.mostRostered.length
+        ? `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Player Representative</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel player-rep-card">
+        ${playerPhotoHtml(m.mostRostered[0].playerId, m.mostRostered[0].name, "player-photo-lg")}
+        <div>
+          <div class="player-rep-name">${escapeHtml(m.mostRostered[0].name)}</div>
+          <div class="player-rep-detail">Rostered ${m.mostRostered[0].weeksRostered} weeks — more than anyone else on this team, ever.</div>
+        </div>
+      </div>
+    </div>`
+        : ""
+    }
+
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
       <span class="label">Most Rostered Players</span>

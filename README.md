@@ -278,6 +278,17 @@ that data was never recovered). Note: `Pathieu` (2021–2022) and `paty23`
 league and paty23 joined afterward — so they're kept as separate entries
 in the data, not merged into one.
 
+**Player Representative**, on each Team Profile — a headshot of whoever's
+been on that team the most (the #1 entry from Most Rostered Players).
+**Finals MVP photos** now show up in the Season page's playoff bracket
+sidebar too. Both use Sleeper's player headshot CDN
+(`sleepercdn.com/content/nfl/players/<id>.jpg`) — this isn't in Sleeper's
+official docs, but it's a well-established, widely-used pattern (the
+same one powering Player Cards in the Sleeper app). Since it's
+undocumented and not every player has a photo (team defenses, for one),
+any image that fails to load falls back to a simple initial-letter tile
+instead of a broken-image icon.
+
 ## Power Rankings
 
 `power-rankings.html` / `js/power-rankings.js` — a weekly composite

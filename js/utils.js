@@ -61,6 +61,20 @@ function luckBadge(pct) {
   return `<span class="${cls}">${text}</span>`;
 }
 
+// A round player headshot with a graceful fallback (an initial-letter
+// tile) if the image 404s — Sleeper's headshot CDN is undocumented and
+// doesn't have a photo for every player (notably team defenses).
+// sizeClass: "player-photo-lg" or "player-photo-sm" (see styles.css).
+function playerPhotoHtml(playerId, playerName, sizeClass) {
+  const initial = playerName ? playerName.trim().charAt(0).toUpperCase() : "?";
+  const url = SleeperAPI.playerImageUrl(playerId);
+  return `
+    <div class="player-photo-wrap ${sizeClass || ""}">
+      <img src="${url}" alt="${escapeHtml(playerName || "")}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+      <div class="player-photo-fallback">${escapeHtml(initial)}</div>
+    </div>`;
+}
+
 // Box-Muller transform — draws one sample from a normal distribution.
 // Used by the Monte Carlo playoff-odds simulator.
 function gaussianRandom(mean = 0, stdev = 1) {
