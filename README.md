@@ -186,11 +186,17 @@ that season's `playoff_week_start`).
 
 **The playoff bracket** on each Season page is read directly from
 Sleeper's own bracket data, with scores filled in from that round's actual
-matchup results where available. The 5th-place game (if your league plays
-one) is left out of the bracket display and out of Playoff Head-to-Head —
-"relevant" playoff games are only ones on the genuine path to 1st or 3rd
-place, traced backward through Sleeper's own bracket structure, so this
-adapts automatically to different bracket sizes.
+matchup results where available. Click any matchup to expand it and see
+both teams' starting lineups (with each player's points) for that game.
+The championship game gets a brighter gold outline so it stands out from
+the rest of the bracket, and there's a sidebar next to the bracket showing
+the champion and that game's Finals MVP (the winning team's
+highest-scoring starter in the championship game itself). The 5th-place
+game (if your league plays one) is left out of the bracket display and
+out of Playoff Head-to-Head — "relevant" playoff games are only ones on
+the genuine path to 1st or 3rd place, traced backward through Sleeper's
+own bracket structure, so this adapts automatically to different bracket
+sizes.
 
 **History page champions** show the winning team's Sleeper username in
 smaller, muted text right after the team name (skipped if they're the
@@ -198,10 +204,16 @@ same, so an unrenamed team doesn't show its name twice).
 
 **Starting Lineup**, a dropdown next to Draft Picks on each season row in
 Teams: whichever player filled each roster slot most often that season.
-"That season" means every regular-season week, plus any playoff week that
-team was still alive for a top-3 finish — the 5th-place game and any
-games after elimination are excluded, using the same backward-traced
-bracket logic as Playoff Head-to-Head.
+Slot assignment mirrors the Season page's scoring-by-slot table: QB pools
+together dedicated-QB and SUPERFLEX-as-QB starts; RB/WR/TE each pool
+their dedicated slot(s) with FLEX-as-that-position and SUPERFLEX-as-that-
+position starts; FLEX and SUPERFLEX are decided last, from whoever's left
+over once every other slot is claimed. "That season" means every regular-
+season week, plus any playoff week that team was still alive for a top-3
+finish — the 5th-place game and any games after elimination are excluded.
+Each player is also tagged with how they were acquired that season —
+Draft, Trade, Waivers, or Free Agency (falling back to "Roster" for
+keeper/dynasty holdovers with no transaction that year).
 
 **Overall Record and Luck**, shown on the Season page's Final Standings
 and on each manager's Season By Season table on Teams: "Overall" is the

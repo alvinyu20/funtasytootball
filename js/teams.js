@@ -116,7 +116,7 @@ function renderManagerDetail(m) {
               (slot) => `
           <div class="draft-pick-row">
             <span>${escapeHtml(slot.slot)}</span>
-            <span class="pick-player">${slot.player ? escapeHtml(slot.player) : "—"}</span>
+            <span class="pick-player">${slot.player ? escapeHtml(slot.player) : "—"}${slot.acquisition ? `<span class="acquisition-tag">${escapeHtml(slot.acquisition)}</span>` : ""}</span>
             <span class="pick-points">${slot.starts ? `${slot.starts} gm${slot.starts === 1 ? "" : "s"}` : ""}</span>
           </div>`
             )

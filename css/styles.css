@@ -617,13 +617,14 @@ table.stat-table td.heat-cell.empty {
 /* ==========================================================================
    PLAYOFF BRACKET
    ========================================================================== */
-.bracket { display: flex; gap: 28px; overflow-x: auto; padding: 8px 4px 16px; }
+.bracket-wrap { display: flex; gap: 28px; align-items: flex-start; }
+.bracket { display: flex; gap: 28px; overflow-x: auto; padding: 8px 4px 16px; flex: 1; min-width: 0; }
 .bracket-round {
   display: flex;
   flex-direction: column;
   justify-content: space-around;
   gap: 20px;
-  min-width: 190px;
+  min-width: 210px;
   flex-shrink: 0;
 }
 .bracket-round-label {
@@ -635,13 +636,38 @@ table.stat-table td.heat-cell.empty {
   text-align: center;
   margin-bottom: 2px;
 }
-.bracket-game {
+details.bracket-game {
   background: rgba(255,255,255,0.02);
   border: 1px solid var(--turf-line);
   border-radius: 6px;
   padding: 8px 10px;
+  cursor: pointer;
+}
+details.bracket-game:hover { border-color: var(--gold-dim); }
+details.bracket-game summary {
+  list-style: none;
+  cursor: pointer;
+}
+details.bracket-game summary::-webkit-details-marker { display: none; }
+details.bracket-game summary::after {
+  content: "▾ tap for lineups";
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--chalk-dim);
+  text-align: center;
+  margin-top: 6px;
+  opacity: 0.75;
+}
+details.bracket-game[open] summary::after { content: "▴ hide lineups"; }
+details.bracket-game.championship {
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 0 1px rgba(232,178,61,0.35), 0 0 18px rgba(232,178,61,0.12);
+  background: rgba(232,178,61,0.05);
 }
 .bracket-game-label {
+  display: block;
   font-family: var(--font-mono);
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -664,6 +690,57 @@ table.stat-table td.heat-cell.empty {
 .bracket-team.winner { color: var(--gold); font-weight: 600; }
 .bracket-score { font-variant-numeric: tabular-nums; }
 
+.bracket-lineup-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--turf-line);
+  cursor: default;
+}
+.bracket-lineup-team-name {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 12px 0 4px;
+}
+.bracket-lineup-team-name:first-child { margin-top: 0; }
+
+.bracket-sidebar {
+  flex-shrink: 0;
+  width: 200px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+.bracket-sidebar-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 6px;
+}
+.bracket-sidebar-value {
+  font-family: var(--font-display);
+  font-size: 19px;
+  color: var(--chalk);
+  text-transform: uppercase;
+  line-height: 1.25;
+}
+.bracket-sidebar-sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--chalk-dim);
+  margin-top: 4px;
+}
+
+@media (max-width: 720px) {
+  .bracket-wrap { flex-direction: column; }
+  .bracket-sidebar { width: 100%; }
+}
+
 /* ==========================================================================
    LUCK VALUE (Overall Record / Luck columns)
    ========================================================================== */
@@ -676,6 +753,20 @@ table.stat-table td.heat-cell.empty {
   font-size: 0.75em;
   color: var(--chalk-dim);
   font-weight: 400;
+}
+
+.acquisition-tag {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  border: 1px solid var(--turf-line);
+  border-radius: 10px;
+  padding: 1px 7px;
+  margin-left: 7px;
+  vertical-align: middle;
 }
 
 /* ==========================================================================

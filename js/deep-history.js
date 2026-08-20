@@ -684,7 +684,7 @@ const DeepHistory = {
       }))
       .sort((a, b) => b.average - a.average);
 
-    const bracket_ = DeepHistory.buildBracket(seasonEntry, deep);
+    const bracket_ = DeepHistory.buildBracket(seasonEntry, deep, playerDirectory);
 
     return {
       season: league.season,
@@ -721,6 +721,14 @@ const DeepHistory = {
     regular-season week, plus any playoff week that team was still in
     genuine contention for 1st or 3rd place (via relevantBracketGames) —
     the 5th-place game and anything after elimination don't count.
+
+    Slot assignment mirrors the scoring-by-slot table: QB pools together
+    dedicated-QB and SUPERFLEX-as-QB starts. RB/WR/TE each pool their
+    dedicated slot with FLEX-as-that-position and SUPERFLEX-as-that-
+    position starts. Once QB and every RB/WR/TE slot is assigned, FLEX is
+    whoever (not already claimed) started at FLEX most often; SUPERFLEX is
+    decided last the same way, excluding everyone already claimed
+    (including FLEX).
   */
   buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {
     const { league, bracket } = seasonEntry;
@@ -748,6 +756,12 @@ const DeepHistory = {
       countByType[t] = (countByType[t] || 0) + 1;
     });
 
+    const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+    function nativePosition(pid) {
+      const p = playerDirectory && playerDirectory[pid];
+      return p && KNOWN_POS.has(p.position) ? p.position : null;
+    }
+
     function friendlyFlexLabel(slotType) {
       if (slotType === "FLEX") return "FLEX";
       if (slotType === "SUPER_FLEX") return "SFLX";
@@ -769,41 +783,129 @@ const DeepHistory = {
       });
     });
 
-    const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
+    function mergeCounts(...maps) {
+      const merged = new Map();
+      maps.forEach((m) => {
+        (m || new Map()).forEach((count, pid) => {
+          merged.set(pid, (merged.get(pid) || 0) + count);
+        });
+      });
+      return merged;
+    }
+    function filterByPosition(countMap, pos) {
+      const filtered = new Map();
+      (countMap || new Map()).forEach((count, pid) => {
+        if (nativePosition(pid) === pos) filtered.set(pid, count);
+      });
+      return filtered;
+    }
+    function topN(countMap, n) {
+      return [...(countMap || new Map()).entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+    }
+
+    // ---- Who acquired each player, and how (Draft / Trade / Waivers /
+    //      Free Agency) — latest event wins if a player was added more
+    //      than once. Falls back to "Roster" for keeper/dynasty holdovers
+    //      with no transaction this season. ----
+    const acquisitionByPlayer = new Map();
+    if (deep && deep.draft && deep.draft.picks) {
+      deep.draft.picks.forEach((p) => {
+        if (p.roster_id === rosterId && p.player_id) acquisitionByPlayer.set(p.player_id, "Draft");
+      });
+    }
+    if (deep && deep.transactions) {
+      deep.transactions.forEach((tx) => {
+        if (!tx || tx.status !== "complete") return;
+        const label = tx.type === "trade" ? "Trade" : tx.type === "waiver" ? "Waivers" : tx.type === "free_agent" ? "Free Agency" : null;
+        if (!label) return;
+        Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
+          if (rid === rosterId) acquisitionByPlayer.set(playerId, label);
+        });
+      });
+    }
+
+    const claimed = new Set();
     const slots = [];
-    POSITION_ORDER.forEach((pos) => {
+    function pushSlot(label, pid, count) {
+      if (pid) claimed.add(pid);
+      slots.push({
+        slot: label,
+        player: pid ? SleeperAPI.playerName(playerDirectory, pid) : null,
+        starts: pid ? count : 0,
+        acquisition: pid ? acquisitionByPlayer.get(pid) || "Roster" : null,
+      });
+    }
+
+    // QB: dedicated QB + SUPERFLEX-as-QB.
+    const qbCount = countByType.QB || 0;
+    if (qbCount > 0) {
+      const pool = mergeCounts(slotCounts.QB, filterByPosition(slotCounts.SUPER_FLEX, "QB"));
+      const top = topN(pool, qbCount);
+      for (let i = 0; i < qbCount; i++) {
+        const entry = top[i];
+        pushSlot(qbCount > 1 ? `QB${i + 1}` : "QB", entry ? entry[0] : null, entry ? entry[1] : 0);
+      }
+    }
+
+    // RB / WR / TE: each pools its dedicated slot(s) with FLEX-as-that-
+    // position and SUPERFLEX-as-that-position.
+    ["RB", "WR", "TE"].forEach((pos) => {
       const count = countByType[pos] || 0;
       if (count === 0) return;
-      const ranked = [...(slotCounts[pos] || new Map()).entries()].sort((a, b) => b[1] - a[1]);
+      const pool = mergeCounts(slotCounts[pos], filterByPosition(slotCounts.FLEX, pos), filterByPosition(slotCounts.SUPER_FLEX, pos));
+      const top = topN(pool, count);
       for (let i = 0; i < count; i++) {
-        const entry = ranked[i];
-        slots.push({
-          slot: count > 1 ? `${pos}${i + 1}` : pos,
-          player: entry ? SleeperAPI.playerName(playerDirectory, entry[0]) : null,
-          starts: entry ? entry[1] : 0,
-        });
+        const entry = top[i];
+        pushSlot(count > 1 ? `${pos}${i + 1}` : pos, entry ? entry[0] : null, entry ? entry[1] : 0);
       }
     });
 
+    // K / DEF: never flex-eligible, so literal counts only.
+    ["K", "DEF"].forEach((pos) => {
+      const count = countByType[pos] || 0;
+      if (count === 0) return;
+      const top = topN(slotCounts[pos], count);
+      for (let i = 0; i < count; i++) {
+        const entry = top[i];
+        pushSlot(count > 1 ? `${pos}${i + 1}` : pos, entry ? entry[0] : null, entry ? entry[1] : 0);
+      }
+    });
+
+    // FLEX: whoever (not already claimed above) started at FLEX most often.
+    if (slotCounts.FLEX) {
+      const remaining = new Map();
+      slotCounts.FLEX.forEach((count, pid) => {
+        if (!claimed.has(pid)) remaining.set(pid, count);
+      });
+      const top = topN(remaining, 1)[0];
+      pushSlot("FLEX", top ? top[0] : null, top ? top[1] : 0);
+    }
+
+    // SUPERFLEX: decided last, excluding everyone already claimed (incl. FLEX).
+    if (slotCounts.SUPER_FLEX) {
+      const remaining = new Map();
+      slotCounts.SUPER_FLEX.forEach((count, pid) => {
+        if (!claimed.has(pid)) remaining.set(pid, count);
+      });
+      const top = topN(remaining, 1)[0];
+      pushSlot("SFLX", top ? top[0] : null, top ? top[1] : 0);
+    }
+
+    // Any other custom/exotic flex-type slot (rare) — literal tally only.
     const seenFlexTypes = [];
     slotTypes.forEach((t) => {
-      if (POSITION_ORDER.includes(t) || seenFlexTypes.includes(t)) return;
+      if (["FLEX", "SUPER_FLEX"].includes(t) || !t.includes("FLEX") || seenFlexTypes.includes(t)) return;
       seenFlexTypes.push(t);
     });
     seenFlexTypes.forEach((slotType) => {
-      const ranked = [...(slotCounts[slotType] || new Map()).entries()].sort((a, b) => b[1] - a[1]);
-      const top = ranked[0];
-      slots.push({
-        slot: friendlyFlexLabel(slotType),
-        player: top ? SleeperAPI.playerName(playerDirectory, top[0]) : null,
-        starts: top ? top[1] : 0,
-      });
+      const top = topN(slotCounts[slotType], 1)[0];
+      pushSlot(friendlyFlexLabel(slotType), top ? top[0] : null, top ? top[1] : 0);
     });
 
     return { slots, weeksCounted };
   },
 
-  buildBracket(seasonEntry, deep) {
+  buildBracket(seasonEntry, deep, playerDirectory) {
     const { league, rosters, users, bracket } = seasonEntry;
     if (!bracket || !bracket.length) return null;
 
@@ -815,14 +917,26 @@ const DeepHistory = {
     });
 
     const playoffStart = league.settings && league.settings.playoff_week_start;
+    const EXCLUDE = new Set(["BN", "IR", "TAXI"]);
+    const slotTypes = (league.roster_positions || []).filter((p) => !EXCLUDE.has(p));
 
-    function scoreFor(rosterId, round) {
+    function matchupFor(rosterId, round) {
       if (rosterId == null || !playoffStart || !deep) return null;
       const week = playoffStart + (round - 1);
       const weekData = deep.weeks.find((w) => w.week === week);
       if (!weekData) return null;
-      const m = weekData.matchups.find((mm) => mm.roster_id === rosterId);
-      return m ? m.points : null;
+      return weekData.matchups.find((mm) => mm.roster_id === rosterId) || null;
+    }
+
+    function lineupFor(m) {
+      if (!m) return [];
+      const pointsMap = m.players_points || {};
+      return (m.starters || [])
+        .map((pid, i) => {
+          if (!pid || pid === "0") return null;
+          return { slot: slotTypes[i] || "?", player: SleeperAPI.playerName(playerDirectory, pid), points: pointsMap[pid] || 0 };
+        })
+        .filter(Boolean);
     }
 
     const maxRound = Math.max(...bracket.map((g) => g.r));
@@ -836,10 +950,12 @@ const DeepHistory = {
 
     function teamSlot(game, slotKey) {
       const id = SleeperAPI.resolveBracketTeamId(bracket, game, slotKey);
+      const m = matchupFor(id, game.r);
       return {
         name: id != null ? teamNameById.get(id) || `Roster ${id}` : "TBD",
-        score: scoreFor(id, game.r),
+        score: m ? m.points : null,
         isWinner: game.w != null && id != null && game.w === id,
+        lineup: lineupFor(m),
       };
     }
 
@@ -850,14 +966,32 @@ const DeepHistory = {
       .forEach((g) => {
         const specialLabel = g.p === 1 ? "Championship" : g.p === 3 ? "3rd Place" : null;
         if (!byRound.has(g.r)) byRound.set(g.r, []);
-        byRound.get(g.r).push({ team1: teamSlot(g, "t1"), team2: teamSlot(g, "t2"), specialLabel });
+        byRound.get(g.r).push({ team1: teamSlot(g, "t1"), team2: teamSlot(g, "t2"), specialLabel, isChampionship: g.p === 1 });
       });
 
     const rounds = [...byRound.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([r, games]) => ({ roundNumber: r, label: roundLabel(r), games }));
 
-    return { rounds };
+    // ---- Champion + Finals MVP (highest-scoring starter on the winning
+    //      team, in the championship game itself) ----
+    let champion = null;
+    const champGame = bracket.find((g) => g.p === 1);
+    if (champGame && champGame.w != null) {
+      const champRosterId = champGame.w;
+      const m = matchupFor(champRosterId, champGame.r);
+      let mvp = null;
+      if (m) {
+        (m.starters || []).forEach((pid) => {
+          if (!pid || pid === "0") return;
+          const pts = (m.players_points && m.players_points[pid]) || 0;
+          if (!mvp || pts > mvp.points) mvp = { player: SleeperAPI.playerName(playerDirectory, pid), points: pts };
+        });
+      }
+      champion = { name: teamNameById.get(champRosterId) || `Roster ${champRosterId}`, mvp };
+    }
+
+    return { rounds, champion };
   },
 
   /*

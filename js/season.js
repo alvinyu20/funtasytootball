@@ -178,17 +178,41 @@ function renderBracket(bracketData) {
   if (!bracketData || !bracketData.rounds.length) {
     return `<div class="empty-state">No bracket yet — check back once the playoffs start.</div>`;
   }
+
+  function lineupBlock(team) {
+    if (!team.lineup.length) return "";
+    const rows = team.lineup
+      .map(
+        (p) => `
+      <div class="draft-pick-row">
+        <span>${escapeHtml(p.slot)}</span>
+        <span class="pick-player">${escapeHtml(p.player)}</span>
+        <span class="pick-points">${p.points.toFixed(1)}</span>
+      </div>`
+      )
+      .join("");
+    return `<div class="bracket-lineup-team-name">${escapeHtml(team.name)}</div>${rows}`;
+  }
+
   const columns = bracketData.rounds
     .map((round) => {
       const games = round.games
         .map((g) => {
-          const label = g.specialLabel ? `<div class="bracket-game-label">${escapeHtml(g.specialLabel)}</div>` : "";
+          const label = g.specialLabel ? `<span class="bracket-game-label">${escapeHtml(g.specialLabel)}</span>` : "";
           const teamRow = (team) => `
-          <div class="bracket-team ${team.isWinner ? "winner" : ""}">
+          <span class="bracket-team ${team.isWinner ? "winner" : ""}">
             <span>${escapeHtml(team.name)}</span>
             ${team.score != null ? `<span class="bracket-score">${team.score.toFixed(1)}</span>` : ""}
-          </div>`;
-          return `<div class="bracket-game">${label}${teamRow(g.team1)}${teamRow(g.team2)}</div>`;
+          </span>`;
+          const hasLineups = g.team1.lineup.length || g.team2.lineup.length;
+          const lineupSection = hasLineups
+            ? `<div class="bracket-lineup-section">${lineupBlock(g.team1)}${lineupBlock(g.team2)}</div>`
+            : "";
+          return `
+          <details class="bracket-game${g.isChampionship ? " championship" : ""}">
+            <summary>${label}${teamRow(g.team1)}${teamRow(g.team2)}</summary>
+            ${lineupSection}
+          </details>`;
         })
         .join("");
       return `
@@ -199,7 +223,23 @@ function renderBracket(bracketData) {
     })
     .join("");
 
-  return `<div class="bracket">${columns}</div>`;
+  const championSidebar = bracketData.champion
+    ? `
+    <div class="bracket-sidebar">
+      <div class="bracket-sidebar-label">Champion</div>
+      <div class="bracket-sidebar-value">🏆 ${escapeHtml(bracketData.champion.name)}</div>
+      ${
+        bracketData.champion.mvp
+          ? `
+      <div class="bracket-sidebar-label" style="margin-top:20px;">Finals MVP</div>
+      <div class="bracket-sidebar-value">⭐ ${escapeHtml(bracketData.champion.mvp.player)}</div>
+      <div class="bracket-sidebar-sub">${bracketData.champion.mvp.points.toFixed(1)} pts</div>`
+          : ""
+      }
+    </div>`
+    : "";
+
+  return `<div class="bracket-wrap"><div class="bracket">${columns}</div>${championSidebar}</div>`;
 }
 
 function renderSummary(s) {
