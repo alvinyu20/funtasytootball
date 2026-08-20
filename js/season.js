@@ -1,16 +1,6 @@
 let SEASON_CHAIN = null;
 let PLAYER_DIRECTORY = null;
 
-const POSITION_SEGMENTS = [
-  { key: "QB", label: "QB", color: "var(--pos-qb)" },
-  { key: "RB", label: "RB", color: "var(--pos-rb)" },
-  { key: "WR", label: "WR", color: "var(--pos-wr)" },
-  { key: "TE", label: "TE", color: "var(--pos-te)" },
-  { key: "K", label: "K", color: "var(--pos-k)" },
-  { key: "DEF", label: "DEF", color: "var(--pos-def)" },
-  { key: "OTHER", label: "Other", color: "var(--pos-other)" },
-];
-
 async function renderSeasonPage() {
   const errorBox = document.getElementById("season-error");
   try {
@@ -101,6 +91,60 @@ function recordCard(label, value, detail) {
     </div>`;
 }
 
+function renderPositionTable(positionTable) {
+  if (!positionTable.columns.length || !positionTable.rows.length) {
+    return `<div class="empty-state">No lineup data available for this season.</div>`;
+  }
+
+  // Standardize each column independently: min/max computed only within that column.
+  const ranges = {};
+  positionTable.columns.forEach((col) => {
+    const values = positionTable.rows.map((r) => r.cells[col.key]).filter((v) => v != null);
+    ranges[col.key] = { min: Math.min(...values), max: Math.max(...values) };
+  });
+
+  const header = positionTable.columns.map((c) => `<th>${escapeHtml(c.label)}</th>`).join("");
+
+  const rows = positionTable.rows
+    .map((r) => {
+      const cells = positionTable.columns
+        .map((col) => {
+          const v = r.cells[col.key];
+          if (v == null) return `<td class="heat-cell empty">—</td>`;
+          const { min, max } = ranges[col.key];
+          const bg = heatColor(v, min, max);
+          return `<td class="heat-cell" style="background:${bg}">${v.toFixed(1)}</td>`;
+        })
+        .join("");
+      return `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${cells}</tr>`;
+    })
+    .join("");
+
+  return `
+    <div class="heatmap-table-wrap">
+      <table class="stat-table">
+        <thead><tr><th>Team</th>${header}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="heatmap-note">Each column is colored independently — gold is that column's best, rust is its worst.</p>`;
+}
+
+function renderRankList(items, describe) {
+  if (!items.length) return `<div class="empty-state">Not enough games played yet.</div>`;
+  return `<div class="rank-list">${items
+    .map((item, i) => {
+      const d = describe(item);
+      return `
+    <div class="rank-list-row">
+      <span class="rank-num">${i + 1}</span>
+      <span class="desc">${d.main}<span class="sub">${d.sub}</span></span>
+      <span class="val">${d.value}</span>
+    </div>`;
+    })
+    .join("")}</div>`;
+}
+
 function renderSummary(s) {
   const standingsRows = s.standings
     .map(
@@ -124,18 +168,33 @@ function renderSummary(s) {
     s.teamAverages.map((t) => ({ label: t.teamName, value: t.average }))
   );
 
-  const positionChart = Charts.stackedBarChart(
-    s.positionRows.map((r) => ({ label: r.label, segments: r.segments })),
-    POSITION_SEGMENTS
-  );
+  const positionTableHtml = renderPositionTable(s.positionTable);
 
   const extremeCards = [
     s.highestWeekScore && recordCard("Highest Score", s.highestWeekScore.points.toFixed(1), `${escapeHtml(s.highestWeekScore.teamName)} · Week ${s.highestWeekScore.week}`),
     s.lowestWeekScore && recordCard("Lowest Score", s.lowestWeekScore.points.toFixed(1), `${escapeHtml(s.lowestWeekScore.teamName)} · Week ${s.lowestWeekScore.week}`),
-    s.biggestBlowout && recordCard("Biggest Blowout", `${s.biggestBlowout.margin.toFixed(1)} pts`, `${escapeHtml(s.biggestBlowout.winner)} over ${escapeHtml(s.biggestBlowout.loser)} · Wk ${s.biggestBlowout.week}`),
-    s.closestGame && recordCard("Closest Game", `${s.closestGame.margin.toFixed(1)} pts`, `${escapeHtml(s.closestGame.winner)} over ${escapeHtml(s.closestGame.loser)} · Wk ${s.closestGame.week}`),
   ]
     .filter(Boolean)
+    .join("");
+
+  const closestListHtml = renderRankList(s.top5Closest, (m) => ({
+    main: `${escapeHtml(m.winner)} def. ${escapeHtml(m.loser)}`,
+    sub: `Week ${m.week} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
+    value: `${m.margin.toFixed(1)} pt`,
+  }));
+  const blowoutListHtml = renderRankList(s.top5Blowouts, (m) => ({
+    main: `${escapeHtml(m.winner)} over ${escapeHtml(m.loser)}`,
+    sub: `Week ${m.week} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
+    value: `${m.margin.toFixed(1)} pt`,
+  }));
+
+  const POSITION_LABELS = { QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", DEF: "DEF" };
+  const bestByPositionCards = Object.entries(POSITION_LABELS)
+    .map(([pos, label]) => {
+      const x = s.bestByPosition[pos];
+      if (!x) return "";
+      return recordCard(`Best ${label} Week`, x.points.toFixed(1), `${escapeHtml(x.player)} · ${escapeHtml(x.teamName)} · Wk ${x.week}`);
+    })
     .join("");
 
   const draftCards = [
@@ -181,12 +240,12 @@ function renderSummary(s) {
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
-      <span class="label">By Position</span>
+      <span class="label">By Starting Slot</span>
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <h2>Scoring By Position, By Team</h2>
-      ${positionChart}
+      <h2>Average Score Per Week, By Lineup Slot</h2>
+      ${positionTableHtml}
     </div></div>
 
     <div class="yard-divider">
@@ -196,6 +255,28 @@ function renderSummary(s) {
     </div>
     <div class="wrap">
       <div class="records-grid">${extremeCards || `<div class="empty-state">No games played yet.</div>`}</div>
+    </div>
+
+    <div class="wrap">
+      <div class="section-grid" style="margin-top:20px;">
+        <div class="panel">
+          <h2>Top 5 Closest Matchups</h2>
+          ${closestListHtml}
+        </div>
+        <div class="panel">
+          <h2>Top 5 Biggest Blowouts</h2>
+          ${blowoutListHtml}
+        </div>
+      </div>
+    </div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Best By Position</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="records-grid">${bestByPositionCards || `<div class="empty-state">No lineup data available.</div>`}</div>
     </div>
 
     <div class="yard-divider">

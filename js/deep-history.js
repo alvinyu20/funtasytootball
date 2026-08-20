@@ -38,10 +38,10 @@ const DeepHistory = {
 
     onProgress && onProgress(league.season, "fetching");
 
-    // Walk weeks 1..18 until we hit a week with no data — that's the
-    // reliable signal we've run past the end of that season.
+    // Walk weeks 1..LAST_FANTASY_WEEK until we hit a week with no data —
+    // that's the reliable signal we've run past the end of that season.
     const weeksRaw = [];
-    for (let week = 1; week <= 18; week++) {
+    for (let week = 1; week <= LAST_FANTASY_WEEK; week++) {
       let matchups;
       try {
         matchups = await SleeperAPI.getMatchups(leagueId, week);
@@ -410,25 +410,32 @@ const DeepHistory = {
     const championRosterId = SleeperAPI.findChampionRosterId(bracket);
 
     const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
-    function normalizedPosition(pid) {
-      const p = playerDirectory && playerDirectory[pid];
-      const pos = p && p.position;
-      return KNOWN_POS.has(pos) ? pos : "OTHER";
-    }
 
     function pick(current, candidate, better) {
       return !current || better(candidate, current) ? candidate : current;
     }
 
+    // Declared up front (not just for the draft section below) because the
+    // weekly loop also uses it to name each week's best-at-position player.
+    const playerNameOverrides = new Map();
+    function playerName(pid) {
+      const fromDir = SleeperAPI.playerName(playerDirectory, pid);
+      if (!fromDir.startsWith("Unknown Player")) return fromDir;
+      return playerNameOverrides.get(pid) || fromDir;
+    }
+    function nativePosition(pid) {
+      const p = playerDirectory && playerDirectory[pid];
+      return p && KNOWN_POS.has(p.position) ? p.position : null;
+    }
+
     const weeklyLeagueAvg = [];
     const teamTotals = new Map(); // rosterId -> {sum, games, teamName, username}
-    const teamPositionTotals = new Map(); // rosterId -> {QB:0, RB:0, ...}
-    const seasonPlayerPoints = new Map(); // player_id -> total points
+    const seasonPlayerPoints = new Map(); // player_id -> total points, this season
 
     let highestWeekScore = null;
     let lowestWeekScore = null;
-    let biggestBlowout = null;
-    let closestGame = null;
+    const allMargins = []; // every matchup's margin this season, for top-5 lists
+    const bestByPosition = {}; // "QB" -> {player, points, week, teamName}
 
     (deep ? deep.weeks : []).forEach(({ week, matchups }) => {
       let weekSum = 0;
@@ -445,17 +452,13 @@ const DeepHistory = {
         t.games += 1;
         teamTotals.set(m.roster_id, t);
 
-        const posTotals = teamPositionTotals.get(m.roster_id) || {};
-        (m.starters || []).forEach((pid) => {
-          if (!pid || pid === "0") return;
-          const pos = normalizedPosition(pid);
-          const pts = (m.players_points && m.players_points[pid]) || 0;
-          posTotals[pos] = (posTotals[pos] || 0) + pts;
-        });
-        teamPositionTotals.set(m.roster_id, posTotals);
-
         Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
           seasonPlayerPoints.set(pid, (seasonPlayerPoints.get(pid) || 0) + (pts || 0));
+          const pos = nativePosition(pid);
+          if (pos) {
+            const entry = { player: playerName(pid), points: pts || 0, week, teamName: info.teamName };
+            bestByPosition[pos] = pick(bestByPosition[pos], entry, (a, b) => a.points > b.points);
+          }
         });
 
         const entry = { points: m.points || 0, teamName: info.teamName, week };
@@ -480,20 +483,20 @@ const DeepHistory = {
         const margin = Math.abs((a.points || 0) - (b.points || 0));
         const winner = a.points >= b.points ? aInfo.teamName : bInfo.teamName;
         const loser = a.points >= b.points ? bInfo.teamName : aInfo.teamName;
-        const marginEntry = { margin, winner, loser, week };
-        biggestBlowout = pick(biggestBlowout, marginEntry, (x, y) => x.margin > y.margin);
-        closestGame = pick(closestGame, marginEntry, (x, y) => x.margin < y.margin);
+        const winnerPts = Math.max(a.points || 0, b.points || 0);
+        const loserPts = Math.min(a.points || 0, b.points || 0);
+        allMargins.push({ margin, winner, loser, winnerPts, loserPts, week });
       });
     });
 
-    // ---- Draft standouts, this season only ----
-    const playerNameOverrides = new Map();
-    function playerName(pid) {
-      const fromDir = SleeperAPI.playerName(playerDirectory, pid);
-      if (!fromDir.startsWith("Unknown Player")) return fromDir;
-      return playerNameOverrides.get(pid) || fromDir;
-    }
+    const top5Closest = [...allMargins].sort((a, b) => a.margin - b.margin).slice(0, 5);
+    const top5Blowouts = [...allMargins].sort((a, b) => b.margin - a.margin).slice(0, 5);
 
+    // ---- Scoring-by-position table (dedicated slots ranked by score,
+    //      pooled together with any same-position player in FLEX/SUPERFLEX) ----
+    const positionTable = DeepHistory.buildPositionTable(rosterInfo, league, deep, playerDirectory);
+
+    // ---- Draft standouts, this season only ----
     let bestValuePick = null;
     let worstValuePick = null;
     if (deep && deep.draft && deep.draft.picks && deep.draft.picks.length) {
@@ -529,17 +532,6 @@ const DeepHistory = {
       }))
       .sort((a, b) => b.average - a.average);
 
-    const positionRows = [...teamPositionTotals.entries()]
-      .map(([rosterId, segments]) => {
-        const info = rosterInfo.get(rosterId);
-        return { rosterId, label: info ? info.teamName : `Roster ${rosterId}`, segments };
-      })
-      .sort((a, b) => {
-        const totalA = Object.values(a.segments).reduce((s, v) => s + v, 0);
-        const totalB = Object.values(b.segments).reduce((s, v) => s + v, 0);
-        return totalB - totalA;
-      });
-
     return {
       season: league.season,
       status: league.status,
@@ -548,14 +540,187 @@ const DeepHistory = {
       weeksPlayed: deep ? deep.weeks.length : 0,
       weeklyLeagueAvg,
       teamAverages,
-      positionRows,
+      positionTable,
       highestWeekScore,
       lowestWeekScore,
-      biggestBlowout,
-      closestGame,
+      top5Closest,
+      top5Blowouts,
+      bestByPosition,
       bestValuePick,
       worstValuePick,
       pointsLeader,
     };
+  },
+
+  /*
+    Builds the "average score per week, per starting-lineup slot" table.
+
+    Columns come straight from that season's league.roster_positions, so a
+    league that changes its lineup format year to year gets the right
+    columns automatically.
+
+    Labeling rule: for a given position (say RB), every player who started
+    that week at that position — whether in a dedicated RB slot OR in
+    FLEX/SUPERFLEX — is pooled together and ranked by score. The top N
+    (N = number of dedicated slots for that position) become RB1, RB2, etc.
+    Whoever's left over is, by definition, playing on the flex line: with
+    one leftover it's labeled by whichever flex-type slot they're actually
+    in; with two leftovers (the same position filling BOTH FLEX and
+    SUPERFLEX that week) the lower scorer is labeled FLEX and the higher
+    is labeled SUPERFLEX, regardless of which literal slot each was
+    dragged into — FLEX always represents that position's weakest starter.
+  */
+  buildPositionTable(rosterInfo, league, deep, playerDirectory) {
+    const EXCLUDE = new Set(["BN", "IR", "TAXI"]);
+    const slotTypes = (league.roster_positions || []).filter((p) => !EXCLUDE.has(p));
+
+    if (!slotTypes.length || !deep || !deep.weeks.length) {
+      return { columns: [], rows: [] };
+    }
+
+    const countByType = {};
+    slotTypes.forEach((t) => {
+      countByType[t] = (countByType[t] || 0) + 1;
+    });
+
+    const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+    function nativePosition(pid) {
+      const p = playerDirectory && playerDirectory[pid];
+      return p && KNOWN_POS.has(p.position) ? p.position : null;
+    }
+
+    // Which real positions each flex-type slot can hold, and the fixed
+    // priority order used to break ties when the same position fills more
+    // than one flex-type slot in the same week (FLEX always claims the
+    // lower score first).
+    const FLEX_ELIGIBLE = { FLEX: ["RB", "WR", "TE"], SUPER_FLEX: ["QB", "RB", "WR", "TE"] };
+    const FLEX_PRIORITY = ["FLEX", "SUPER_FLEX"];
+
+    function friendlyFlexLabel(slotType) {
+      if (slotType === "FLEX") return "FLEX";
+      if (slotType === "SUPER_FLEX") return "SFLX";
+      return slotType.replace(/_FLEX$/, "").replace(/_/g, "") + " FLEX";
+    }
+
+    // Fixed, sensible column order: standard positions first (numbered if
+    // there's more than one dedicated slot), then flex-type slots, then
+    // anything unrecognized (e.g. IDP leagues) in whatever order it appears.
+    const POSITION_ORDER = ["QB", "RB", "WR", "TE", "K", "DEF"];
+    const seenKeys = new Set();
+    const columns = [];
+    function addColumn(key, label) {
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      columns.push({ key, label });
+    }
+    POSITION_ORDER.forEach((pos) => {
+      const count = countByType[pos] || 0;
+      for (let i = 1; i <= count; i++) addColumn(count > 1 ? `${pos}${i}` : pos, count > 1 ? `${pos}${i}` : pos);
+    });
+    slotTypes.forEach((t) => {
+      if (POSITION_ORDER.includes(t)) return;
+      addColumn(t, friendlyFlexLabel(t));
+    });
+
+    const teamColumnTotals = new Map(); // rosterId -> { colKey -> {sum, weeks} }
+    function addCell(totals, key, pts) {
+      const cell = totals[key] || { sum: 0, weeks: 0 };
+      cell.sum += pts;
+      cell.weeks += 1;
+      totals[key] = cell;
+    }
+
+    deep.weeks.forEach(({ matchups }) => {
+      matchups.forEach((m) => {
+        const info = rosterInfo.get(m.roster_id);
+        if (!info) return;
+        const starters = m.starters || [];
+        const pointsMap = m.players_points || {};
+
+        // Group this week's starters by literal slot type, keeping each
+        // instance separate (so two RB slots stay as two entries).
+        const byType = {};
+        starters.forEach((pid, i) => {
+          const slotType = slotTypes[i];
+          if (!slotType || !pid || pid === "0") return;
+          (byType[slotType] = byType[slotType] || []).push({ pid, pts: pointsMap[pid] || 0 });
+        });
+
+        const totals = teamColumnTotals.get(m.roster_id) || {};
+        const consumedPids = new Set();
+
+        POSITION_ORDER.forEach((pos) => {
+          const dedicatedCount = countByType[pos] || 0;
+          const dedicatedEntries = (byType[pos] || []).slice();
+          dedicatedEntries.forEach((e) => consumedPids.add(e.pid));
+
+          // Pull in any FLEX/SUPERFLEX occupant whose real position is
+          // this one — this is what makes RB1 the true highest-scoring
+          // RB even if a RB was started in FLEX instead of a dedicated slot.
+          const contributingFlexTypes = [];
+          const contributingEntries = [];
+          FLEX_PRIORITY.forEach((flexType) => {
+            if (!FLEX_ELIGIBLE[flexType] || !FLEX_ELIGIBLE[flexType].includes(pos)) return;
+            const match = (byType[flexType] || []).find((e) => !consumedPids.has(e.pid) && nativePosition(e.pid) === pos);
+            if (match) {
+              contributingFlexTypes.push(flexType);
+              contributingEntries.push(match);
+              consumedPids.add(match.pid);
+            }
+          });
+
+          if (dedicatedCount === 0 && contributingEntries.length === 0) return;
+
+          const pool = [...dedicatedEntries, ...contributingEntries].sort((a, b) => b.pts - a.pts);
+          const dedicatedPicks = pool.slice(0, dedicatedCount);
+          const overflow = pool.slice(dedicatedCount);
+
+          // Top scorers fill the numbered dedicated columns regardless of
+          // which literal slot they actually started in.
+          dedicatedPicks.forEach((entry, idx) => {
+            const key = dedicatedCount > 1 ? `${pos}${idx + 1}` : pos;
+            addCell(totals, key, entry.pts);
+          });
+
+          // Whoever's left ranks below every dedicated slot for this
+          // position — by definition that's the flex line. Lowest score
+          // gets the FLEX column, next-lowest gets SUPERFLEX, and so on,
+          // purely by rank (overflow.length never exceeds
+          // contributingFlexTypes.length, since a dedicated slot can only
+          // ever push at most one flex contributor out per flex-type slot).
+          [...overflow]
+            .sort((a, b) => a.pts - b.pts)
+            .forEach((entry, idx) => {
+              addCell(totals, contributingFlexTypes[idx], entry.pts);
+            });
+        });
+
+        // Anything left over — K/DEF already handled above via the same
+        // pooling pass (they simply have no flex contributors), so this
+        // only catches unrecognized/custom slot types (e.g. IDP leagues)
+        // and rare extra flex-type instances beyond the first of a kind.
+        Object.entries(byType).forEach(([slotType, entries]) => {
+          entries.forEach((entry) => {
+            if (consumedPids.has(entry.pid)) return;
+            addCell(totals, slotType, entry.pts);
+            consumedPids.add(entry.pid);
+          });
+        });
+
+        teamColumnTotals.set(m.roster_id, totals);
+      });
+    });
+
+    const rows = [...teamColumnTotals.entries()].map(([rosterId, totals]) => {
+      const info = rosterInfo.get(rosterId);
+      const cells = {};
+      columns.forEach((col) => {
+        const cell = totals[col.key];
+        cells[col.key] = cell && cell.weeks ? cell.sum / cell.weeks : null;
+      });
+      return { rosterId, teamName: info ? info.teamName : `Roster ${rosterId}`, cells };
+    });
+
+    return { columns, rows };
   },
 };

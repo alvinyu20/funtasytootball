@@ -32,3 +32,20 @@ async function fetchJsonSafe(path, fallback) {
     return fallback;
   }
 }
+
+// Linear-interpolates between two "#rrggbb" hex colors. t is clamped to [0,1].
+function interpolateColor(hexLow, hexHigh, t) {
+  const clamp = Math.max(0, Math.min(1, t));
+  const a = [1, 3, 5].map((i) => parseInt(hexLow.slice(i, i + 2), 16));
+  const b = [1, 3, 5].map((i) => parseInt(hexHigh.slice(i, i + 2), 16));
+  const rgb = a.map((v, i) => Math.round(v + (b[i] - v) * clamp));
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+// Maps a value to a color between two endpoints, scaled to that value's
+// own min/max range — used so each heatmap column is standardized
+// independently rather than against a single shared scale.
+function heatColor(value, min, max, lowHex = "#B5502F", highHex = "#E8B23D") {
+  if (max === min) return interpolateColor(lowHex, highHex, 0.5);
+  return interpolateColor(lowHex, highHex, (value - min) / (max - min));
+}

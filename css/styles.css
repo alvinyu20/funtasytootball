@@ -563,6 +563,57 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .line-chart-wrap .lc-value-label { font-family: var(--font-mono); font-size: 10px; fill: var(--chalk-dim); }
 
 /* ==========================================================================
+   HEATMAP TABLE (scoring by position, per season)
+   ========================================================================== */
+.heatmap-table-wrap { overflow-x: auto; }
+table.stat-table td.heat-cell {
+  text-align: center;
+  font-weight: 600;
+  border-radius: 3px;
+  color: #1a1410;
+}
+table.stat-table td.heat-cell.empty {
+  color: var(--chalk-dim);
+  font-weight: 400;
+  background: transparent !important;
+}
+.heatmap-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--chalk-dim);
+  margin-top: 12px;
+}
+
+/* ==========================================================================
+   RANK LIST (top-5 closest games / blowouts)
+   ========================================================================== */
+.rank-list { display: flex; flex-direction: column; }
+.rank-list-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--turf-line);
+}
+.rank-list-row:last-child { border-bottom: none; }
+.rank-list-row .rank-num { font-family: var(--font-mono); color: var(--gold); font-size: 13px; }
+.rank-list-row .desc { font-size: 13px; color: var(--chalk); }
+.rank-list-row .desc .sub {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--chalk-dim);
+  margin-top: 2px;
+}
+.rank-list-row .val {
+  font-family: var(--font-mono);
+  color: var(--gold);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
    MISC / UTILITY
    ========================================================================== */
 .empty-state {

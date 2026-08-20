@@ -42,3 +42,13 @@ const MANUAL_HISTORY_FILE = "data/manual-history.json";
   Path to the newsletter index. See data/newsletters.json.
 */
 const NEWSLETTERS_FILE = "data/newsletters.json";
+
+/*
+  LAST_FANTASY_WEEK
+  ------------------
+  The last NFL week that actually counts for this league's fantasy season.
+  Most leagues stop at week 17 even though the NFL now plays an 18th week —
+  change this if your league's schedule is different. Every chart, table,
+  and stat on Teams/Season/Records ignores any week beyond this number.
+*/
+const LAST_FANTASY_WEEK = 17;

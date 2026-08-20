@@ -20,6 +20,18 @@ ID — the site walks backward through past seasons automatically.
 Open `index.html` in a browser to check it locally before deploying (double-
 click the file, or use a local server like `npx serve`).
 
+## 1b. Last week of your fantasy season (already set to 17)
+
+`js/config.js` also has:
+
+```js
+const LAST_FANTASY_WEEK = 17;
+```
+
+This caps every fetch, chart, and stat at that week — set for week 18 to be
+excluded, since it isn't part of your fantasy season. Change this number if
+your league's schedule is ever different.
+
 ## 2. Deploy to GitHub Pages (free)
 
 If you haven't already, create a free account at github.com and a new empty
@@ -92,9 +104,10 @@ They'll merge into the History page's champions ledger and, if you included
   most-rostered players, and full draft history per season
 - `season.html` / `js/season.js` — pick any year for a deep dive: final
   standings, a weekly league-scoring trend line, each team's scoring
-  average, scoring broken down by position per team, that season's
-  highest/lowest scores and closest/most lopsided games, and draft
-  standouts (best steal, biggest bust, points leader)
+  average, a heatmapped table of average score per week by starting-lineup
+  slot, that season's highest/lowest scores, its top 5 closest and top 5
+  most lopsided matchups, the single best weekly performance at each
+  position, and draft standouts (best steal, biggest bust, points leader)
 - `records.html` / `js/records.js` — league-wide fun stats: highest/lowest
   scores, biggest blowout, closest game, win/lose streaks, best late-round
   steal, biggest draft bust, most trades, most waiver adds, and more
@@ -138,6 +151,19 @@ it works. Every visit after that is fast.
 **Draft value stats** (best late-round steal / biggest bust) compare a
 player's total points that season to which round they were drafted in
 *that same season* — not across years, and not against a "true" ADP.
+
+**The scoring-by-slot table** on the Season page reads that season's own
+`roster_positions` from Sleeper, so it adjusts automatically if your league
+changes its lineup format year to year. Every column is rank-based, not
+tied to a literal roster slot: for a given position, every player who
+started that week — whether in a dedicated slot or in FLEX/SUPERFLEX — is
+pooled together and sorted by score. The top scorers fill the numbered
+dedicated columns (RB1 is always that team's highest-scoring RB that week,
+period), and whoever's left over is by definition playing on the flex
+line: FLEX always shows that position's weakest starter, and if the same
+position fills both FLEX and SUPERFLEX in the same week, FLEX gets the
+lower of the two and SUPERFLEX gets the higher one — regardless of which
+literal slot each player was actually dragged into.
 
 ## Known limitations / ideas for later
 
