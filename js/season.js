@@ -1,12 +1,14 @@
 let SEASON_CHAIN = null;
 let PLAYER_DIRECTORY = null;
+let SEASON_AWARDS = null;
 
 async function renderSeasonPage() {
   const errorBox = document.getElementById("season-error");
   try {
-    const [seasonChain, playerDirectory] = await Promise.all([
+    const [seasonChain, playerDirectory, seasonAwards] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }),
     ]);
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
@@ -14,6 +16,7 @@ async function renderSeasonPage() {
 
     SEASON_CHAIN = seasonChain;
     PLAYER_DIRECTORY = playerDirectory;
+    SEASON_AWARDS = seasonAwards;
 
     await renderSelectedSeason();
     window.addEventListener("hashchange", renderSelectedSeason);
@@ -276,6 +279,27 @@ function renderBracket(bracketData) {
   return `<div class="bracket-wrap"><div class="bracket">${columns}</div>${championSidebar}</div>`;
 }
 
+function renderAwardsSection(season) {
+  if (!SEASON_AWARDS || !SEASON_AWARDS.seasons) return "";
+  const yearAwards = SEASON_AWARDS.seasons[String(season)];
+  if (!yearAwards) return "";
+  const cards = Object.entries(yearAwards)
+    .map(([category, award]) => {
+      const winnerLabel = award.username || award.winnerName || "Unknown";
+      return recordCard(category, escapeHtml(winnerLabel), award.detail ? escapeHtml(award.detail) : "");
+    })
+    .join("");
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Season Awards</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="records-grid">${cards}</div>
+    </div>`;
+}
+
 function renderSummary(s) {
   const isTotal = s.season === "All-Time";
   const yearTag = (item) => (isTotal && item && item.season ? ` (${item.season})` : "");
@@ -360,6 +384,14 @@ function renderSummary(s) {
         main: `${escapeHtml(t.teamName)} · ${t.season}`,
         sub: `Record ${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""} · Overall ${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}`,
         value: luckBadge(t.luckPct),
+      }))
+    : "";
+
+  const faabListHtml = s.top5FaabPickups
+    ? renderRankList(s.top5FaabPickups, (p) => ({
+        main: `${escapeHtml(p.player)}`,
+        sub: `${escapeHtml(p.teamName)}${p.week ? ` · Week ${p.week}` : ""}`,
+        value: `$${p.bid}`,
       }))
     : "";
 
@@ -500,6 +532,25 @@ function renderSummary(s) {
     <div class="wrap">
       <div class="records-grid">${draftCards || `<div class="empty-state">No draft data for this season.</div>`}</div>
     </div>
+
+    ${
+      s.top5FaabPickups && s.top5FaabPickups.length
+        ? `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Waiver Wire</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <h2>Top 5 Priciest FAAB Pickups</h2>
+        ${faabListHtml}
+      </div>
+    </div>`
+        : ""
+    }
+
+    ${renderAwardsSection(s.season)}
   `;
 }
 

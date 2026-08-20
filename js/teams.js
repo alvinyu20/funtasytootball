@@ -1,18 +1,24 @@
 let LEAGUE_STATS = null;
+let SEASON_AWARDS = null;
+let TRACKED_SEASON_YEARS = null;
 
 async function renderTeams() {
   const errorBox = document.getElementById("teams-error");
   const progressBox = document.getElementById("progress-status");
 
   try {
-    const [seasonChain, playerDirectory] = await Promise.all([
+    const [seasonChain, playerDirectory, seasonAwards] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }),
     ]);
 
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
     }
+
+    SEASON_AWARDS = seasonAwards;
+    TRACKED_SEASON_YEARS = new Set(seasonChain.map((s) => String(s.league.season)));
 
     const latest = seasonChain[seasonChain.length - 1].league;
     document.title = (SITE_TITLE || latest.name || "League") + " — Teams";
@@ -73,6 +79,32 @@ function renderManagerDetail(m) {
         .map((p) => `<span class="player-chip">${escapeHtml(p.name)}<span class="count">${p.weeksRostered} wks</span></span>`)
         .join("")
     : `<span class="empty-state">No roster data yet.</span>`;
+
+  const myAwards = [];
+  if (SEASON_AWARDS && SEASON_AWARDS.seasons && m.username) {
+    Object.entries(SEASON_AWARDS.seasons).forEach(([year, categories]) => {
+      if (TRACKED_SEASON_YEARS && !TRACKED_SEASON_YEARS.has(String(year))) return;
+      Object.entries(categories).forEach(([category, award]) => {
+        if (award.username === m.username) {
+          myAwards.push({ year, category, detail: award.detail });
+        }
+      });
+    });
+  }
+  myAwards.sort((a, b) => b.year - a.year);
+  const awardsRows = myAwards
+    .map(
+      (a) => `
+      <div class="ledger-row">
+        <span class="year">${escapeHtml(a.year)}</span>
+        <div>
+          <div class="champ-name">${escapeHtml(a.category)}</div>
+          ${a.detail ? `<div class="champ-sub">${escapeHtml(a.detail)}</div>` : ""}
+        </div>
+        <span class="badge">🏆 Award</span>
+      </div>`
+    )
+    .join("");
 
   function renderH2hRows(list) {
     return list.length
@@ -175,6 +207,20 @@ function renderManagerDetail(m) {
         <div class="chip-row">${chips}</div>
       </div>
     </div>
+
+    ${
+      myAwards.length
+        ? `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Season Awards</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">${awardsRows}</div>
+    </div>`
+        : ""
+    }
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>

@@ -1,0 +1,78 @@
+{
+  "_instructions": "Manually curated 'Season End Awards' voted on by the league each year. Keyed by year, then award category. Each entry has a 'detail' (the specific player/note, if any) and a 'username' (the Sleeper username of the winning manager). If a winner's username isn't known, use 'winnerName' instead (their plain name will be shown, without a link to their Teams page). The site automatically only displays years that also exist as a Sleeper-tracked season — this file can safely include years further back than the site currently tracks.",
+
+  "seasons": {
+    "2017": {
+      "Best FA Pickup": { "detail": "Alvin Kamara", "username": "tduchow" },
+      "Worst Drop": { "detail": "Alvin Kamara", "username": "yulovesyou" },
+      "Most Significant Injury": { "detail": "David Johnson", "username": "artmane" },
+      "Best Draft Pick": { "detail": "Todd Gurley, 16th", "username": "yulovesyou" },
+      "Worst Draft Pick": { "detail": "Matt Ryan, 24th", "winnerName": "Macklin" },
+      "Best Team": { "detail": "", "username": "evangonnerman" }
+    },
+    "2018": {
+      "Best FA Pickup": { "detail": "Patrick Mahomes", "username": "hmart92" },
+      "Worst Drop": { "detail": "Aaron Jones", "username": "evangonnerman" },
+      "Most Significant Injury": { "detail": "Jay Ajayi", "username": "sofarrsogood" },
+      "Best Draft Pick": { "detail": "James Conner, 126th", "username": "tduchow" },
+      "Worst Draft Pick": { "detail": "Leveon Bell, 3rd", "winnerName": "Chris" },
+      "Best Team": { "detail": "", "username": "yulovesyou" }
+    },
+    "2019": {
+      "Best FA Pickup": { "detail": "Patriots D/ST", "username": "evangonnerman" },
+      "Worst Drop": { "detail": "Kenyan Drake", "winnerName": "Trevor" },
+      "Most Significant Injury": { "detail": "David Johnson", "winnerName": "Jeremy" },
+      "Best Draft Pick": { "detail": "Lamar Jackson, 101st", "username": "tduchow" },
+      "Worst Draft Pick": { "detail": "Antonio Brown, 24th", "winnerName": "Trevor" },
+      "Best Team": { "detail": "", "username": "sofarrsogood" }
+    },
+    "2020": {
+      "Best FA Pickup": { "detail": "Mike Davis", "username": "yulovesyou" },
+      "Worst Drop": { "detail": "Kenyan Drake", "username": "hmart92" },
+      "Most Significant Injury": { "detail": "Saquon Barkley", "username": "artmane" },
+      "Best Draft Pick": { "detail": "Stefon Diggs, 70th", "username": "tduchow" },
+      "Worst Draft Pick": { "detail": "Leveon Bell, 31st", "username": "tduchow" },
+      "Best Team": { "detail": "", "username": "mayshisha" }
+    },
+    "2021": {
+      "Best FA Pickup": { "detail": "Cordarelle Patterson", "username": "sofarrsogood" },
+      "Worst Drop": { "detail": "Hunter Renfrow", "username": "evangonnerman" },
+      "Most Significant Injury": { "detail": "Derrick Henry", "username": "tduchow" },
+      "Best Draft Pick": { "detail": "Cooper Kupp, 47th", "username": "sofarrsogood" },
+      "Worst Draft Pick": { "detail": "Saquon Barkley, 5th", "username": "yulovesyou" },
+      "Best Team": { "detail": "", "username": "sofarrsogood" }
+    },
+    "2022": {
+      "Best FA Pickup": { "detail": "Justin Fields", "username": "evangonnerman" },
+      "Worst Drop": { "detail": "Justin Fields", "username": "yulovesyou" },
+      "Most Significant Injury": { "detail": "Breece Hall", "username": "artmane" },
+      "Best Draft Pick": { "detail": "Travis Kelce, 15th", "username": "evangonnerman" },
+      "Worst Draft Pick": { "detail": "Kyle Pitts, 30th", "username": "yulovesyou" },
+      "Best Team": { "detail": "", "username": "evangonnerman" }
+    },
+    "2023": {
+      "Best FA Pickup": { "detail": "Kyren Williams", "username": "yulovesyou" },
+      "Worst Drop": { "detail": "Joshua Dobbs", "username": "paty23" },
+      "Most Significant Injury": { "detail": "Justin Jefferson", "username": "tduchow" },
+      "Best Draft Pick": { "detail": "Raheem Mostert, 145th", "username": "YuWillLose" },
+      "Worst Draft Pick": { "detail": "Austin Ekeler, 15th", "username": "paty23" },
+      "Best Team": { "detail": "", "username": "yulovesyou" }
+    },
+    "2024": {
+      "Best FA Pickup": { "detail": "Chuba Hubbard", "username": "paty23" },
+      "Worst Drop": { "detail": "Chuba Hubbard", "username": "hmart92" },
+      "Most Significant Injury": { "detail": "Christian Mccaffrey", "username": "YuWillLose" },
+      "Best Draft Pick": { "detail": "Brock Bowers, 83rd", "username": "JoeSifBoreDough" },
+      "Worst Draft Pick": { "detail": "Anthony Richardson, 7th", "username": "evangonnerman" },
+      "Best Team": { "detail": "", "username": "evangonnerman" }
+    },
+    "2025": {
+      "Best FA Pickup": { "detail": "Rico Dowdle", "username": "evangonnerman" },
+      "Worst Drop": { "detail": "Jacoby Brissett", "username": "evangonnerman" },
+      "Most Significant Injury": { "detail": "Joe Burrow", "username": "YuWillLose" },
+      "Best Draft Pick": { "detail": "Jaxon Smith Njigba, 37th", "username": "yulovesyou" },
+      "Worst Draft Pick": { "detail": "Lamar Jackson, 2nd", "username": "tduchow" },
+      "Best Team": { "detail": "", "username": "JoeSifBoreDough" }
+    }
+  }
+}

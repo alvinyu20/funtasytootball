@@ -711,6 +711,28 @@ const DeepHistory = {
       pointsLeader = pick(pointsLeader, { player: playerName(pid), points: pts, season: league.season }, (a, b) => a.points > b.points);
     });
 
+    // ---- Top 5 most expensive FAAB waiver pickups this season (only
+    //      meaningful for leagues using FAAB bidding — seasons that used
+    //      plain waiver priority instead simply won't have bid amounts) ----
+    const faabPickups = [];
+    if (deep && deep.transactions) {
+      deep.transactions.forEach((tx) => {
+        if (!tx || tx.status !== "complete") return;
+        const bid = tx.settings && tx.settings.waiver_bid;
+        if (!bid) return;
+        Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
+          const info = rosterInfo.get(rid);
+          faabPickups.push({
+            player: playerName(playerId),
+            teamName: info ? info.teamName : "Unknown",
+            bid,
+            week: tx.leg,
+          });
+        });
+      });
+    }
+    const top5FaabPickups = [...faabPickups].sort((a, b) => b.bid - a.bid).slice(0, 5);
+
     const teamAverages = [...teamTotals.entries()]
       .map(([rosterId, t]) => ({
         rosterId,
@@ -742,6 +764,7 @@ const DeepHistory = {
       bestValuePick,
       worstValuePick,
       pointsLeader,
+      top5FaabPickups,
       bracket: bracket_,
     };
   },

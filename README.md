@@ -231,6 +231,25 @@ lineup and each player's points for that week. The Top 5 lists expand to
 show the full matchup — both teams' lineups — the same way playoff
 bracket games do.
 
+**Top 5 Priciest FAAB Pickups**, on each Season page (only shown for
+seasons that actually used FAAB bidding — seasons that used plain waiver
+priority instead simply won't have a bid amount to rank, so the section
+stays hidden for those).
+
+**Season Awards** — a manually-voted set of end-of-season awards (Best FA
+Pickup, Worst Draft Pick, etc.) lives in `data/season-awards.json`, keyed
+by year and category. Each Season page shows that year's winners if any
+exist, and every manager's Teams page has a "Season Awards" trophy case
+listing everything they've won. Only years that are also Sleeper-tracked
+seasons on the site are shown — the data file can safely include years
+further back than the site currently covers; those just won't render
+until/unless that history gets added. A few winners from the data you
+gave me (Trevor, Jeremy, Macklin, Chris — mostly 2017–2019) don't have a
+Sleeper username on file, so they'll show as plain text without a link;
+add them to the file's `winnerName`→`username` mapping if you want that
+fixed. To add a new year, open the file and add a new entry under
+`seasons` following the same shape.
+
 **Overall Record and Luck**, shown on the Season page's Final Standings
 and on each manager's Season By Season table on Teams: "Overall" is the
 record a team would have if they'd played every other team every week

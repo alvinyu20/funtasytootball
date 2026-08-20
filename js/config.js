@@ -44,6 +44,15 @@ const MANUAL_HISTORY_FILE = "data/manual-history.json";
 const NEWSLETTERS_FILE = "data/newsletters.json";
 
 /*
+  SEASON_AWARDS_FILE
+  --------------------
+  Path to manually-voted "Season End Awards" (Best FA Pickup, Worst Draft
+  Pick, etc.) — see data/season-awards.json for the format and how to add
+  new years.
+*/
+const SEASON_AWARDS_FILE = "data/season-awards.json";
+
+/*
   LAST_FANTASY_WEEK
   ------------------
   The last NFL week that actually counts for this league's fantasy season.
