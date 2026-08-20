@@ -192,13 +192,19 @@ matchup results where available.
 and on each manager's Season By Season table on Teams: "Overall" is the
 record a team would have if they'd played every other team every week
 instead of just their actual schedule (their score compared against
-everyone else's, each week). "Luck" is their real win% minus that Overall
-win%, so a team that keeps winning close games against weak opponents
-while stronger teams beat each other up shows positive (green); a team
-that's scoring well but running into buzzsaws every week shows negative
-(red). The Total page's standings show the career version of both, and
-adds a Top 5 Luckiest / Top 5 Unluckiest Seasons pair of lists pulled from
-every individual team-season in the league's history.
+everyone else's, each week) — **regular season only**, playoff weeks are
+excluded from this calculation. "Luck" is their real win% minus that
+Overall win%, so a team that keeps winning close games against weak
+opponents while stronger teams beat each other up shows positive (green);
+a team that's scoring well but running into buzzsaws every week shows
+negative (red). The Total page's standings show the career version of
+both, and adds a Top 5 Luckiest / Top 5 Unluckiest Seasons pair of lists
+pulled from every individual team-season in the league's history.
+
+**Championship / Runner-up / 3rd Place** are all tracked and shown on
+Teams — 🏆, 🥈, and 🥉 respectively, both in the career summary and next
+to each season in Season By Season. 3rd place comes from Sleeper's own
+3rd-place bracket game where the league plays one.
 
 ## Known limitations / ideas for later
 

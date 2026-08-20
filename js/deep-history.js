@@ -21,9 +21,11 @@ const DeepHistory = {
     for equal scores. This is what a team's record would look like if they
     played the whole league every week instead of just one opponent.
   */
-  computeOverallRecords(deepWeeks) {
+  computeOverallRecords(deepWeeks, playoffStart) {
     const byRoster = new Map(); // roster_id -> {wins, losses, ties}
-    (deepWeeks || []).forEach(({ matchups }) => {
+    (deepWeeks || [])
+      .filter((w) => playoffStart == null || w.week < playoffStart)
+      .forEach(({ matchups }) => {
       const scores = matchups.map((m) => ({ rosterId: m.roster_id, points: m.points || 0 }));
       scores.forEach(({ rosterId, points }) => {
         const rec = byRoster.get(rosterId) || { wins: 0, losses: 0, ties: 0 };
@@ -169,6 +171,7 @@ const DeepHistory = {
           careerPA: 0,
           championships: 0,
           runnerUps: 0,
+          thirdPlaceFinishes: 0,
           playerCounts: new Map(),
           gameLog: [],
           transactionCounts: { trades: 0, waiver: 0, freeAgent: 0 },
@@ -223,8 +226,9 @@ const DeepHistory = {
       const standings = SleeperAPI.buildStandings(rosters, users);
       const championRosterId = SleeperAPI.findChampionRosterId(bracket);
       const runnerUpRosterId = SleeperAPI.findRunnerUpRosterId(bracket);
-      const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : []);
+      const thirdPlaceRosterId = SleeperAPI.findThirdPlaceRosterId(bracket);
       const playoffStart = league.settings && league.settings.playoff_week_start;
+      const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : [], playoffStart);
 
       const seasonEntryByRosterId = new Map(); // this season only, for attaching draft picks below
 
@@ -247,6 +251,7 @@ const DeepHistory = {
           luckPct: DeepHistory.luckPercent(s.wins, s.losses, s.ties, overall.wins, overall.losses, overall.ties),
           isChampion: s.rosterId === championRosterId,
           isRunnerUp: s.rosterId === runnerUpRosterId,
+          isThirdPlace: s.rosterId === thirdPlaceRosterId,
           draftPicks: [],
         };
         m.seasons.push(seasonEntry);
@@ -258,6 +263,7 @@ const DeepHistory = {
         m.careerPA += s.fptsAgainst;
         if (s.rosterId === championRosterId) m.championships += 1;
         if (s.rosterId === runnerUpRosterId) m.runnerUps += 1;
+        if (s.rosterId === thirdPlaceRosterId) m.thirdPlaceFinishes += 1;
       });
 
       // ---- Weekly scores, lineups, matchup-level records ----
@@ -529,11 +535,13 @@ const DeepHistory = {
       });
     });
 
-    const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : []);
+    const playoffStart = league.settings && league.settings.playoff_week_start;
+    const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : [], playoffStart);
     const standings = SleeperAPI.buildStandings(rosters, users).map((s) => {
       const overall = overallRecordByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
       return {
         ...s,
+        teamName: s.username || s.teamName, // Season page shows usernames, not custom team names
         overallWins: overall.wins,
         overallLosses: overall.losses,
         overallTies: overall.ties,

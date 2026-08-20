@@ -142,6 +142,15 @@ const SleeperAPI = {
     return null;
   },
 
+  // Same idea again, but the WINNER of the 3rd-place game (Sleeper marks
+  // that game with p: 3). Returns null if the league doesn't play one.
+  findThirdPlaceRosterId(bracket) {
+    if (!Array.isArray(bracket) || bracket.length === 0) return null;
+    const thirdPlaceGame = bracket.find((g) => g.p === 3);
+    if (thirdPlaceGame && thirdPlaceGame.w != null) return thirdPlaceGame.w;
+    return null;
+  },
+
   // Builds a standings array: [{ rosterId, userId, teamName, username, avatar,
   // wins, losses, ties, fpts, fptsAgainst }], sorted by wins then points.
   buildStandings(rosters, users) {

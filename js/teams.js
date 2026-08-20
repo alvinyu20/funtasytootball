@@ -96,7 +96,7 @@ function renderManagerDetail(m) {
   const seasonRows = [...m.seasons]
     .sort((a, b) => b.season - a.season)
     .map((s) => {
-      const resultBadge = s.isChampion ? "🏆 Champion" : s.isRunnerUp ? "🥈 Runner-up" : "";
+      const resultBadge = s.isChampion ? "🏆 Champion" : s.isRunnerUp ? "🥈 Runner-up" : s.isThirdPlace ? "🥉 3rd Place" : "";
       const picksHtml = s.draftPicks.length
         ? s.draftPicks
             .map(
@@ -143,6 +143,7 @@ function renderManagerDetail(m) {
         <div class="ticker-stat"><span class="label">Win %</span><span class="value">${winPct}%</span></div>
         <div class="ticker-stat"><span class="label">Championships</span><span class="value">${m.championships}</span></div>
         <div class="ticker-stat"><span class="label">Runner-ups</span><span class="value">${m.runnerUps}</span></div>
+        <div class="ticker-stat"><span class="label">3rd Place</span><span class="value">${m.thirdPlaceFinishes}</span></div>
         <div class="ticker-stat"><span class="label">Career PF</span><span class="value">${m.careerPF.toFixed(1)}</span></div>
       </div>
     </div>
