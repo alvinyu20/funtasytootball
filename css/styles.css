@@ -664,6 +664,13 @@ table.stat-table td.heat-cell.empty {
 .bracket-score { font-variant-numeric: tabular-nums; }
 
 /* ==========================================================================
+   LUCK VALUE (Overall Record / Luck columns)
+   ========================================================================== */
+.luck-positive { color: #6FBE8C; font-weight: 600; font-variant-numeric: tabular-nums; }
+.luck-negative { color: #E06C5C; font-weight: 600; font-variant-numeric: tabular-nums; }
+.luck-neutral { color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
+
+/* ==========================================================================
    MISC / UTILITY
    ========================================================================== */
 .empty-state {

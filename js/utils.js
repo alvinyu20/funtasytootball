@@ -49,3 +49,11 @@ function heatColor(value, min, max, lowHex = "#B5502F", highHex = "#E8B23D") {
   if (max === min) return interpolateColor(lowHex, highHex, 0.5);
   return interpolateColor(lowHex, highHex, (value - min) / (max - min));
 }
+
+// Formats a "Luck" percentage (actual win% minus overall/all-play win%)
+// with a leading sign and red/green coloring.
+function luckBadge(pct) {
+  const cls = pct > 0 ? "luck-positive" : pct < 0 ? "luck-negative" : "luck-neutral";
+  const text = pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
+  return `<span class="${cls}">${text}</span>`;
+}

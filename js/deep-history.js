@@ -15,6 +15,42 @@
 
 const DeepHistory = {
   /*
+    "Overall Record" (a.k.a. all-play record): for every week, compares a
+    team's score against every OTHER team that played that week — a win
+    for each team outscored, a loss for each that outscored them, a tie
+    for equal scores. This is what a team's record would look like if they
+    played the whole league every week instead of just one opponent.
+  */
+  computeOverallRecords(deepWeeks) {
+    const byRoster = new Map(); // roster_id -> {wins, losses, ties}
+    (deepWeeks || []).forEach(({ matchups }) => {
+      const scores = matchups.map((m) => ({ rosterId: m.roster_id, points: m.points || 0 }));
+      scores.forEach(({ rosterId, points }) => {
+        const rec = byRoster.get(rosterId) || { wins: 0, losses: 0, ties: 0 };
+        scores.forEach((other) => {
+          if (other.rosterId === rosterId) return;
+          if (points > other.points) rec.wins += 1;
+          else if (points < other.points) rec.losses += 1;
+          else rec.ties += 1;
+        });
+        byRoster.set(rosterId, rec);
+      });
+    });
+    return byRoster;
+  },
+
+  // "Luck" = actual win% minus overall (all-play) win%, as a percentage
+  // point difference. Positive means their real record is better than
+  // their underlying scoring deserved (lucky schedule); negative means
+  // worse (unlucky schedule).
+  luckPercent(wins, losses, ties, overallWins, overallLosses, overallTies) {
+    const games = wins + losses + ties;
+    const overallGames = overallWins + overallLosses + overallTies;
+    if (!games || !overallGames) return 0;
+    return (wins / games - overallWins / overallGames) * 100;
+  },
+
+  /*
     Fetches everything for one season. Returns:
     { leagueId, season, weeks: [{week, matchups}], transactions: [...], draft: {draftId, picks} | null }
   */
@@ -103,10 +139,18 @@ const DeepHistory = {
     const managers = new Map(); // user_id -> career record
     const playerNameOverrides = new Map(); // player_id -> name, filled in from draft metadata
     const headToHead = new Map(); // userId -> Map(opponentUserId -> {wins, losses, ties})
+    const headToHeadPlayoffs = new Map(); // same shape, but only weeks >= that season's playoff start
 
     function h2hRecord(userId, opponentId) {
       if (!headToHead.has(userId)) headToHead.set(userId, new Map());
       const byOpponent = headToHead.get(userId);
+      if (!byOpponent.has(opponentId)) byOpponent.set(opponentId, { wins: 0, losses: 0, ties: 0 });
+      return byOpponent.get(opponentId);
+    }
+
+    function h2hPlayoffRecord(userId, opponentId) {
+      if (!headToHeadPlayoffs.has(userId)) headToHeadPlayoffs.set(userId, new Map());
+      const byOpponent = headToHeadPlayoffs.get(userId);
       if (!byOpponent.has(opponentId)) byOpponent.set(opponentId, { wins: 0, losses: 0, ties: 0 });
       return byOpponent.get(opponentId);
     }
@@ -179,12 +223,15 @@ const DeepHistory = {
       const standings = SleeperAPI.buildStandings(rosters, users);
       const championRosterId = SleeperAPI.findChampionRosterId(bracket);
       const runnerUpRosterId = SleeperAPI.findRunnerUpRosterId(bracket);
+      const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : []);
+      const playoffStart = league.settings && league.settings.playoff_week_start;
 
       const seasonEntryByRosterId = new Map(); // this season only, for attaching draft picks below
 
       standings.forEach((s, rank) => {
         if (!s.userId) return;
         const m = getManager(s.userId, s.teamName, s.username);
+        const overall = overallRecordByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
         const seasonEntry = {
           season,
           rosterId: s.rosterId,
@@ -194,6 +241,10 @@ const DeepHistory = {
           ties: s.ties,
           fpts: s.fpts,
           fptsAgainst: s.fptsAgainst,
+          overallWins: overall.wins,
+          overallLosses: overall.losses,
+          overallTies: overall.ties,
+          luckPct: DeepHistory.luckPercent(s.wins, s.losses, s.ties, overall.wins, overall.losses, overall.ties),
           isChampion: s.rosterId === championRosterId,
           isRunnerUp: s.rosterId === runnerUpRosterId,
           draftPicks: [],
@@ -277,15 +328,30 @@ const DeepHistory = {
             if (aInfo.userId && bInfo.userId && aInfo.userId !== bInfo.userId) {
               const aRec = h2hRecord(aInfo.userId, bInfo.userId);
               const bRec = h2hRecord(bInfo.userId, aInfo.userId);
+              const isPlayoffWeek = playoffStart != null && week >= playoffStart;
+              const aPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(aInfo.userId, bInfo.userId) : null;
+              const bPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(bInfo.userId, aInfo.userId) : null;
               if (a.points > b.points) {
                 aRec.wins += 1;
                 bRec.losses += 1;
+                if (isPlayoffWeek) {
+                  aPlayoffRec.wins += 1;
+                  bPlayoffRec.losses += 1;
+                }
               } else if (a.points < b.points) {
                 aRec.losses += 1;
                 bRec.wins += 1;
+                if (isPlayoffWeek) {
+                  aPlayoffRec.losses += 1;
+                  bPlayoffRec.wins += 1;
+                }
               } else {
                 aRec.ties += 1;
                 bRec.ties += 1;
+                if (isPlayoffWeek) {
+                  aPlayoffRec.ties += 1;
+                  bPlayoffRec.ties += 1;
+                }
               }
             }
           });
@@ -422,6 +488,19 @@ const DeepHistory = {
             };
           })
           .sort((a, b) => b.wins + b.losses + b.ties - (a.wins + a.losses + a.ties)),
+        headToHeadPlayoffs: [...(headToHeadPlayoffs.get(m.userId) || new Map()).entries()]
+          .filter(([, rec]) => rec.wins + rec.losses + rec.ties > 0)
+          .map(([opponentId, rec]) => {
+            const opp = managers.get(opponentId);
+            return {
+              opponentUserId: opponentId,
+              opponentName: (opp && (opp.username || opp.teamName)) || "Unknown",
+              wins: rec.wins,
+              losses: rec.losses,
+              ties: rec.ties,
+            };
+          })
+          .sort((a, b) => b.wins + b.losses + b.ties - (a.wins + a.losses + a.ties)),
       }))
       .sort((a, b) => b.careerWins - a.careerWins || b.careerPF - a.careerPF);
 
@@ -450,7 +529,17 @@ const DeepHistory = {
       });
     });
 
-    const standings = SleeperAPI.buildStandings(rosters, users);
+    const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : []);
+    const standings = SleeperAPI.buildStandings(rosters, users).map((s) => {
+      const overall = overallRecordByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
+      return {
+        ...s,
+        overallWins: overall.wins,
+        overallLosses: overall.losses,
+        overallTies: overall.ties,
+        luckPct: DeepHistory.luckPercent(s.wins, s.losses, s.ties, overall.wins, overall.losses, overall.ties),
+      };
+    });
     const championRosterId = SleeperAPI.findChampionRosterId(bracket);
 
     const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
@@ -1024,16 +1113,25 @@ const DeepHistory = {
     const { managers } = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
 
     const standings = managers
-      .map((m) => ({
-        rosterId: m.userId,
-        teamName: m.username || m.teamName,
-        wins: m.careerWins,
-        losses: m.careerLosses,
-        ties: m.careerTies,
-        fpts: m.careerPF,
-        fptsAgainst: m.careerPA,
-        championships: m.championships,
-      }))
+      .map((m) => {
+        const overallWins = m.seasons.reduce((sum, s) => sum + s.overallWins, 0);
+        const overallLosses = m.seasons.reduce((sum, s) => sum + s.overallLosses, 0);
+        const overallTies = m.seasons.reduce((sum, s) => sum + s.overallTies, 0);
+        return {
+          rosterId: m.userId,
+          teamName: m.username || m.teamName,
+          wins: m.careerWins,
+          losses: m.careerLosses,
+          ties: m.careerTies,
+          fpts: m.careerPF,
+          fptsAgainst: m.careerPA,
+          championships: m.championships,
+          overallWins,
+          overallLosses,
+          overallTies,
+          luckPct: DeepHistory.luckPercent(m.careerWins, m.careerLosses, m.careerTies, overallWins, overallLosses, overallTies),
+        };
+      })
       .sort((a, b) => b.wins - a.wins || b.fpts - a.fpts);
 
     // Weekly trend: average score at each week-of-season INDEX, across
@@ -1105,6 +1203,27 @@ const DeepHistory = {
       bestByPosition[pos] = cur;
     });
 
+    // Every team-season's luck value, for the luckiest/unluckiest lists —
+    // pulled straight from computeStats' per-manager season records.
+    const allSeasonLuck = [];
+    managers.forEach((m) => {
+      m.seasons.forEach((s) => {
+        allSeasonLuck.push({
+          teamName: m.username || m.teamName,
+          season: s.season,
+          luckPct: s.luckPct,
+          wins: s.wins,
+          losses: s.losses,
+          ties: s.ties,
+          overallWins: s.overallWins,
+          overallLosses: s.overallLosses,
+          overallTies: s.overallTies,
+        });
+      });
+    });
+    const top5Luckiest = [...allSeasonLuck].sort((a, b) => b.luckPct - a.luckPct).slice(0, 5);
+    const top5Unluckiest = [...allSeasonLuck].sort((a, b) => a.luckPct - b.luckPct).slice(0, 5);
+
     return {
       season: "All-Time",
       status: "complete",
@@ -1118,6 +1237,8 @@ const DeepHistory = {
       lowestWeekScore,
       top5Closest,
       top5Blowouts,
+      top5Luckiest,
+      top5Unluckiest,
       bestByPosition,
       bestValuePick,
       worstValuePick,

@@ -180,11 +180,25 @@ count seen in any season, so e.g. an RB3 column only fills in for the
 years that slot actually existed.
 
 **Head-to-head records** live on each manager's Teams page — click into
-anyone to see their all-time record against every opponent they've faced.
+anyone to see their all-time record against every opponent they've faced,
+plus a separate table for playoff meetings only (any matchup at or after
+that season's `playoff_week_start`).
 
 **The playoff bracket** on each Season page is read directly from
 Sleeper's own bracket data, with scores filled in from that round's actual
 matchup results where available.
+
+**Overall Record and Luck**, shown on the Season page's Final Standings
+and on each manager's Season By Season table on Teams: "Overall" is the
+record a team would have if they'd played every other team every week
+instead of just their actual schedule (their score compared against
+everyone else's, each week). "Luck" is their real win% minus that Overall
+win%, so a team that keeps winning close games against weak opponents
+while stronger teams beat each other up shows positive (green); a team
+that's scoring well but running into buzzsaws every week shows negative
+(red). The Total page's standings show the career version of both, and
+adds a Top 5 Luckiest / Top 5 Unluckiest Seasons pair of lists pulled from
+every individual team-season in the league's history.
 
 ## Known limitations / ideas for later
 

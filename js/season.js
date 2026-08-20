@@ -215,6 +215,8 @@ function renderSummary(s) {
       <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
       <td>${t.fpts.toFixed(1)}</td>
       <td>${t.fptsAgainst.toFixed(1)}</td>
+      <td>${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}</td>
+      <td>${luckBadge(t.luckPct)}</td>
     </tr>`
     )
     .join("");
@@ -248,6 +250,21 @@ function renderSummary(s) {
     value: `${m.margin.toFixed(1)} pt`,
   }));
 
+  const luckiestListHtml = isTotal
+    ? renderRankList(s.top5Luckiest, (t) => ({
+        main: `${escapeHtml(t.teamName)} · ${t.season}`,
+        sub: `Record ${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""} · Overall ${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}`,
+        value: luckBadge(t.luckPct),
+      }))
+    : "";
+  const unluckiestListHtml = isTotal
+    ? renderRankList(s.top5Unluckiest, (t) => ({
+        main: `${escapeHtml(t.teamName)} · ${t.season}`,
+        sub: `Record ${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""} · Overall ${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}`,
+        value: luckBadge(t.luckPct),
+      }))
+    : "";
+
   const POSITION_LABELS = { QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", DEF: "DEF" };
   const bestByPositionCards = Object.entries(POSITION_LABELS)
     .map(([pos, label]) => {
@@ -273,9 +290,10 @@ function renderSummary(s) {
     </div>
     <div class="wrap"><div class="panel">
       <table class="stat-table">
-        <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th></tr></thead>
+        <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
         <tbody>${standingsRows}</tbody>
       </table>
+      <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.</p>
     </div></div>
 
     ${
@@ -343,6 +361,29 @@ function renderSummary(s) {
         </div>
       </div>
     </div>
+
+    ${
+      isTotal
+        ? `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Luck</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="section-grid">
+        <div class="panel">
+          <h2>Top 5 Luckiest Seasons</h2>
+          ${luckiestListHtml}
+        </div>
+        <div class="panel">
+          <h2>Top 5 Unluckiest Seasons</h2>
+          ${unluckiestListHtml}
+        </div>
+      </div>
+    </div>`
+        : ""
+    }
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>

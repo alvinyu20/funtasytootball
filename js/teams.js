@@ -74,20 +74,24 @@ function renderManagerDetail(m) {
         .join("")
     : `<span class="empty-state">No roster data yet.</span>`;
 
-  const h2hRows = m.headToHead.length
-    ? m.headToHead
-        .map((h) => {
-          const total = h.wins + h.losses + h.ties;
-          const pct = total ? ((h.wins / total) * 100).toFixed(0) : "0";
-          return `
+  function renderH2hRows(list) {
+    return list.length
+      ? list
+          .map((h) => {
+            const total = h.wins + h.losses + h.ties;
+            const pct = total ? ((h.wins / total) * 100).toFixed(0) : "0";
+            return `
         <tr>
           <td class="team-cell">${escapeHtml(h.opponentName)}</td>
           <td>${h.wins}-${h.losses}${h.ties ? "-" + h.ties : ""}</td>
           <td>${pct}%</td>
         </tr>`;
-        })
-        .join("")
-    : "";
+          })
+          .join("")
+      : "";
+  }
+  const h2hRows = renderH2hRows(m.headToHead);
+  const h2hPlayoffRows = renderH2hRows(m.headToHeadPlayoffs);
 
   const seasonRows = [...m.seasons]
     .sort((a, b) => b.season - a.season)
@@ -113,10 +117,12 @@ function renderManagerDetail(m) {
           <td>${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}</td>
           <td>${s.fpts.toFixed(1)}</td>
           <td>${s.fptsAgainst.toFixed(1)}</td>
+          <td>${s.overallWins}-${s.overallLosses}${s.overallTies ? "-" + s.overallTies : ""}</td>
+          <td>${luckBadge(s.luckPct)}</td>
           <td>${resultBadge}</td>
         </tr>
         <tr>
-          <td colspan="6" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
+          <td colspan="8" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
             <details class="draft-details">
               <summary>Draft picks (${s.draftPicks.length})</summary>
               ${picksHtml}
@@ -168,13 +174,27 @@ function renderManagerDetail(m) {
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
+      <span class="label">Playoff Head-to-Head</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <table class="stat-table">
+          <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th></tr></thead>
+          <tbody>${h2hPlayoffRows || `<tr><td colspan="3" class="empty-state">No playoff matchups recorded yet.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
       <span class="label">Season By Season</span>
       <div class="line"></div>
     </div>
     <div class="wrap">
       <div class="panel">
         <table class="stat-table">
-          <thead><tr><th>Year</th><th>Rank</th><th>Record</th><th>PF</th><th>PA</th><th>Result</th></tr></thead>
+          <thead><tr><th>Year</th><th>Rank</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th><th>Result</th></tr></thead>
           <tbody>${seasonRows}</tbody>
         </table>
       </div>
