@@ -1139,6 +1139,35 @@ details.bracket-game.championship {
   .replay-record { font-size: 11px; }
 }
 
+.recap-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+.recap-champ-name { font-family: var(--font-display); font-size: 28px; text-transform: uppercase; color: var(--chalk); line-height: 1.1; margin-bottom: 14px; }
+.recap-narrative { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--chalk); margin: 0 0 20px; }
+.recap-narrative strong { color: var(--gold); }
+.recap-players { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+.recap-player-card { text-align: center; width: 140px; }
+.recap-player-card .player-photo-wrap { margin: 0 auto 10px; }
+.recap-player-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+.recap-player-name { font-family: var(--font-display); font-size: 15px; text-transform: uppercase; color: var(--chalk); line-height: 1.2; }
+.recap-highlights { padding-top: 18px; border-top: 1px dashed var(--turf-line); }
+.recap-highlight-list { list-style: none; margin: 10px 0 0; padding: 0; font-family: var(--font-body); font-size: 14px; color: var(--chalk); }
+.recap-highlight-list li { padding: 6px 0 6px 18px; position: relative; line-height: 1.5; }
+.recap-highlight-list li::before { content: "🏆"; position: absolute; left: 0; font-size: 11px; top: 8px; }
+.recap-highlight-list strong { color: var(--gold); }
+
 /* ==========================================================================
    MISC / UTILITY
    ========================================================================== */

@@ -327,6 +327,41 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Season Summary
+
+At the top of every **completed** season's page — a short, high-level
+recap of the champion's run, with no scores or matchup-by-matchup
+detail: their regular-season record and seed, a plain-language sentence
+about their playoff run ("ran the table through a 3-round playoff
+bracket, capping it off with a win over X in the Championship"), and one
+highlighted player — the **Season MVP**, whoever scored the most points
+on the champion's roster across the *entire* season (not just the
+playoffs). If that player was actually drafted by the same team, it says
+so ("a Round 4 pick who was the engine behind it all"), tying the story
+back to the draft; otherwise it just credits them as the team's top
+performer. Only a player photo is shown here — no team/manager avatars.
+
+Below that, a **"Records Set This Season"** list — any of the site's
+all-time records (highest-scoring regular season ever, highest single
+week, biggest blowout, best/worst draft pick, and several others) that
+happened to be set in the specific season being viewed, naming the
+contributing player where there is one (e.g. "JoeSifBoreDough put up the
+highest-scoring regular season in league history, powered by Player X").
+This section only appears when something was actually set that year —
+most seasons won't show it.
+
+Checking "was a record set this season" needs the *whole* league's
+history, not just the one season being viewed, so this triggers one
+extra one-time fetch of every other season (only for completed seasons,
+since that's the only time this section shows) — cached for the rest of
+the visit, so switching between completed seasons after the first one is
+instant.
+
+This is composed from the season's own data — record, points, draft
+picks — not written by an AI. There's no live model call in this static
+site, so think of it as a structured recap built from real numbers
+rather than free-form prose.
+
 ## Trade History, Rivalries, Trophy Room & Standings Replay
 
 **Trade History** (`trades.html`) — every trade in league history,

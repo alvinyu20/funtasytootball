@@ -304,6 +304,8 @@ const DeepHistory = {
       leastConsistentSeason: null,
       toughestSchedule: null,
       easiestSchedule: null,
+      mostRegularSeasonPoints: null,
+      fewestRegularSeasonPoints: null,
     };
 
     function consider(recordKey, candidate, better) {
@@ -416,6 +418,7 @@ const DeepHistory = {
         const seasonPlayerPoints = new Map(); // player_id -> total points this season
         const weeklyScoresByUser = new Map(); // userId -> [score, score, ...] this season (for consistency)
         const opponentPointsByUser = new Map(); // userId -> { sum, count } of opponents' scores (for strength of schedule)
+        const regularSeasonPointsByRoster = new Map(); // rosterId -> { total, players: Map(playerId -> points) }
 
         deep.weeks.forEach(({ week, matchups }) => {
           // Union every roster's players_points this week so every
@@ -436,14 +439,13 @@ const DeepHistory = {
             });
           });
 
+          const isRegularSeasonWeek = playoffStart == null || week < playoffStart;
+
           // Highest / lowest single-week score, points left on bench, and
           // weekly score accumulation (for the consistency leaderboard).
           matchups.forEach((m) => {
             const info = rosterInfo.get(m.roster_id);
             if (!info) return;
-            const entry = { points: m.points || 0, teamName: info.teamName, season, week };
-            consider("highestWeekScore", entry, (a, b) => a.points > b.points);
-            consider("lowestWeekScore", entry, (a, b) => a.points < b.points);
 
             const pointsMap = m.players_points || {};
             const rosterPlayers = (m.players || [])
@@ -452,6 +454,21 @@ const DeepHistory = {
                 return p && p.position ? { playerId: pid, position: p.position, points: pointsMap[pid] || 0 } : null;
               })
               .filter(Boolean);
+
+            // Whoever on this roster scored the most that week (starter or
+            // not) — attached to the highest/lowest week-score records so a
+            // "record set this season" callout can name a contributing player.
+            let weekTopScorer = null;
+            (m.starters || []).forEach((pid) => {
+              if (!pid || pid === "0") return;
+              const pts = pointsMap[pid] || 0;
+              if (!weekTopScorer || pts > weekTopScorer.points) weekTopScorer = { playerId: pid, player: playerName(pid), points: pts };
+            });
+
+            const entry = { points: m.points || 0, teamName: info.teamName, season, week, topScorer: weekTopScorer };
+            consider("highestWeekScore", entry, (a, b) => a.points > b.points);
+            consider("lowestWeekScore", entry, (a, b) => a.points < b.points);
+
             if (rosterPlayers.length) {
               const { total: optimal } = DeepHistory.computeOptimalLineup(league.roster_positions, rosterPlayers);
               const left = Math.max(0, optimal - (m.points || 0));
@@ -466,6 +483,17 @@ const DeepHistory = {
             if (info.userId) {
               if (!weeklyScoresByUser.has(info.userId)) weeklyScoresByUser.set(info.userId, []);
               weeklyScoresByUser.get(info.userId).push(m.points || 0);
+            }
+
+            if (isRegularSeasonWeek) {
+              if (!regularSeasonPointsByRoster.has(m.roster_id)) regularSeasonPointsByRoster.set(m.roster_id, { total: 0, players: new Map() });
+              const rec = regularSeasonPointsByRoster.get(m.roster_id);
+              rec.total += m.points || 0;
+              (m.starters || []).forEach((pid) => {
+                if (!pid || pid === "0") return;
+                const pts = pointsMap[pid] || 0;
+                rec.players.set(pid, (rec.players.get(pid) || 0) + pts);
+              });
             }
           });
 
@@ -567,6 +595,18 @@ const DeepHistory = {
           consider("easiestSchedule", entry, (a, b) => a.avgOpponentPF < b.avgOpponentPF);
         });
 
+        regularSeasonPointsByRoster.forEach((rec, rosterId) => {
+          const info = rosterInfo.get(rosterId);
+          if (!info) return;
+          let topScorer = null;
+          rec.players.forEach((pts, pid) => {
+            if (!topScorer || pts > topScorer.points) topScorer = { playerId: pid, player: playerName(pid), points: pts };
+          });
+          const entry = { total: rec.total, teamName: info.teamName, season, topScorer };
+          consider("mostRegularSeasonPoints", entry, (a, b) => a.total > b.total);
+          consider("fewestRegularSeasonPoints", entry, (a, b) => a.total < b.total);
+        });
+
         // ---- Draft value (best late-round steal / biggest early-round bust) ----
         if (deep.draft && deep.draft.picks && deep.draft.picks.length) {
           const maxRound = Math.max(...deep.draft.picks.map((p) => p.round || 1));
@@ -585,6 +625,7 @@ const DeepHistory = {
             const info = rosterInfo.get(pick.roster_id);
             const entry = {
               player: playerName(pick.player_id),
+              playerId: pick.player_id,
               round: pick.round,
               pickNo: pick.pick_no,
               points: pts,
@@ -965,6 +1006,7 @@ const DeepHistory = {
       top5FaabPickups,
       standingsHistory: DeepHistory.computeStandingsHistory(seasonEntry, deep),
       playoffTeams: (league.settings && league.settings.playoff_teams) || null,
+      championshipRecap: DeepHistory.computeChampionshipRecap(seasonEntry, deep, playerDirectory),
       bracket: bracket_,
     };
   },
@@ -1305,6 +1347,114 @@ const DeepHistory = {
     }
 
     return { rounds, champion };
+  },
+
+  /*
+    Everything needed for the Season Summary recap at the top of a
+    completed season's page: the champion's regular-season seed, their
+    full round-by-round path through the playoffs (only genuinely
+    relevant bracket games — same rule as everywhere else), a cumulative
+    "Playoff MVP" (their single highest-scoring starter across the WHOLE
+    playoff run, not just one game), and the existing Finals MVP concept
+    (best performer in the championship game specifically). Returns null
+    for a season that isn't complete yet, or has no bracket.
+  */
+  computeChampionshipRecap(seasonEntry, deep, playerDirectory) {
+    const { league, rosters, users, bracket } = seasonEntry;
+    if (league.status !== "complete" || !bracket || !bracket.length || !deep) return null;
+
+    const playoffStart = league.settings && league.settings.playoff_week_start;
+    if (playoffStart == null) return null;
+
+    const usersById = new Map(users.map((u) => [u.user_id, u]));
+    const rosterInfo = new Map();
+    rosters.forEach((r) => {
+      const user = usersById.get(r.owner_id);
+      rosterInfo.set(r.roster_id, {
+        userId: r.owner_id,
+        teamName: user ? user.display_name || SleeperAPI.teamName(user, r.roster_id) : SleeperAPI.teamName(user, r.roster_id),
+        username: user ? user.display_name : null,
+      });
+    });
+
+    const championRosterId = SleeperAPI.findChampionRosterId(bracket);
+    if (championRosterId == null) return null;
+    const champInfo = rosterInfo.get(championRosterId);
+    if (!champInfo) return null;
+
+    function matchupFor(rosterId, round) {
+      if (rosterId == null) return null;
+      const week = playoffStart + (round - 1);
+      const weekData = deep.weeks.find((w) => w.week === week);
+      if (!weekData) return null;
+      return weekData.matchups.find((mm) => mm.roster_id === rosterId) || null;
+    }
+
+    const relevant = SleeperAPI.relevantBracketGames(bracket);
+    const champGames = relevant
+      .filter((g) => {
+        const t1 = SleeperAPI.resolveBracketTeamId(bracket, g, "t1");
+        const t2 = SleeperAPI.resolveBracketTeamId(bracket, g, "t2");
+        return t1 === championRosterId || t2 === championRosterId;
+      })
+      .sort((a, b) => a.r - b.r);
+
+    // Just the round count and who they beat in the championship — no
+    // scores or other matchup detail, this is meant to stay high-level.
+    const roundsPlayed = champGames.length;
+    const champGame = champGames.find((g) => g.p === 1);
+    let runnerUpName = null;
+    if (champGame) {
+      const t1 = SleeperAPI.resolveBracketTeamId(bracket, champGame, "t1");
+      const t2 = SleeperAPI.resolveBracketTeamId(bracket, champGame, "t2");
+      const oppId = t1 === championRosterId ? t2 : t1;
+      const oppInfo = rosterInfo.get(oppId);
+      runnerUpName = oppInfo ? oppInfo.username || oppInfo.teamName : null;
+    }
+
+    // Season MVP: the champion's single highest-scoring starter across the
+    // WHOLE season (regular season + playoffs) — "the one player who
+    // carried them all year," not just a good playoff run.
+    const seasonPointsByPlayer = new Map(); // playerId -> points
+    deep.weeks.forEach(({ matchups }) => {
+      const m = matchups.find((mm) => mm.roster_id === championRosterId);
+      if (!m) return;
+      const pointsMap = m.players_points || {};
+      (m.starters || []).forEach((pid) => {
+        if (!pid || pid === "0") return;
+        seasonPointsByPlayer.set(pid, (seasonPointsByPlayer.get(pid) || 0) + (pointsMap[pid] || 0));
+      });
+    });
+    let seasonMVP = null;
+    seasonPointsByPlayer.forEach((points, pid) => {
+      if (!seasonMVP || points > seasonMVP.points) seasonMVP = { playerId: pid, player: SleeperAPI.playerName(playerDirectory, pid), points };
+    });
+
+    // Was the MVP drafted by this same team? A nice "draft to championship"
+    // narrative detail when true — omitted otherwise (traded for/waiver add).
+    let mvpDraftRound = null;
+    if (seasonMVP && deep.draft && deep.draft.picks) {
+      const pick = deep.draft.picks.find((p) => p.player_id === seasonMVP.playerId && p.roster_id === championRosterId);
+      if (pick) mvpDraftRound = pick.round;
+    }
+
+    const standings = SleeperAPI.buildStandings(rosters, users);
+    const champStanding = standings.find((s) => s.rosterId === championRosterId);
+    const seed = [...standings].sort((a, b) => b.wins - a.wins || b.fpts - a.fpts).findIndex((s) => s.rosterId === championRosterId) + 1;
+
+    return {
+      season: league.season,
+      champion: {
+        rosterId: championRosterId,
+        teamName: champInfo.username || champInfo.teamName,
+        seed,
+        regularSeasonRecord: champStanding ? `${champStanding.wins}-${champStanding.losses}${champStanding.ties ? "-" + champStanding.ties : ""}` : null,
+        roundsPlayed,
+        runnerUpName,
+        seasonMVP,
+        mvpDraftRound,
+      },
+    };
   },
 
   /*
