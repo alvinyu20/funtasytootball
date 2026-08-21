@@ -26,16 +26,26 @@ async function renderHistory() {
       let champName = "In progress";
       let champUsername = null;
       let champAvatarUrl = null;
+      let champUserId = null;
       if (champRosterId != null) {
         const roster = rosters.find((r) => r.roster_id === champRosterId);
         const user = users.find((u) => u.user_id === (roster && roster.owner_id));
         champName = SleeperAPI.teamName(user, champRosterId);
         champUsername = user ? user.display_name : null;
         champAvatarUrl = user && user.avatar ? SleeperAPI.avatarUrl(user.avatar) : null;
+        champUserId = roster ? roster.owner_id : null;
       } else if (league.status === "complete") {
         champName = "Unavailable"; // completed but bracket data missing/unusual format
       }
-      return { year: league.season, champion: champName, championUsername: champUsername, championAvatarUrl: champAvatarUrl, sourceBadge: "Sleeper", notes: "" };
+      return {
+        year: league.season,
+        champion: champName,
+        championUsername: champUsername,
+        championAvatarUrl: champAvatarUrl,
+        championUserId: champUserId,
+        sourceBadge: "Sleeper",
+        notes: "",
+      };
     });
 
     // ---- Manual pre-Sleeper seasons ----
@@ -88,14 +98,14 @@ async function renderHistory() {
       standings.forEach((t) => {
         if (!t.userId) return;
         const prev = careerByUser.get(t.userId) || {
-          teamName: t.teamName,
+          username: t.username,
           wins: 0,
           losses: 0,
           ties: 0,
           fpts: 0,
           championships: 0,
         };
-        prev.teamName = t.teamName; // keep most recent name
+        prev.username = t.username || prev.username; // keep most recent username
         prev.wins += t.wins;
         prev.losses += t.losses;
         prev.ties += t.ties;
@@ -104,11 +114,12 @@ async function renderHistory() {
       });
     });
     sleeperLedger.forEach((row) => {
-      // Bump championship counts by matching team name back to a user
-      // (best-effort — team renames across years can occasionally miss a match)
-      for (const [, rec] of careerByUser) {
-        if (rec.teamName === row.champion) rec.championships += 1;
-      }
+      // Bump the champion's count by their stable Sleeper user_id — not by
+      // team name, since a manager renaming their team between seasons
+      // would otherwise cause their championship to go uncounted.
+      if (!row.championUserId) return;
+      const rec = careerByUser.get(row.championUserId);
+      if (rec) rec.championships += 1;
     });
 
     const careerRows = [...careerByUser.values()].sort(
@@ -121,7 +132,7 @@ async function renderHistory() {
             (t, i) => `
       <tr>
         <td class="rank">${i + 1}</td>
-        <td class="team-cell">${escapeHtml(t.teamName)}</td>
+        <td class="team-cell">${escapeHtml(t.username || "Unknown")}</td>
         <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
         <td>${t.fpts.toFixed(1)}</td>
         <td>${t.championships || 0}</td>

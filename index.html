@@ -39,6 +39,18 @@
   <div class="yard-divider">
     <span class="tick"></span>
     <div class="line"></div>
+    <span class="label">Featured Matchup</span>
+    <div class="line"></div>
+  </div>
+  <div class="wrap">
+    <div class="panel" id="featured-matchup-panel">
+      <div class="loading">Loading…</div>
+    </div>
+  </div>
+
+  <div class="yard-divider">
+    <span class="tick"></span>
+    <div class="line"></div>
     <span class="label">On The Field</span>
     <div class="line"></div>
   </div>
@@ -64,6 +76,42 @@
         </div>
       </div>
     </div>
+
+    <div class="section-grid" style="margin-top: 24px;">
+      <div class="panel">
+        <h2>Power Rankings</h2>
+        <div id="power-rankings-snapshot">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Playoff Picture</h2>
+        <div id="playoff-picture">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-grid" style="margin-top: 24px;">
+      <div class="panel">
+        <h2>Hot &amp; Cold</h2>
+        <div id="streaks-panel">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Recent Activity</h2>
+        <div id="recent-activity-panel">
+          <div class="loading">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap" style="margin-top: 24px; padding: 0;">
+      <div class="panel" id="history-callout">
+        <div class="loading">Loading…</div>
+      </div>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -73,6 +121,7 @@
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/sleeper-api.js"></script>
+  <script src="js/deep-history.js"></script>
   <script src="js/dashboard.js"></script>
 </body>
 </html>

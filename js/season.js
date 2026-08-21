@@ -317,92 +317,140 @@ let REPLAY_WEEK_INDEX = 0;
 let REPLAY_SNAPSHOTS = [];
 const REPLAY_ROW_HEIGHT = 36;
 
+// Deterministic hash so the SAME season always gets the SAME phrasing on
+// repeat visits (not randomized fresh every page load), while different
+// seasons naturally land on different variants.
+function seasonSeed(season) {
+  let hash = 0;
+  const str = String(season);
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  return hash;
+}
+
+const RECAP_INTRO_VARIANTS = [
+  (record, seed) => `went ${record} in the regular season${seed ? ` as the #${seed} seed` : ""}, then `,
+  (record, seed) => `put together a ${record} regular season${seed ? ` (the #${seed} seed)` : ""}, then `,
+  (record, seed) => `finished the regular season ${record}${seed ? `, locking up the #${seed} seed` : ""}, then `,
+  (record, seed) => `cruised to a ${record} record in the regular season${seed ? ` as the #${seed} seed` : ""}, then `,
+];
+
+const RECAP_RUN_VARIANTS = {
+  1: [(r) => `won the championship over ${r}`, (r) => `took home the title with a win over ${r}`],
+  2: [
+    (r) => `rolled through the playoffs and beat ${r} in the Championship`,
+    (r) => `powered through two playoff rounds, finishing off ${r} in the Championship`,
+    (r) => `made quick work of the playoffs, beating ${r} for the title`,
+  ],
+  default: [
+    (r, n) => `ran the table through a ${n}-round playoff bracket, capping it off with a win over ${r} in the Championship`,
+    (r, n) => `battled through ${n} rounds of playoffs before beating ${r} to win it all`,
+    (r, n) => `survived a grueling ${n}-round playoff run, sealing the title against ${r} in the Championship`,
+  ],
+};
+
 function championshipNarrative(c) {
+  const seed = seasonSeed(c.teamName + "|" + (c.runnerUpName || ""));
   const teamName = `<strong>${escapeHtml(c.teamName)}</strong>`;
-  const seedText = c.regularSeasonRecord
-    ? `went ${escapeHtml(c.regularSeasonRecord)} in the regular season${c.seed ? ` as the #${c.seed} seed` : ""}, then `
-    : "";
   const runnerUp = c.runnerUpName ? `<strong>${escapeHtml(c.runnerUpName)}</strong>` : "the field";
 
-  let runText;
-  if (!c.roundsPlayed || c.roundsPlayed <= 1) {
-    runText = `won the championship over ${runnerUp}`;
-  } else if (c.roundsPlayed === 2) {
-    runText = `rolled through the playoffs and beat ${runnerUp} in the Championship`;
-  } else {
-    runText = `ran the table through a ${c.roundsPlayed}-round playoff bracket, capping it off with a win over ${runnerUp} in the Championship`;
-  }
+  const introText = c.regularSeasonRecord
+    ? RECAP_INTRO_VARIANTS[seed % RECAP_INTRO_VARIANTS.length](escapeHtml(c.regularSeasonRecord), c.seed)
+    : "";
 
-  return `${teamName} ${seedText}${runText}.`;
+  const roundsKey = !c.roundsPlayed || c.roundsPlayed <= 1 ? 1 : c.roundsPlayed === 2 ? 2 : "default";
+  const runVariants = RECAP_RUN_VARIANTS[roundsKey];
+  const runText = runVariants[seed % runVariants.length](runnerUp, c.roundsPlayed);
+
+  return `${teamName} ${introText}${runText}.`;
 }
+
+const RECAP_MVP_DRAFT_VARIANTS = [
+  (player, round) => `${player}, a Round ${round} pick, was the engine behind it all — the team's top performer from the draft all the way to the championship.`,
+  (player, round) => `${player} proved to be a steal in Round ${round}, turning into the team's top performer all year.`,
+  (player, round) => `Drafted in Round ${round}, ${player} developed into the team's offensive centerpiece from day one.`,
+];
+const RECAP_MVP_VARIANTS = [
+  (player) => `${player} was the engine behind it all — the team's top performer all season long.`,
+  (player) => `${player} carried the load all year as the team's clear top scorer.`,
+  (player) => `No player meant more to this team's season than ${player}, its top scorer from Week 1 through the championship.`,
+];
 
 function championshipMvpNarrative(c) {
   if (!c.seasonMVP) return "";
+  const seed = seasonSeed(c.teamName + "|" + c.seasonMVP.player);
   const player = `<strong>${escapeHtml(c.seasonMVP.player)}</strong>`;
   if (c.mvpDraftRound) {
-    return `${player}, a Round ${c.mvpDraftRound} pick, was the engine behind it all — the team's top performer from the draft all the way to the championship.`;
+    return RECAP_MVP_DRAFT_VARIANTS[seed % RECAP_MVP_DRAFT_VARIANTS.length](player, c.mvpDraftRound);
   }
-  return `${player} was the engine behind it all — the team's top performer all season long.`;
+  return RECAP_MVP_VARIANTS[seed % RECAP_MVP_VARIANTS.length](player);
 }
 
 function buildSeasonRecordHighlights(records, season) {
   if (!records) return [];
   const seasonStr = String(season);
   const matches = (entry) => entry && String(entry.season) === seasonStr;
+  const name = (entry, field) => escapeHtml(entry[`${field}Username`] || entry[field] || "Unknown");
   const highlights = [];
 
   if (matches(records.mostRegularSeasonPoints)) {
     const r = records.mostRegularSeasonPoints;
     highlights.push(
-      `<strong>${escapeHtml(r.teamName)}</strong> put up the highest-scoring regular season in league history${
+      `<strong>${escapeHtml(r.username || r.teamName)}</strong> put up the highest-scoring regular season in league history${
         r.topScorer ? `, powered by <strong>${escapeHtml(r.topScorer.player)}</strong>` : ""
       }.`
     );
   }
   if (matches(records.fewestRegularSeasonPoints)) {
-    highlights.push(`<strong>${escapeHtml(records.fewestRegularSeasonPoints.teamName)}</strong> had the lowest-scoring regular season in league history.`);
+    const r = records.fewestRegularSeasonPoints;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> had the lowest-scoring regular season in league history.`);
   }
   if (matches(records.highestWeekScore)) {
     const r = records.highestWeekScore;
     highlights.push(
-      `<strong>${escapeHtml(r.teamName)}</strong> put up the highest single-week score in league history${
+      `<strong>${escapeHtml(r.username || r.teamName)}</strong> put up the highest single-week score in league history${
         r.topScorer ? `, led by <strong>${escapeHtml(r.topScorer.player)}</strong>` : ""
       }.`
     );
   }
   if (matches(records.lowestWeekScore)) {
-    highlights.push(`<strong>${escapeHtml(records.lowestWeekScore.teamName)}</strong> turned in the lowest single-week score in league history.`);
+    const r = records.lowestWeekScore;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> turned in the lowest single-week score in league history.`);
   }
   if (matches(records.biggestBlowout)) {
     const r = records.biggestBlowout;
-    highlights.push(`<strong>${escapeHtml(r.winner)}</strong> handed <strong>${escapeHtml(r.loser)}</strong> the biggest blowout in league history.`);
+    highlights.push(`<strong>${name(r, "winner")}</strong> handed <strong>${name(r, "loser")}</strong> the biggest blowout in league history.`);
   }
   if (matches(records.closestGame)) {
     const r = records.closestGame;
-    highlights.push(`<strong>${escapeHtml(r.winner)}</strong> and <strong>${escapeHtml(r.loser)}</strong> played the closest game in league history.`);
+    highlights.push(`<strong>${name(r, "winner")}</strong> and <strong>${name(r, "loser")}</strong> played the closest game in league history.`);
   }
   if (matches(records.mostBenchPointsLeft)) {
-    highlights.push(`<strong>${escapeHtml(records.mostBenchPointsLeft.teamName)}</strong> left more points on the bench in a single week than anyone else, ever.`);
+    const r = records.mostBenchPointsLeft;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> left more points on the bench in a single week than anyone else, ever.`);
   }
   if (matches(records.mostConsistentSeason)) {
-    highlights.push(`<strong>${escapeHtml(records.mostConsistentSeason.teamName)}</strong> was the most consistent scoring team of any season in league history.`);
+    const r = records.mostConsistentSeason;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> was the most consistent scoring team of any season in league history.`);
   }
   if (matches(records.leastConsistentSeason)) {
-    highlights.push(`<strong>${escapeHtml(records.leastConsistentSeason.teamName)}</strong> was the most boom-or-bust team of any season in league history.`);
+    const r = records.leastConsistentSeason;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> was the most boom-or-bust team of any season in league history.`);
   }
   if (matches(records.toughestSchedule)) {
-    highlights.push(`<strong>${escapeHtml(records.toughestSchedule.teamName)}</strong> faced the toughest schedule of any season in league history.`);
+    const r = records.toughestSchedule;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> faced the toughest schedule of any season in league history.`);
   }
   if (matches(records.easiestSchedule)) {
-    highlights.push(`<strong>${escapeHtml(records.easiestSchedule.teamName)}</strong> had the easiest schedule of any season in league history.`);
+    const r = records.easiestSchedule;
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> had the easiest schedule of any season in league history.`);
   }
   if (matches(records.bestValuePick)) {
     const r = records.bestValuePick;
-    highlights.push(`<strong>${escapeHtml(r.teamName)}</strong> landed the best draft steal in league history: <strong>${escapeHtml(r.player)}</strong>.`);
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> landed the best draft steal in league history: <strong>${escapeHtml(r.player)}</strong>.`);
   }
   if (matches(records.worstValuePick)) {
     const r = records.worstValuePick;
-    highlights.push(`<strong>${escapeHtml(r.teamName)}</strong> had the biggest draft bust in league history: <strong>${escapeHtml(r.player)}</strong>.`);
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> had the biggest draft bust in league history: <strong>${escapeHtml(r.player)}</strong>.`);
   }
 
   return highlights;

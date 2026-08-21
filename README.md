@@ -329,6 +329,28 @@ instead of a broken-image icon.
 
 ## Season Summary
 
+**Always uses usernames**, not custom Sleeper team names — the champion,
+runner-up, and every name in the "Records Set This Season" list. The
+Records page and Trade History keep showing team names where they
+already did (that wasn't part of what was asked to change), but every
+record that can feed a Season Summary highlight now also carries the
+matching username alongside it, so the Summary never has to guess.
+
+**The wording varies year to year** — both the playoff-run sentence and
+the MVP sentence are pulled from a small pool of phrasings, chosen by a
+deterministic hash of that season's data. Same season always reads the
+same way on repeat visits (not re-randomized on every page load), but
+different seasons naturally land on different phrasing.
+
+**Career Records championship count, fixed**: this was matching a
+season's champion back to a manager by comparing team-name *strings* —
+if someone renamed their team between two championship seasons, only
+one of those titles would get counted. It's keyed by Sleeper's stable
+user ID now, so a rename between title runs can't drop a championship.
+Verified with a test reproducing exactly that scenario (same manager,
+different team name, two separate championship seasons) — both titles
+now count. The Career Records table also switched to usernames.
+
 At the top of every **completed** season's page — a short, high-level
 recap of the champion's run, with no scores or matchup-by-matchup
 detail: their regular-season record and seed, a plain-language sentence
@@ -361,6 +383,33 @@ This is composed from the season's own data — record, points, draft
 picks — not written by an AI. There's no live model call in this static
 site, so think of it as a structured recap built from real numbers
 rather than free-form prose.
+
+## Home Page
+
+Six new sections, all live/computed — nothing manual to maintain:
+
+- **Featured Matchup** — the week's game between the two teams with the
+  best combined win total, shown prominently above the standings.
+- **Power Rankings** snapshot — top 3 from the real Power Rankings
+  algorithm (same Monte Carlo engine as the full page), with the same
+  week-over-week movement arrows, linking through to the full page.
+- **Playoff Picture** — current standings with a dashed line at the
+  actual playoff cutoff (from the league's own `playoff_teams` setting),
+  so who's in and who's out is obvious at a glance.
+- **Hot & Cold** — win/loss streaks of 2+ games, computed from this
+  season's actual results.
+- **Recent Activity** — the last several trades and adds (waiver or free
+  agent), pulled from this week's and last week's transactions.
+- **From The Archives** — a rotating callout from `season-awards.json`,
+  picked deterministically by the day of the year (stable within a day,
+  different the next).
+
+Streaks and the Power Rankings snapshot need this season's full weekly
+history, which the Home page didn't fetch before — it now pulls the
+current season's data the same way the Season and Power Rankings pages
+do, but only that one season (not all of league history), and this
+fetch runs *after* the fast stuff (standings, matchups, playoff picture)
+is already on screen, so the page doesn't feel slower to load overall.
 
 ## Trade History, Rivalries, Trophy Room & Standings Replay
 

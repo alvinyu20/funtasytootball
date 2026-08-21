@@ -465,7 +465,7 @@ const DeepHistory = {
               if (!weekTopScorer || pts > weekTopScorer.points) weekTopScorer = { playerId: pid, player: playerName(pid), points: pts };
             });
 
-            const entry = { points: m.points || 0, teamName: info.teamName, season, week, topScorer: weekTopScorer };
+            const entry = { points: m.points || 0, teamName: info.teamName, username: info.username, season, week, topScorer: weekTopScorer };
             consider("highestWeekScore", entry, (a, b) => a.points > b.points);
             consider("lowestWeekScore", entry, (a, b) => a.points < b.points);
 
@@ -474,7 +474,7 @@ const DeepHistory = {
               const left = Math.max(0, optimal - (m.points || 0));
               consider(
                 "mostBenchPointsLeft",
-                { left, optimal, actual: m.points || 0, teamName: info.teamName, season, week },
+                { left, optimal, actual: m.points || 0, teamName: info.teamName, username: info.username, season, week },
                 (a, b) => a.left > b.left
               );
               if (info.userId) getManager(info.userId, info.teamName, info.username).careerBenchPointsLeft += left;
@@ -514,7 +514,9 @@ const DeepHistory = {
             const margin = Math.abs((a.points || 0) - (b.points || 0));
             const winner = a.points >= b.points ? aInfo.teamName : bInfo.teamName;
             const loser = a.points >= b.points ? bInfo.teamName : aInfo.teamName;
-            const marginEntry = { margin, winner, loser, season, week };
+            const winnerUsername = a.points >= b.points ? aInfo.username : bInfo.username;
+            const loserUsername = a.points >= b.points ? bInfo.username : aInfo.username;
+            const marginEntry = { margin, winner, loser, winnerUsername, loserUsername, season, week };
             consider("biggestBlowout", marginEntry, (x, y) => x.margin > y.margin);
             consider("closestGame", marginEntry, (x, y) => x.margin < y.margin);
 
@@ -578,9 +580,10 @@ const DeepHistory = {
           if (scores.length < 3) return; // too few weeks to be meaningful
           const mgr = managers.get(userId);
           const teamName = mgr ? mgr.teamName : "Unknown";
+          const username = mgr ? mgr.username : null;
           const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
           const stdDev = Math.sqrt(scores.reduce((a, b) => a + (b - mean) ** 2, 0) / scores.length);
-          const entry = { stdDev, avgScore: mean, teamName, season, weeksPlayed: scores.length };
+          const entry = { stdDev, avgScore: mean, teamName, username, season, weeksPlayed: scores.length };
           consider("mostConsistentSeason", entry, (a, b) => a.stdDev < b.stdDev);
           consider("leastConsistentSeason", entry, (a, b) => a.stdDev > b.stdDev);
         });
@@ -589,8 +592,9 @@ const DeepHistory = {
           if (sos.count < 3) return;
           const mgr = managers.get(userId);
           const teamName = mgr ? mgr.teamName : "Unknown";
+          const username = mgr ? mgr.username : null;
           const avgOpponentPF = sos.sum / sos.count;
-          const entry = { avgOpponentPF, teamName, season, gamesPlayed: sos.count };
+          const entry = { avgOpponentPF, teamName, username, season, gamesPlayed: sos.count };
           consider("toughestSchedule", entry, (a, b) => a.avgOpponentPF > b.avgOpponentPF);
           consider("easiestSchedule", entry, (a, b) => a.avgOpponentPF < b.avgOpponentPF);
         });
@@ -602,7 +606,7 @@ const DeepHistory = {
           rec.players.forEach((pts, pid) => {
             if (!topScorer || pts > topScorer.points) topScorer = { playerId: pid, player: playerName(pid), points: pts };
           });
-          const entry = { total: rec.total, teamName: info.teamName, season, topScorer };
+          const entry = { total: rec.total, teamName: info.teamName, username: info.username, season, topScorer };
           consider("mostRegularSeasonPoints", entry, (a, b) => a.total > b.total);
           consider("fewestRegularSeasonPoints", entry, (a, b) => a.total < b.total);
         });
@@ -630,6 +634,7 @@ const DeepHistory = {
               pickNo: pick.pick_no,
               points: pts,
               teamName: info ? info.teamName : "Unknown",
+              username: info ? info.username : null,
               season,
             };
             if (pick.round >= lateThreshold) {
@@ -1372,7 +1377,6 @@ const DeepHistory = {
       const user = usersById.get(r.owner_id);
       rosterInfo.set(r.roster_id, {
         userId: r.owner_id,
-        teamName: user ? user.display_name || SleeperAPI.teamName(user, r.roster_id) : SleeperAPI.teamName(user, r.roster_id),
         username: user ? user.display_name : null,
       });
     });
@@ -1409,7 +1413,7 @@ const DeepHistory = {
       const t2 = SleeperAPI.resolveBracketTeamId(bracket, champGame, "t2");
       const oppId = t1 === championRosterId ? t2 : t1;
       const oppInfo = rosterInfo.get(oppId);
-      runnerUpName = oppInfo ? oppInfo.username || oppInfo.teamName : null;
+      runnerUpName = oppInfo ? oppInfo.username : null;
     }
 
     // Season MVP: the champion's single highest-scoring starter across the
@@ -1446,7 +1450,7 @@ const DeepHistory = {
       season: league.season,
       champion: {
         rosterId: championRosterId,
-        teamName: champInfo.username || champInfo.teamName,
+        teamName: champInfo.username || "Unknown",
         seed,
         regularSeasonRecord: champStanding ? `${champStanding.wins}-${champStanding.losses}${champStanding.ties ? "-" + champStanding.ties : ""}` : null,
         roundsPlayed,

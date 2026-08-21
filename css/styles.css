@@ -1197,3 +1197,90 @@ details.bracket-game.championship {
   color: var(--chalk-dim);
   letter-spacing: 0.04em;
 }
+
+/* ---- Home page: Featured Matchup ---- */
+.featured-matchup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+.featured-matchup .side { text-align: center; min-width: 140px; }
+.featured-matchup .name { font-family: var(--font-display); font-size: 22px; text-transform: uppercase; color: var(--chalk); line-height: 1.15; }
+.featured-matchup .record { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); margin-top: 4px; }
+.featured-matchup .pts { font-family: var(--font-mono); font-size: 28px; color: var(--gold); margin-top: 8px; font-weight: 600; }
+.featured-matchup .vs { font-family: var(--font-display); font-size: 16px; color: var(--gold); flex-shrink: 0; }
+.featured-matchup-sub { text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); margin-top: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* ---- Home page: Power Rankings snapshot ---- */
+.pr-mini-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--turf-line);
+}
+.pr-mini-row:last-child { border-bottom: none; }
+.pr-mini-rank { font-family: var(--font-mono); font-size: 15px; color: var(--gold); width: 26px; flex-shrink: 0; }
+.pr-mini-name { flex: 1; font-family: var(--font-body); font-size: 14px; color: var(--chalk); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-mini-delta { font-family: var(--font-mono); font-size: 12px; flex-shrink: 0; }
+.dash-more-link {
+  display: inline-block;
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-decoration: none;
+}
+.dash-more-link:hover { text-decoration: underline; }
+
+/* ---- Home page: Playoff Picture ---- */
+.playoff-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--turf-line);
+}
+.playoff-list-row:last-child { border-bottom: none; }
+.playoff-list-row .rank { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); width: 20px; }
+.playoff-list-row .name { flex: 1; font-family: var(--font-body); font-size: 14px; color: var(--chalk); }
+.playoff-list-row .record { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); }
+.playoff-cutoff-label {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  padding: 8px 0;
+  border-top: 2px dashed var(--gold);
+  border-bottom: 2px dashed var(--gold);
+  margin: 4px 0;
+}
+
+/* ---- Home page: Streaks ---- */
+.streak-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--turf-line); }
+.streak-row:last-child { border-bottom: none; }
+.streak-row .name { font-family: var(--font-body); font-size: 14px; color: var(--chalk); }
+.streak-badge { font-family: var(--font-mono); font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 10px; }
+.streak-badge.hot { color: #1a1410; background: var(--gold); }
+.streak-badge.cold { color: var(--chalk); background: rgba(124, 143, 166, 0.25); border: 1px solid var(--pos-te); }
+
+/* ---- Home page: Recent Activity ---- */
+.activity-item { padding: 9px 0; border-bottom: 1px solid var(--turf-line); font-family: var(--font-body); font-size: 13px; color: var(--chalk); line-height: 1.5; }
+.activity-item:last-child { border-bottom: none; }
+.activity-item .activity-meta { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--chalk-dim); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+.activity-item strong { color: var(--gold); }
+
+/* ---- Home page: This Week In History ---- */
+.history-callout-inner { display: flex; align-items: center; gap: 18px; }
+.history-callout-icon { font-size: 30px; flex-shrink: 0; }
+.history-callout-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+.history-callout-text { font-family: var(--font-body); font-size: 15px; color: var(--chalk); line-height: 1.5; }
+.history-callout-text strong { color: var(--gold); }
