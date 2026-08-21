@@ -918,6 +918,202 @@ details.bracket-game.championship {
   margin-top: 6px;
 }
 
+.trade-card {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+.trade-meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 12px;
+}
+.trade-sides { display: flex; align-items: stretch; gap: 16px; flex-wrap: wrap; }
+.trade-side {
+  flex: 1;
+  min-width: 200px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--turf-line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.trade-team-name {
+  font-family: var(--font-display);
+  font-size: 16px;
+  text-transform: uppercase;
+  color: var(--chalk);
+  margin-bottom: 8px;
+}
+.trade-received-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--chalk-dim);
+  margin-bottom: 4px;
+}
+.trade-item-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--chalk);
+}
+.trade-item-list li { padding: 2px 0; }
+.trade-item-list:last-child { margin-bottom: 0; }
+.trade-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+@media (max-width: 720px) {
+  .trade-arrow { display: none; }
+}
+
+.rivalry-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.rivalry-select-group { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 6px; }
+.rivalry-select-group label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+.rivalry-select-group select {
+  background: var(--turf-dark);
+  color: var(--chalk);
+  border: 1px solid var(--turf-line);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  cursor: pointer;
+}
+.rivalry-select-group select:focus { outline: none; border-color: var(--gold); }
+.rivalry-vs {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--gold);
+  padding-bottom: 10px;
+  flex-shrink: 0;
+}
+.rivalry-series-score {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 10px 0 4px;
+}
+.rivalry-series-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  text-transform: uppercase;
+  color: var(--chalk);
+  text-align: center;
+}
+.rivalry-series-record {
+  font-family: var(--font-mono);
+  font-size: 28px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.rivalry-series-vs { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); }
+
+.trophy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+}
+.trophy-card {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 18px 12px;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.trophy-card:hover { border-color: var(--gold); transform: translateY(-2px); }
+.trophy-card .player-photo-wrap { margin: 0 auto 10px; }
+.trophy-year {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+.trophy-champion-name {
+  font-family: var(--font-display);
+  font-size: 15px;
+  text-transform: uppercase;
+  color: var(--chalk);
+  line-height: 1.2;
+}
+
+.replay-controls { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
+.replay-btn {
+  background: var(--gold);
+  color: var(--turf-dark);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.replay-btn:hover { background: var(--gold-dim); }
+.replay-slider { flex: 1; min-width: 120px; accent-color: var(--gold); }
+.replay-week-label { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); min-width: 70px; text-align: right; flex-shrink: 0; }
+.replay-bars { position: relative; }
+.replay-bar-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: top 0.5s ease;
+}
+.replay-bar-label {
+  width: 130px;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--chalk);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.replay-bar-track { flex: 1; height: 18px; background: rgba(255, 255, 255, 0.04); border-radius: 4px; overflow: hidden; }
+.replay-bar-fill { height: 100%; background: var(--gold); border-radius: 4px; transition: width 0.5s ease; }
+.replay-bar-value { width: 64px; flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; color: var(--gold); }
+@media (max-width: 720px) {
+  .replay-bar-label { width: 78px; font-size: 11px; }
+  .replay-bar-value { width: 50px; font-size: 11px; }
+}
+
 /* ==========================================================================
    MISC / UTILITY
    ========================================================================== */

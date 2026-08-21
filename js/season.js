@@ -78,6 +78,7 @@ async function renderSelectedSeason() {
       progressBox.style.display = "none";
       content.style.display = "";
       content.innerHTML = renderSummary(summary);
+      stopReplay();
 
       const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
       document.title = (SITE_TITLE || leagueName || "League") + " — All-Time";
@@ -103,6 +104,7 @@ async function renderSelectedSeason() {
     progressBox.style.display = "none";
     content.style.display = "";
     content.innerHTML = renderSummary(summary);
+    initStandingsReplay(summary.standingsHistory);
 
     const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
     document.title = (SITE_TITLE || leagueName || "League") + " — " + summary.season + " Season";
@@ -285,6 +287,110 @@ function renderBracket(bracketData) {
     : "";
 
   return `<div class="bracket-wrap"><div class="bracket">${columns}</div>${championSidebar}</div>`;
+}
+
+let REPLAY_TIMER = null;
+let REPLAY_WEEK_INDEX = 0;
+let REPLAY_SNAPSHOTS = [];
+const REPLAY_ROW_HEIGHT = 36;
+
+function renderStandingsReplaySection(standingsHistory) {
+  if (!standingsHistory || standingsHistory.length < 2) return "";
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Standings Over Time</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      <div class="replay-controls">
+        <button class="replay-btn" id="replay-play-btn" type="button">▶ Play</button>
+        <input type="range" class="replay-slider" id="replay-slider" min="1" max="${standingsHistory.length}" value="1" />
+        <span class="replay-week-label" id="replay-week-label">Week ${standingsHistory[0].week}</span>
+      </div>
+      <div class="replay-bars" id="replay-bars"></div>
+      <p class="heatmap-note">Cumulative wins through each regular-season week — bar length is wins, position is rank (PF breaks ties).</p>
+    </div></div>`;
+}
+
+function initStandingsReplay(standingsHistory) {
+  if (REPLAY_TIMER) {
+    clearInterval(REPLAY_TIMER);
+    REPLAY_TIMER = null;
+  }
+  if (!standingsHistory || standingsHistory.length < 2) return;
+
+  REPLAY_SNAPSHOTS = standingsHistory;
+  REPLAY_WEEK_INDEX = 0;
+
+  const container = document.getElementById("replay-bars");
+  if (!container) return;
+  const rosterOrder = standingsHistory[0].standings.map((s) => s.rosterId);
+  container.style.height = `${REPLAY_ROW_HEIGHT * rosterOrder.length}px`;
+  container.innerHTML = rosterOrder
+    .map(
+      (rid) => `
+      <div class="replay-bar-row" id="replay-row-${rid}" style="top:0px;">
+        <div class="replay-bar-label"></div>
+        <div class="replay-bar-track"><div class="replay-bar-fill" style="width:0%"></div></div>
+        <div class="replay-bar-value"></div>
+      </div>`
+    )
+    .join("");
+
+  renderReplayWeek(0);
+
+  const slider = document.getElementById("replay-slider");
+  const playBtn = document.getElementById("replay-play-btn");
+  slider.oninput = () => {
+    stopReplay();
+    REPLAY_WEEK_INDEX = Number(slider.value) - 1;
+    renderReplayWeek(REPLAY_WEEK_INDEX);
+  };
+  playBtn.onclick = () => {
+    if (REPLAY_TIMER) {
+      stopReplay();
+      return;
+    }
+    if (REPLAY_WEEK_INDEX >= REPLAY_SNAPSHOTS.length - 1) REPLAY_WEEK_INDEX = 0;
+    playBtn.textContent = "⏸ Pause";
+    REPLAY_TIMER = setInterval(() => {
+      REPLAY_WEEK_INDEX += 1;
+      if (REPLAY_WEEK_INDEX >= REPLAY_SNAPSHOTS.length) {
+        stopReplay();
+        REPLAY_WEEK_INDEX = REPLAY_SNAPSHOTS.length - 1;
+        return;
+      }
+      renderReplayWeek(REPLAY_WEEK_INDEX);
+    }, 900);
+  };
+}
+
+function stopReplay() {
+  if (REPLAY_TIMER) {
+    clearInterval(REPLAY_TIMER);
+    REPLAY_TIMER = null;
+  }
+  const playBtn = document.getElementById("replay-play-btn");
+  if (playBtn) playBtn.textContent = "▶ Play";
+}
+
+function renderReplayWeek(index) {
+  const snapshot = REPLAY_SNAPSHOTS[index];
+  if (!snapshot) return;
+  const maxWins = Math.max(1, ...snapshot.standings.map((s) => s.wins));
+  snapshot.standings.forEach((s, rank) => {
+    const row = document.getElementById(`replay-row-${s.rosterId}`);
+    if (!row) return;
+    row.style.top = `${rank * REPLAY_ROW_HEIGHT}px`;
+    row.querySelector(".replay-bar-label").textContent = s.username || s.teamName;
+    row.querySelector(".replay-bar-fill").style.width = `${(s.wins / maxWins) * 100}%`;
+    row.querySelector(".replay-bar-value").textContent = `${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}`;
+  });
+  const weekLabel = document.getElementById("replay-week-label");
+  if (weekLabel) weekLabel.textContent = `Week ${snapshot.week}`;
+  const slider = document.getElementById("replay-slider");
+  if (slider) slider.value = index + 1;
 }
 
 function renderPowerRankHistorySection(season) {
@@ -510,6 +616,8 @@ function renderSummary(s) {
       </div>
       <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.</p>
     </div></div>
+
+    ${isTotal ? "" : renderStandingsReplaySection(s.standingsHistory)}
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>

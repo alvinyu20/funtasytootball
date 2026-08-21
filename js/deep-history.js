@@ -209,6 +209,26 @@ const DeepHistory = {
     const playerNameOverrides = new Map(); // player_id -> name, filled in from draft metadata
     const headToHead = new Map(); // userId -> Map(opponentUserId -> {wins, losses, ties})
     const headToHeadPlayoffs = new Map(); // same shape, but only weeks >= that season's playoff start
+    const pairGameLog = new Map(); // "userIdA|userIdB" (sorted) -> [{season, week, isPlayoff, aUserId, aScore, bUserId, bScore}]
+
+    function pairKey(userIdA, userIdB) {
+      return [userIdA, userIdB].sort().join("|");
+    }
+    function recordPairGame(season, week, isPlayoff, aInfo, aScore, bInfo, bScore) {
+      const key = pairKey(aInfo.userId, bInfo.userId);
+      if (!pairGameLog.has(key)) pairGameLog.set(key, []);
+      pairGameLog.get(key).push({
+        season,
+        week,
+        isPlayoff,
+        aUserId: aInfo.userId,
+        aTeamName: aInfo.teamName,
+        aScore,
+        bUserId: bInfo.userId,
+        bTeamName: bInfo.teamName,
+        bScore,
+      });
+    }
 
     function h2hRecord(userId, opponentId) {
       if (!headToHead.has(userId)) headToHead.set(userId, new Map());
@@ -244,6 +264,7 @@ const DeepHistory = {
           playoffAppearances: 0,
           byes: 0,
           firstPicks: 0,
+          careerBenchPointsLeft: 0,
           careerRegularSeasonWins: 0,
           careerRegularSeasonLosses: 0,
           careerRegularSeasonTies: 0,
@@ -278,6 +299,11 @@ const DeepHistory = {
       worstValuePick: null,
       mostTrades: null,
       mostWaiverAdds: null,
+      mostBenchPointsLeft: null,
+      mostConsistentSeason: null,
+      leastConsistentSeason: null,
+      toughestSchedule: null,
+      easiestSchedule: null,
     };
 
     function consider(recordKey, candidate, better) {
@@ -388,6 +414,8 @@ const DeepHistory = {
       // ---- Weekly scores, lineups, matchup-level records ----
       if (deep) {
         const seasonPlayerPoints = new Map(); // player_id -> total points this season
+        const weeklyScoresByUser = new Map(); // userId -> [score, score, ...] this season (for consistency)
+        const opponentPointsByUser = new Map(); // userId -> { sum, count } of opponents' scores (for strength of schedule)
 
         deep.weeks.forEach(({ week, matchups }) => {
           // Union every roster's players_points this week so every
@@ -408,13 +436,37 @@ const DeepHistory = {
             });
           });
 
-          // Highest / lowest single-week score.
+          // Highest / lowest single-week score, points left on bench, and
+          // weekly score accumulation (for the consistency leaderboard).
           matchups.forEach((m) => {
             const info = rosterInfo.get(m.roster_id);
             if (!info) return;
             const entry = { points: m.points || 0, teamName: info.teamName, season, week };
             consider("highestWeekScore", entry, (a, b) => a.points > b.points);
             consider("lowestWeekScore", entry, (a, b) => a.points < b.points);
+
+            const pointsMap = m.players_points || {};
+            const rosterPlayers = (m.players || [])
+              .map((pid) => {
+                const p = playerDirectory && playerDirectory[pid];
+                return p && p.position ? { playerId: pid, position: p.position, points: pointsMap[pid] || 0 } : null;
+              })
+              .filter(Boolean);
+            if (rosterPlayers.length) {
+              const { total: optimal } = DeepHistory.computeOptimalLineup(league.roster_positions, rosterPlayers);
+              const left = Math.max(0, optimal - (m.points || 0));
+              consider(
+                "mostBenchPointsLeft",
+                { left, optimal, actual: m.points || 0, teamName: info.teamName, season, week },
+                (a, b) => a.left > b.left
+              );
+              if (info.userId) getManager(info.userId, info.teamName, info.username).careerBenchPointsLeft += left;
+            }
+
+            if (info.userId) {
+              if (!weeklyScoresByUser.has(info.userId)) weeklyScoresByUser.set(info.userId, []);
+              weeklyScoresByUser.get(info.userId).push(m.points || 0);
+            }
           });
 
           // Pair up matchups by matchup_id for blowout/closest-game/win-loss.
@@ -438,7 +490,8 @@ const DeepHistory = {
             consider("biggestBlowout", marginEntry, (x, y) => x.margin > y.margin);
             consider("closestGame", marginEntry, (x, y) => x.margin < y.margin);
 
-            // Game log, for win/loss streaks.
+            // Game log, for win/loss streaks, and opponent-points
+            // accumulation for the strength-of-schedule leaderboard.
             [
               { info: aInfo, own: a.points || 0, opp: b.points || 0 },
               { info: bInfo, own: b.points || 0, opp: a.points || 0 },
@@ -447,13 +500,18 @@ const DeepHistory = {
               const mgr = getManager(info.userId, info.teamName, info.username);
               const result = own > opp ? "W" : own < opp ? "L" : "T";
               mgr.gameLog.push({ result, season, week });
+              if (!opponentPointsByUser.has(info.userId)) opponentPointsByUser.set(info.userId, { sum: 0, count: 0 });
+              const sos = opponentPointsByUser.get(info.userId);
+              sos.sum += opp;
+              sos.count += 1;
             });
 
             // Head-to-head: each side's record specifically against the other.
+            let isPlayoffWeek = false;
             if (aInfo.userId && bInfo.userId && aInfo.userId !== bInfo.userId) {
               const aRec = h2hRecord(aInfo.userId, bInfo.userId);
               const bRec = h2hRecord(bInfo.userId, aInfo.userId);
-              const isPlayoffWeek = relevantPlayoffPairs.has(`${week}:${Math.min(a.roster_id, b.roster_id)}-${Math.max(a.roster_id, b.roster_id)}`);
+              isPlayoffWeek = relevantPlayoffPairs.has(`${week}:${Math.min(a.roster_id, b.roster_id)}-${Math.max(a.roster_id, b.roster_id)}`);
               const aPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(aInfo.userId, bInfo.userId) : null;
               const bPlayoffRec = isPlayoffWeek ? h2hPlayoffRecord(bInfo.userId, aInfo.userId) : null;
               if (a.points > b.points) {
@@ -478,8 +536,33 @@ const DeepHistory = {
                   bPlayoffRec.ties += 1;
                 }
               }
+              recordPairGame(season, week, isPlayoffWeek, aInfo, a.points || 0, bInfo, b.points || 0);
             }
           });
+        });
+
+        // ---- Season-level records from data accumulated across the
+        //      weeks above: consistency (weekly score std dev) and
+        //      strength of schedule (average opponent score faced). ----
+        weeklyScoresByUser.forEach((scores, userId) => {
+          if (scores.length < 3) return; // too few weeks to be meaningful
+          const mgr = managers.get(userId);
+          const teamName = mgr ? mgr.teamName : "Unknown";
+          const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const stdDev = Math.sqrt(scores.reduce((a, b) => a + (b - mean) ** 2, 0) / scores.length);
+          const entry = { stdDev, avgScore: mean, teamName, season, weeksPlayed: scores.length };
+          consider("mostConsistentSeason", entry, (a, b) => a.stdDev < b.stdDev);
+          consider("leastConsistentSeason", entry, (a, b) => a.stdDev > b.stdDev);
+        });
+
+        opponentPointsByUser.forEach((sos, userId) => {
+          if (sos.count < 3) return;
+          const mgr = managers.get(userId);
+          const teamName = mgr ? mgr.teamName : "Unknown";
+          const avgOpponentPF = sos.sum / sos.count;
+          const entry = { avgOpponentPF, teamName, season, gamesPlayed: sos.count };
+          consider("toughestSchedule", entry, (a, b) => a.avgOpponentPF > b.avgOpponentPF);
+          consider("easiestSchedule", entry, (a, b) => a.avgOpponentPF < b.avgOpponentPF);
         });
 
         // ---- Draft value (best late-round steal / biggest early-round bust) ----
@@ -633,7 +716,7 @@ const DeepHistory = {
       }))
       .sort((a, b) => b.careerWins - a.careerWins || b.careerPF - a.careerPF);
 
-    return { managers: managerList, records };
+    return { managers: managerList, records, pairGameLog: Object.fromEntries(pairGameLog) };
   },
 
   /*
@@ -862,6 +945,7 @@ const DeepHistory = {
       worstValuePick,
       pointsLeader,
       top5FaabPickups,
+      standingsHistory: DeepHistory.computeStandingsHistory(seasonEntry, deep),
       bracket: bracket_,
     };
   },
@@ -889,6 +973,44 @@ const DeepHistory = {
     decided last the same way, excluding everyone already claimed
     (including FLEX).
   */
+  /*
+    Given a roster's full set of players for one week (with each player's
+    native position and points scored that week) and the league's
+    roster_positions, finds the highest-scoring LEGAL starting lineup —
+    used to compute "points left on bench." Fills the most restrictive
+    slots first (single dedicated positions), then FLEX, then
+    SUPER_FLEX, taking the highest-scoring not-yet-used eligible player
+    each time — the correct greedy strategy for this kind of nested
+    slot-eligibility structure (every FLEX-eligible position is also
+    SUPER_FLEX-eligible, etc).
+  */
+  computeOptimalLineup(rosterPositions, players) {
+    const ELIGIBILITY = {
+      FLEX: ["RB", "WR", "TE"],
+      SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+      REC_FLEX: ["WR", "TE"],
+      WRRB_FLEX: ["WR", "RB"],
+      IDP_FLEX: ["DL", "LB", "DB"],
+    };
+    const slots = (rosterPositions || []).filter((p) => p !== "BN" && p !== "IR" && p !== "TAXI");
+    const slotsSorted = [...slots].sort((a, b) => (ELIGIBILITY[a] || [a]).length - (ELIGIBILITY[b] || [b]).length);
+    const used = new Set();
+    let total = 0;
+    const assignments = [];
+    slotsSorted.forEach((slotType) => {
+      const eligible = ELIGIBILITY[slotType] || [slotType];
+      const candidates = players.filter((p) => !used.has(p.playerId) && eligible.includes(p.position));
+      candidates.sort((a, b) => b.points - a.points);
+      if (candidates.length) {
+        const best = candidates[0];
+        used.add(best.playerId);
+        total += best.points;
+        assignments.push({ slot: slotType, ...best });
+      }
+    });
+    return { total, assignments };
+  },
+
   buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {
     const { league, bracket } = seasonEntry;
     const playoffStart = league.settings && league.settings.playoff_week_start;
@@ -1927,5 +2049,147 @@ const DeepHistory = {
       byeTeams,
       rows,
     };
+  },
+
+  /*
+    Week-by-week replay of the standings: for every regular-season week
+    (playoffs excluded — once the bracket starts, not everyone is still
+    playing a fair round-robin-style schedule, so "climbing the
+    standings" stops being a meaningful narrative), returns each team's
+    cumulative wins/losses/ties/PF as of that week, sorted the same way
+    Sleeper sorts real standings (wins desc, PF as tiebreaker). Used for
+    the Standings Over Time replay animation.
+  */
+  computeStandingsHistory(seasonEntry, deep) {
+    const { league, rosters, users } = seasonEntry;
+    const usersById = new Map(users.map((u) => [u.user_id, u]));
+    const rosterInfo = new Map();
+    rosters.forEach((r) => {
+      const user = usersById.get(r.owner_id);
+      rosterInfo.set(r.roster_id, { teamName: SleeperAPI.teamName(user, r.roster_id), username: user ? user.display_name : null });
+    });
+
+    const playoffStart = league.settings && league.settings.playoff_week_start;
+    const state = new Map();
+    rosters.forEach((r) => state.set(r.roster_id, { wins: 0, losses: 0, ties: 0, pf: 0 }));
+
+    const snapshots = [];
+    (deep ? deep.weeks : [])
+      .filter((w) => playoffStart == null || w.week < playoffStart)
+      .sort((a, b) => a.week - b.week)
+      .forEach(({ week, matchups }) => {
+        const byMatchupId = new Map();
+        matchups.forEach((m) => {
+          if (m.matchup_id == null) return;
+          if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
+          byMatchupId.get(m.matchup_id).push(m);
+        });
+        byMatchupId.forEach((pair) => {
+          if (pair.length < 2) return;
+          const [a, b] = pair;
+          const sa = state.get(a.roster_id);
+          const sb = state.get(b.roster_id);
+          if (!sa || !sb) return;
+          sa.pf += a.points || 0;
+          sb.pf += b.points || 0;
+          if ((a.points || 0) > (b.points || 0)) {
+            sa.wins += 1;
+            sb.losses += 1;
+          } else if ((a.points || 0) < (b.points || 0)) {
+            sa.losses += 1;
+            sb.wins += 1;
+          } else {
+            sa.ties += 1;
+            sb.ties += 1;
+          }
+        });
+        const standings = [...state.entries()]
+          .map(([rosterId, s]) => {
+            const info = rosterInfo.get(rosterId) || {};
+            return { rosterId, teamName: info.teamName || "Unknown", username: info.username, ...s };
+          })
+          .sort((x, y) => y.wins - x.wins || y.pf - x.pf);
+        snapshots.push({ week, standings });
+      });
+
+    return snapshots;
+  },
+
+  /*
+    Builds a chronological trade log across every season. Each entry shows,
+    per roster involved, exactly what they gave up and received — players,
+    draft picks, and FAAB — straight from Sleeper's trade transaction data.
+  */
+  buildTradeLog(seasonChain, deepSeasons, playerDirectory) {
+    const trades = [];
+    seasonChain.forEach((seasonEntry, idx) => {
+      const { league, rosters, users } = seasonEntry;
+      const deep = deepSeasons[idx];
+      if (!deep || !deep.transactions) return;
+      const usersById = new Map(users.map((u) => [u.user_id, u]));
+      const rosterInfo = new Map();
+      rosters.forEach((r) => {
+        const user = usersById.get(r.owner_id);
+        rosterInfo.set(r.roster_id, {
+          userId: r.owner_id,
+          teamName: SleeperAPI.teamName(user, r.roster_id),
+          username: user ? user.display_name : null,
+        });
+      });
+
+      deep.transactions
+        .filter((tx) => tx && tx.type === "trade" && tx.status === "complete")
+        .forEach((tx) => {
+          const byRoster = new Map(); // rosterId -> {info, received:{players,picks,faab}, gave:{...}}
+          function ensure(rosterId) {
+            if (rosterId == null) return null;
+            if (!byRoster.has(rosterId)) {
+              byRoster.set(rosterId, {
+                rosterId,
+                info: rosterInfo.get(rosterId),
+                received: { players: [], picks: [], faab: 0 },
+                gave: { players: [], picks: [], faab: 0 },
+              });
+            }
+            return byRoster.get(rosterId);
+          }
+          (tx.roster_ids || []).forEach((rid) => ensure(rid));
+
+          Object.entries(tx.adds || {}).forEach(([pid, rid]) => {
+            const t = ensure(rid);
+            if (t) t.received.players.push(SleeperAPI.playerName(playerDirectory, pid));
+          });
+          Object.entries(tx.drops || {}).forEach(([pid, rid]) => {
+            const t = ensure(rid);
+            if (t) t.gave.players.push(SleeperAPI.playerName(playerDirectory, pid));
+          });
+          (tx.draft_picks || []).forEach((pick) => {
+            const label = `${pick.season} Round ${pick.round}`;
+            const to = ensure(pick.owner_id);
+            const from = ensure(pick.previous_owner_id);
+            if (to) to.received.picks.push(label);
+            if (from) from.gave.picks.push(label);
+          });
+          (tx.waiver_budget || []).forEach((wb) => {
+            const to = ensure(wb.receiver);
+            const from = ensure(wb.sender);
+            if (to) to.received.faab += wb.amount;
+            if (from) from.gave.faab += wb.amount;
+          });
+
+          const teams = [...byRoster.values()].filter((t) => t.info);
+          if (teams.length < 2) return; // need at least 2 identifiable sides to show anything meaningful
+
+          trades.push({
+            season: league.season,
+            week: tx.leg,
+            transactionId: tx.transaction_id,
+            teams,
+          });
+        });
+    });
+
+    trades.sort((a, b) => Number(b.season) - Number(a.season) || b.week - a.week);
+    return trades;
   },
 };

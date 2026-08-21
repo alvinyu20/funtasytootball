@@ -22,15 +22,17 @@ async function renderHistory() {
       const champRosterId = SleeperAPI.findChampionRosterId(bracket);
       let champName = "In progress";
       let champUsername = null;
+      let champAvatarUrl = null;
       if (champRosterId != null) {
         const roster = rosters.find((r) => r.roster_id === champRosterId);
         const user = users.find((u) => u.user_id === (roster && roster.owner_id));
         champName = SleeperAPI.teamName(user, champRosterId);
         champUsername = user ? user.display_name : null;
+        champAvatarUrl = user && user.avatar ? SleeperAPI.avatarUrl(user.avatar) : null;
       } else if (league.status === "complete") {
         champName = "Unavailable"; // completed but bracket data missing/unusual format
       }
-      return { year: league.season, champion: champName, championUsername: champUsername, sourceBadge: "Sleeper", notes: "" };
+      return { year: league.season, champion: champName, championUsername: champUsername, championAvatarUrl: champAvatarUrl, sourceBadge: "Sleeper", notes: "" };
     });
 
     // ---- Manual pre-Sleeper seasons ----
@@ -42,6 +44,23 @@ async function renderHistory() {
     }));
 
     const fullLedger = [...sleeperLedger, ...manualLedger].sort((a, b) => b.year - a.year);
+
+    // ---- Trophy Room: a visual grid of every confirmed champion ----
+    const trophyEntries = fullLedger.filter((row) => row.champion && row.champion !== "In progress" && row.champion !== "Unavailable");
+    document.getElementById("trophy-room").innerHTML = trophyEntries.length
+      ? trophyEntries
+          .map((row) => {
+            const displayName = row.championUsername || row.champion;
+            const card = `
+            ${userAvatarHtml(row.championAvatarUrl, displayName, "player-photo-lg")}
+            <div class="trophy-year">${escapeHtml(String(row.year))}</div>
+            <div class="trophy-champion-name">${escapeHtml(displayName)}</div>`;
+            return row.sourceBadge === "Sleeper"
+              ? `<a class="trophy-card" href="season.html#${row.year}">${card}</a>`
+              : `<div class="trophy-card">${card}</div>`;
+          })
+          .join("")
+      : `<div class="empty-state">No champions crowned yet.</div>`;
 
     document.getElementById("champions-ledger").innerHTML = fullLedger
       .map((row) => {

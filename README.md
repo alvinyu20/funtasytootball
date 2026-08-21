@@ -327,6 +327,53 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Trade History, Rivalries, Trophy Room & Standings Replay
+
+**Trade History** (`trades.html`) — every trade in league history,
+newest first, with a season filter. Each side of a trade shows exactly
+what they gave up and received: players, draft picks, and FAAB, parsed
+straight from Sleeper's trade transaction data. Multi-team trades are
+supported (any number of sides, not just 2).
+
+**Rivalries** (`rivalries.html`) — pick any two managers to see their
+full head-to-head history: series record (including a separate playoff
+record if they've met in the postseason), the closest and most lopsided
+meeting between just the two of them, and a complete game-by-game log.
+Shareable — the URL updates as you pick managers (`#userIdA-vs-userIdB`),
+so a specific matchup can be bookmarked or sent to someone.
+
+**Trophy Room**, at the top of the History page — a visual grid of every
+champion with their Sleeper avatar (or an initial-letter tile for
+pre-Sleeper manual entries, which don't have one). Click a card to jump
+to that season's page.
+
+**Standings Over Time**, on each Season page — an animated replay of the
+regular-season standings, week by week. Press play and watch teams
+climb or fall as bars grow and reorder; scrub the slider to jump to any
+week directly. Playoff weeks are excluded since the "climbing the
+standings" framing stops making sense once the bracket takes over.
+Needs at least 2 weeks of regular-season data to show up.
+
+## Points Left on Bench, Consistency & Strength of Schedule
+
+Three new Records categories, all computed from data the site already
+has — no new manual input needed:
+
+- **Biggest Bench Blunder** / **Career Bench Waste** — for every
+  team-week, the site solves for the highest-scoring *legal* lineup that
+  could have been set from the full roster (bench included), and
+  compares it to what was actually started. The single worst week ever
+  shows on Records; each manager's running career total shows too. The
+  solver fills the most restrictive slots first (dedicated QB/RB/WR/TE/
+  K/DEF), then FLEX, then SUPER_FLEX — the correct approach for this
+  kind of nested slot-eligibility problem, and it works for any
+  roster_positions layout, not just one specific league format.
+- **Mr. Reliable** / **Feast Or Famine** — the most and least consistent
+  single-season scoring performances, by weekly-score standard
+  deviation.
+- **Toughest/Easiest Schedule** — the highest and lowest average
+  opponent score faced across a single season.
+
 ## Power Rankings
 
 `power-rankings.html` / `js/power-rankings.js` — a weekly composite

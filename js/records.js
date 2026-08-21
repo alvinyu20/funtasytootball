@@ -84,6 +84,32 @@ function buildRecordCards(stats) {
   if (r.mostWaiverAdds) {
     cards.push(card("Waiver Wire Warrior", `${r.mostWaiverAdds.count}`, `${escapeHtml(r.mostWaiverAdds.teamName)} · most adds off waivers/free agency`));
   }
+  if (r.mostBenchPointsLeft) {
+    const x = r.mostBenchPointsLeft;
+    cards.push(
+      card(
+        "Biggest Bench Blunder",
+        `${x.left.toFixed(1)} pts left on bench`,
+        `${escapeHtml(x.teamName)} scored ${x.actual.toFixed(1)} of a possible ${x.optimal.toFixed(1)} · ${x.season} Wk ${x.week}`
+      )
+    );
+  }
+  if (r.mostConsistentSeason) {
+    const x = r.mostConsistentSeason;
+    cards.push(card("Mr. Reliable", `±${x.stdDev.toFixed(1)} pts`, `${escapeHtml(x.teamName)} · ${x.season} · lowest weekly score variance`));
+  }
+  if (r.leastConsistentSeason) {
+    const x = r.leastConsistentSeason;
+    cards.push(card("Feast Or Famine", `±${x.stdDev.toFixed(1)} pts`, `${escapeHtml(x.teamName)} · ${x.season} · highest weekly score variance`));
+  }
+  if (r.toughestSchedule) {
+    const x = r.toughestSchedule;
+    cards.push(card("Toughest Schedule", `${x.avgOpponentPF.toFixed(1)} PPG faced`, `${escapeHtml(x.teamName)} · ${x.season} · average opponent score`));
+  }
+  if (r.easiestSchedule) {
+    const x = r.easiestSchedule;
+    cards.push(card("Easiest Schedule", `${x.avgOpponentPF.toFixed(1)} PPG faced`, `${escapeHtml(x.teamName)} · ${x.season} · average opponent score`));
+  }
 
   // A few extra cards computed straight from career totals, no extra fetch needed.
   if (stats.managers.length) {
@@ -106,6 +132,11 @@ function buildRecordCards(stats) {
 
     const mostPoints = [...stats.managers].sort((a, b) => b.careerPF - a.careerPF)[0];
     cards.push(card("Most Career Points", mostPoints.careerPF.toFixed(1), escapeHtml(mostPoints.teamName)));
+
+    const mostCareerBenchWaste = [...stats.managers].sort((a, b) => b.careerBenchPointsLeft - a.careerBenchPointsLeft)[0];
+    if (mostCareerBenchWaste && mostCareerBenchWaste.careerBenchPointsLeft > 0) {
+      cards.push(card("Career Bench Waste", mostCareerBenchWaste.careerBenchPointsLeft.toFixed(1), `${escapeHtml(mostCareerBenchWaste.teamName)} · total points left on the bench, all-time`));
+    }
   }
 
   return cards.join("") || `<div class="empty-state">Not enough completed games yet to crown any records.</div>`;

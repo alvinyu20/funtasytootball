@@ -61,6 +61,9 @@ function luckBadge(pct) {
   return `<span class="${cls}">${text}</span>`;
 }
 
+// A round manager/team avatar with the same graceful initial-letter
+// fallback as playerPhotoHtml. avatarId should already be a full CDN
+// URL (from SleeperAPI.avatarUrl) or null/undefined for no avatar.
 // A round player headshot with a graceful fallback (an initial-letter
 // tile) if the image 404s — Sleeper's headshot CDN is undocumented and
 // doesn't have a photo for every player (notably team defenses).
@@ -71,6 +74,21 @@ function playerPhotoHtml(playerId, playerName, sizeClass) {
   return `
     <div class="player-photo-wrap ${sizeClass || ""}">
       <img src="${url}" alt="${escapeHtml(playerName || "")}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+      <div class="player-photo-fallback">${escapeHtml(initial)}</div>
+    </div>`;
+}
+
+// A round manager/team avatar with the same graceful initial-letter
+// fallback as playerPhotoHtml. avatarUrl should already be a full CDN
+// URL (from SleeperAPI.avatarUrl) or null/undefined for no avatar.
+function userAvatarHtml(avatarUrl, name, sizeClass) {
+  const initial = name ? name.trim().charAt(0).toUpperCase() : "?";
+  if (!avatarUrl) {
+    return `<div class="player-photo-wrap ${sizeClass || ""}"><div class="player-photo-fallback" style="display:flex;">${escapeHtml(initial)}</div></div>`;
+  }
+  return `
+    <div class="player-photo-wrap ${sizeClass || ""}">
+      <img src="${avatarUrl}" alt="${escapeHtml(name || "")}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
       <div class="player-photo-fallback">${escapeHtml(initial)}</div>
     </div>`;
 }
