@@ -70,6 +70,9 @@ function luckBadge(pct) {
 // sizeClass: "player-photo-lg" or "player-photo-sm" (see styles.css).
 function playerPhotoHtml(playerId, playerName, sizeClass) {
   const initial = playerName ? playerName.trim().charAt(0).toUpperCase() : "?";
+  if (!playerId) {
+    return `<div class="player-photo-wrap ${sizeClass || ""}"><div class="player-photo-fallback" style="display:flex;">${escapeHtml(initial)}</div></div>`;
+  }
   const url = SleeperAPI.playerImageUrl(playerId);
   return `
     <div class="player-photo-wrap ${sizeClass || ""}">

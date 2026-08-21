@@ -327,6 +327,40 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Bug Fixes & Mobile Polish
+
+**Best Draft Steal / Biggest Draft Bust photos, fixed.** There turned out
+to be two separate, nearly-identical computations of these stats in the
+codebase — one feeding the Records page (fixed a while back), and a
+second, separate one specifically feeding the Season Summary that never
+got the same fix. That second one is what was actually showing on the
+Season Summary, which is why the photos never worked there even though
+the underlying logic looked right at a glance. Also hardened
+`playerPhotoHtml()` itself so a missing player ID never even attempts to
+load a broken image URL in the first place.
+
+**Playoff Picture removed from the Home page** — its dashed cutoff line
+now lives directly in the Standings table instead, as a divider row
+between the last playoff team and the first team out. Caught a genuine
+CSS specificity bug while wiring this up (the table's own default cell
+styling would have silently overridden the dashed-line styling) and
+fixed it with a properly-scoped selector.
+
+**Season Awards winner names** now display at a normal text size — they
+were previously using the same oversized "big stat number" styling as
+things like point totals and dollar amounts, which looks fine for a
+number but oversized for a username.
+
+**Mobile text sizes reduced broadly** — the site's larger display-font
+elements (scoreboard title, record card values, rivalry/trophy text,
+table cells, matchup cards, and several others) are noticeably smaller
+below 720px now, so more fits on screen without feeling like a wall of
+oversized headlines. This is a `body`-level base size drop plus targeted
+reductions on the specific elements that were the worst offenders, not a
+uniform scale-everything-down approach — different components were
+intentionally reduced by different amounts based on how oversized they
+actually looked.
+
 ## Player Photos, Everywhere Sensible
 
 Player headshots now show up in several more places: **Top 5 Priciest

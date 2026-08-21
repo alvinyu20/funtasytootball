@@ -33,15 +33,13 @@ async function renderDashboard() {
 
     const standings = SleeperAPI.buildStandings(rosters, users);
 
-    renderStandingsTable(standings, teamStrength);
+    renderStandingsTable(standings, teamStrength, league.settings && league.settings.playoff_teams);
 
     let rawMatchups = [];
     if (week) {
       rawMatchups = await SleeperAPI.getMatchups(LEAGUE_ID, week).catch(() => []);
     }
     renderMatchupsAndFeatured(rawMatchups, standings, week);
-
-    renderPlayoffPicture(standings, league.settings && league.settings.playoff_teams);
 
     fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
 
@@ -64,13 +62,13 @@ async function renderDashboard() {
   }
 }
 
-function renderStandingsTable(standings, teamStrength) {
+function renderStandingsTable(standings, teamStrength, playoffTeams) {
   const strengthByUsername = (teamStrength && teamStrength.teams) || {};
   const tbody = document.getElementById("standings-body");
   tbody.innerHTML = standings
     .map((t, i) => {
       const strength = t.username && strengthByUsername[t.username];
-      return `
+      const row = `
       <tr>
         <td class="rank">${i + 1}</td>
         <td class="team-cell">${escapeHtml(t.teamName)}</td>
@@ -78,6 +76,10 @@ function renderStandingsTable(standings, teamStrength) {
         <td>${t.fpts.toFixed(1)}</td>
         <td>${strength ? "#" + strength.rank : "—"}</td>
       </tr>`;
+      if (playoffTeams && i + 1 === playoffTeams && i + 1 < standings.length) {
+        return row + `<tr class="playoff-cutoff-row"><td colspan="5" class="playoff-cutoff-label">Playoff Line</td></tr>`;
+      }
+      return row;
     })
     .join("");
 
@@ -185,29 +187,6 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
   } else {
     featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
   }
-}
-
-function renderPlayoffPicture(standings, playoffTeams) {
-  const el = document.getElementById("playoff-picture");
-  if (!playoffTeams || !standings.length) {
-    el.innerHTML = `<div class="empty-state">Playoff format not available yet.</div>`;
-    return;
-  }
-  const rows = standings
-    .map((t, i) => {
-      const row = `
-      <div class="playoff-list-row">
-        <span class="rank">${i + 1}</span>
-        <span class="name">${escapeHtml(t.teamName)}</span>
-        <span class="record">${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</span>
-      </div>`;
-      if (i + 1 === playoffTeams && i + 1 < standings.length) {
-        return row + `<div class="playoff-cutoff-label">Playoff Line</div>`;
-      }
-      return row;
-    })
-    .join("");
-  el.innerHTML = rows;
 }
 
 function renderHistoryCallout(seasonAwards) {

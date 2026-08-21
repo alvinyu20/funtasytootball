@@ -445,6 +445,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 }
 .record-card.record-card-photo { display: flex; align-items: center; gap: 14px; }
 .record-card-photo .record-value-photo { font-size: 18px; }
+p.record-value.award-winner-value { font-size: 19px; }
 
 details.record-card-expandable {
   cursor: pointer;
@@ -1246,19 +1247,7 @@ details.bracket-game.championship {
 }
 .dash-more-link:hover { text-decoration: underline; }
 
-/* ---- Home page: Playoff Picture ---- */
-.playoff-list-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--turf-line);
-}
-.playoff-list-row:last-child { border-bottom: none; }
-.playoff-list-row .rank { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); width: 20px; }
-.playoff-list-row .name { flex: 1; font-family: var(--font-body); font-size: 14px; color: var(--chalk); }
-.playoff-list-row .record { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); }
+/* ---- Home page & Standings: Playoff cutoff line ---- */
 .playoff-cutoff-label {
   text-align: center;
   font-family: var(--font-mono);
@@ -1266,10 +1255,15 @@ details.bracket-game.championship {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--gold);
-  padding: 8px 0;
+  padding: 6px 0;
   border-top: 2px dashed var(--gold);
   border-bottom: 2px dashed var(--gold);
-  margin: 4px 0;
+}
+/* Needs to out-specificity table.stat-table td's own padding/border. */
+table.stat-table td.playoff-cutoff-label {
+  padding: 6px 0;
+  border-top: 2px dashed var(--gold);
+  border-bottom: 2px dashed var(--gold);
 }
 
 /* ---- Home page: Streaks ---- */
@@ -1292,3 +1286,44 @@ details.bracket-game.championship {
 .history-callout-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
 .history-callout-text { font-family: var(--font-body); font-size: 15px; color: var(--chalk); line-height: 1.5; }
 .history-callout-text strong { color: var(--gold); }
+
+/* ==========================================================================
+   MOBILE TEXT SIZE — several of the large "scoreboard" display-font
+   numbers/headers were sized for desktop and read oversized on a phone.
+   Scaled down broadly here to fit more on screen without scrolling as much.
+   ========================================================================== */
+@media (max-width: 720px) {
+  body { font-size: 14px; }
+  .scoreboard { padding: 20px 18px; }
+  .scoreboard-title { font-size: clamp(22px, 8vw, 30px); }
+  .scoreboard-eyebrow { font-size: 10px; }
+  .scoreboard-sub { font-size: 12px; }
+  .panel h2 { font-size: 16px; margin-bottom: 12px; }
+  .ticker-stat .value { font-size: 16px; }
+  .ticker-stat .label { font-size: 10px; }
+  .ledger-row .year { font-size: 17px; }
+  .record-card { padding: 14px 16px; }
+  .record-card .record-value { font-size: 21px; }
+  p.record-value.award-winner-value { font-size: 16px; }
+  .record-card-photo .record-value-photo { font-size: 15px; }
+  .recap-champ-name { font-size: 20px; }
+  .recap-eyebrow { font-size: 10px; }
+  .recap-narrative { font-size: 13px; }
+  .recap-player-name { font-size: 13px; }
+  .player-rep-name { font-size: 18px; }
+  .player-rep-detail { font-size: 11px; }
+  .rivalry-vs { font-size: 16px; }
+  .rivalry-series-name { font-size: 17px; }
+  .rivalry-series-record { font-size: 21px; }
+  .featured-matchup .name { font-size: 17px; }
+  .featured-matchup .pts { font-size: 21px; }
+  .history-callout-icon { font-size: 22px; }
+  .history-callout-text { font-size: 13px; }
+  .newsletter-card h3 { font-size: 19px; }
+  table.stat-table td, table.stat-table th { font-size: 12px; }
+  .rank-list-row .desc, .rank-list-row .val, .rank-list-row .rank-num { font-size: 12px; }
+  .trade-team-name { font-size: 14px; }
+  .trade-item-list { font-size: 12px; }
+  .matchup .name { font-size: 12px; }
+  .matchup .pts { font-size: 14px; }
+}

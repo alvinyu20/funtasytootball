@@ -943,7 +943,7 @@ const DeepHistory = {
         }
         const pts = seasonPlayerPoints.get(p.player_id) || 0;
         const info = rosterInfo.get(p.roster_id);
-        const entry = { player: playerName(p.player_id), round: p.round, pickNo: p.pick_no, points: pts, season: league.season, teamName: info ? info.teamName : "Unknown" };
+        const entry = { player: playerName(p.player_id), playerId: p.player_id, round: p.round, pickNo: p.pick_no, points: pts, season: league.season, teamName: info ? info.teamName : "Unknown" };
         if (p.round >= lateThreshold) bestValuePick = pick(bestValuePick, entry, (a, b) => a.points > b.points);
         if (p.round <= earlyThreshold) worstValuePick = pick(worstValuePick, entry, (a, b) => a.points < b.points);
       });

@@ -723,13 +723,20 @@ function getPlayerNameIndex() {
 }
 
 function awardCard(label, winnerLabel, detail, playerId) {
-  if (!playerId) return recordCard(label, escapeHtml(winnerLabel), detail ? escapeHtml(detail) : "");
+  if (!playerId) {
+    return `
+      <div class="record-card">
+        <p class="record-label">${escapeHtml(label)}</p>
+        <p class="record-value award-winner-value">${escapeHtml(winnerLabel)}</p>
+        ${detail ? `<p class="record-detail">${escapeHtml(detail)}</p>` : ""}
+      </div>`;
+  }
   return `
     <div class="record-card record-card-photo">
       ${playerPhotoHtml(playerId, detail || winnerLabel, "player-photo-sm")}
       <div>
         <p class="record-label">${escapeHtml(label)}</p>
-        <p class="record-value">${escapeHtml(winnerLabel)}</p>
+        <p class="record-value award-winner-value">${escapeHtml(winnerLabel)}</p>
         ${detail ? `<p class="record-detail">${escapeHtml(detail)}</p>` : ""}
       </div>
     </div>`;
