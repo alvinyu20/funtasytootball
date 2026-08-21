@@ -195,7 +195,13 @@ const Charts = {
 };
 
 // A qualitative color palette for up to 10 distinct trajectory lines.
+// Hues are evenly spaced around the color wheel and interleaved (not
+// assigned in hue order) so that any two ADJACENT positions in this list
+// are at least 72° apart in hue, not just any two colors in the set —
+// since teams are assigned colors by list position, adjacent teams in a
+// legend are the ones most likely to need telling apart at a glance.
+// Lightness alternates between entries for extra separation on top of hue.
 const MULTI_LINE_COLORS = [
-  "#E8B23D", "#B5502F", "#4F8F6B", "#7C8FA6", "#D9534F",
-  "#9B7EDE", "#4FC3D9", "#E091B5", "#A8B84F", "#E8823D",
+  "#E7B040", "#7FED6E", "#40DCE7", "#906EED", "#E74099",
+  "#CBED6E", "#40E78E", "#6E98ED", "#D140E7", "#ED766E",
 ];

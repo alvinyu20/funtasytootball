@@ -182,10 +182,10 @@ function renderPositionTable(positionTable) {
       const cells = positionTable.columns
         .map((col) => {
           const v = r.cells[col.key];
-          if (v == null) return `<td class="heat-cell empty">—</td>`;
+          if (v == null) return `<td class="heat-cell empty" data-label="${escapeHtml(col.label)}">—</td>`;
           const { min, max } = ranges[col.key];
           const bg = heatColor(v, min, max);
-          return `<td class="heat-cell" style="background:${bg}">${v.toFixed(1)}</td>`;
+          return `<td class="heat-cell" data-label="${escapeHtml(col.label)}" style="background:${bg}">${v.toFixed(1)}</td>`;
         })
         .join("");
       return `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${cells}</tr>`;
@@ -194,7 +194,7 @@ function renderPositionTable(positionTable) {
 
   return `
     <div class="heatmap-table-wrap">
-      <table class="stat-table">
+      <table class="stat-table responsive-stack">
         <thead><tr><th>Team</th>${header}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -459,7 +459,7 @@ function renderSummary(s) {
   const faabListHtml = s.top5FaabPickups
     ? renderRankList(s.top5FaabPickups, (p) => ({
         main: `${escapeHtml(p.player)}`,
-        sub: `${escapeHtml(p.teamName)}${p.week ? ` · Week ${p.week}` : ""}`,
+        sub: `${escapeHtml(p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${isTotal && p.season ? ` · ${p.season}` : ""}`,
         value: `$${p.bid}`,
       }))
     : "";
@@ -482,19 +482,6 @@ function renderSummary(s) {
     .join("");
 
   return `
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Final Standings</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap"><div class="panel">
-      <table class="stat-table">
-        <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
-        <tbody>${standingsRows}</tbody>
-      </table>
-      <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.</p>
-    </div></div>
-
     ${
       s.bracket
         ? `
@@ -508,6 +495,19 @@ function renderSummary(s) {
     </div></div>`
         : ""
     }
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Final Standings</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      <table class="stat-table">
+        <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
+        <tbody>${standingsRows}</tbody>
+      </table>
+      <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.</p>
+    </div></div>
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
@@ -614,7 +614,7 @@ function renderSummary(s) {
     </div>
     <div class="wrap">
       <div class="panel">
-        <h2>Top 5 Priciest FAAB Pickups</h2>
+        <h2>Top 5 Priciest FAAB Pickups${isTotal ? " Of All Time" : ""}</h2>
         ${faabListHtml}
       </div>
     </div>`

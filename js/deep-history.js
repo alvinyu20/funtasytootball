@@ -811,6 +811,7 @@ const DeepHistory = {
             teamName: info ? info.teamName : "Unknown",
             bid,
             week: tx.leg,
+            season: league.season,
           });
         });
       });
@@ -1565,6 +1566,9 @@ const DeepHistory = {
     const top5Closest = [...allClosest].sort((a, b) => a.margin - b.margin).slice(0, 5);
     const top5Blowouts = [...allBlowouts].sort((a, b) => b.margin - a.margin).slice(0, 5);
 
+    const allFaabPickups = perSeason.flatMap((s) => s.top5FaabPickups || []);
+    const top5FaabPickups = [...allFaabPickups].sort((a, b) => b.bid - a.bid).slice(0, 5);
+
     const bestByPosition = {};
     ["QB", "RB", "WR", "TE", "K", "DEF"].forEach((pos) => {
       let cur = null;
@@ -1611,6 +1615,7 @@ const DeepHistory = {
       top5Blowouts,
       top5Luckiest,
       top5Unluckiest,
+      top5FaabPickups,
       bestByPosition,
       bestValuePick,
       worstValuePick,

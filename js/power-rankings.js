@@ -72,27 +72,27 @@ function renderPowerTable(pr, lastWeekRanks) {
     .map(
       (r) => `
     <tr>
-      <td class="rank">#${formatRank(r.powerRank)}</td>
-      <td>${deltaBadge(r, lastWeekRanks)}</td>
+      <td class="rank" data-label="Rank">#${formatRank(r.powerRank)}</td>
+      <td data-label="Δ">${deltaBadge(r, lastWeekRanks)}</td>
       <td class="team-cell">${escapeHtml(r.teamName)}</td>
-      <td>${r.prScore.toFixed(2)}</td>
-      <td>${r.record}</td>
-      <td>${r.overallRecord}</td>
-      <td>#${formatRank(r.luckRank)}</td>
-      <td>${r.avgPpg.toFixed(1)}</td>
-      <td>${r.stdDev.toFixed(1)}</td>
-      <td>${r.playoffPct.toFixed(1)}%</td>
-      <td>${r.byePct != null ? r.byePct.toFixed(1) + "%" : "—"}</td>
-      <td>${r.rosRank != null ? "#" + r.rosRank : "—"}</td>
-      <td>${r.boom}</td>
-      <td>${r.bust}</td>
+      <td data-label="PR Score">${r.prScore.toFixed(2)}</td>
+      <td data-label="Record">${r.record}</td>
+      <td data-label="Overall">${r.overallRecord}</td>
+      <td data-label="Luck">#${formatRank(r.luckRank)}</td>
+      <td data-label="Avg PPG">${r.avgPpg.toFixed(1)}</td>
+      <td data-label="Std Dev">${r.stdDev.toFixed(1)}</td>
+      <td data-label="Playoff%">${r.playoffPct.toFixed(1)}%</td>
+      <td data-label="Bye%">${r.byePct != null ? r.byePct.toFixed(1) + "%" : "—"}</td>
+      <td data-label="ROS">${r.rosRank != null ? "#" + r.rosRank : "—"}</td>
+      <td data-label="Boom">${r.boom}</td>
+      <td data-label="Bust">${r.bust}</td>
     </tr>`
     )
     .join("");
 
   return `
     <div class="heatmap-table-wrap">
-      <table class="stat-table">
+      <table class="stat-table responsive-stack">
         <thead>
           <tr>
             <th>Rank</th><th>Δ</th><th>Team</th><th>PR Score</th><th>Record</th><th>Overall</th>
@@ -104,21 +104,28 @@ function renderPowerTable(pr, lastWeekRanks) {
     </div>`;
 }
 
-function probCell(pct) {
-  if (pct < 1) return `<td class="heat-cell empty">${pct < 0.05 ? "—" : pct.toFixed(1) + "%"}</td>`;
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+function probCell(pct, rank) {
+  const label = ordinal(rank);
+  if (pct < 1) return `<td class="heat-cell empty" data-label="${label}">${pct < 0.05 ? "—" : pct.toFixed(1) + "%"}</td>`;
   const bg = interpolateColor("#6B5A2E", "#E8B23D", Math.min(1, pct / 100));
-  return `<td class="heat-cell" style="background:${bg}">${pct.toFixed(1)}%</td>`;
+  return `<td class="heat-cell" data-label="${label}" style="background:${bg}">${pct.toFixed(1)}%</td>`;
 }
 
 function renderOddsTable(pr) {
   const n = pr.rows.length;
   const header = Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("");
   const rows = pr.rows
-    .map((r) => `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${r.finishDistribution.map(probCell).join("")}</tr>`)
+    .map((r) => `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${r.finishDistribution.map((pct, i) => probCell(pct, i + 1)).join("")}</tr>`)
     .join("");
   return `
     <div class="heatmap-table-wrap">
-      <table class="stat-table">
+      <table class="stat-table responsive-stack">
         <thead><tr><th>Team</th>${header}</tr></thead>
         <tbody>${rows}</tbody>
       </table>

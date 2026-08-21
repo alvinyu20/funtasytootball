@@ -609,6 +609,58 @@ table.stat-table td.heat-cell.empty {
   margin-top: 12px;
 }
 
+/* Responsive-stack: wide, many-column tables (position breakdown, power
+   rankings, playoff-odds distribution) become one card per row on narrow
+   screens instead of requiring horizontal panning. Cards use flex rows
+   with the column header injected as a label via ::before. */
+@media (max-width: 720px) {
+  .heatmap-table-wrap { overflow-x: visible; }
+  table.stat-table.responsive-stack thead { display: none; }
+  table.stat-table.responsive-stack,
+  table.stat-table.responsive-stack tbody,
+  table.stat-table.responsive-stack tr,
+  table.stat-table.responsive-stack td {
+    display: block;
+    width: 100%;
+  }
+  table.stat-table.responsive-stack tr {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
+    border: 1px solid var(--turf-line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.12);
+  }
+  table.stat-table.responsive-stack tr:last-child { margin-bottom: 0; }
+  table.stat-table.responsive-stack td.team-cell {
+    order: -1;
+    background: rgba(232, 178, 61, 0.1);
+    font-weight: 700;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--turf-line);
+  }
+  table.stat-table.responsive-stack td:not(.team-cell) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0 !important;
+    text-align: right;
+  }
+  table.stat-table.responsive-stack td:not(.team-cell)::before {
+    content: attr(data-label);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--chalk-dim);
+  }
+  table.stat-table.responsive-stack td.heat-cell.empty { background: transparent !important; }
+  table.stat-table.responsive-stack tr td:last-child { border-bottom: none; }
+}
+
 /* ==========================================================================
    RANK LIST (top-5 closest games / blowouts)
    ========================================================================== */
