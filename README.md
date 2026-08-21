@@ -331,9 +331,10 @@ instead of a broken-image icon.
 
 **Trade History** (`trades.html`) — every trade in league history,
 newest first, with a season filter. Each side of a trade shows exactly
-what they gave up and received: players, draft picks, and FAAB, parsed
-straight from Sleeper's trade transaction data. Multi-team trades are
-supported (any number of sides, not just 2).
+what they gave up and received: players (with position shown in muted
+text next to each name), draft picks, and FAAB, parsed straight from
+Sleeper's trade transaction data. Multi-team trades are supported (any
+number of sides, not just 2).
 
 **Rivalries** (`rivalries.html`) — pick any two managers to see their
 full head-to-head history: series record (including a separate playoff
@@ -345,14 +346,31 @@ so a specific matchup can be bookmarked or sent to someone.
 **Trophy Room**, at the top of the History page — a visual grid of every
 champion with their Sleeper avatar (or an initial-letter tile for
 pre-Sleeper manual entries, which don't have one). Click a card to jump
-to that season's page.
+to that season's page. The site also now guards, both at the data-fetch
+layer and in the Trophy Room specifically, against an un-replaced
+`data/manual-history.json` template entry (one still saying
+"REPLACE_WITH...") ever rendering on the live site.
 
 **Standings Over Time**, on each Season page — an animated replay of the
-regular-season standings, week by week. Press play and watch teams
-climb or fall as bars grow and reorder; scrub the slider to jump to any
-week directly. Playoff weeks are excluded since the "climbing the
-standings" framing stops making sense once the bracket takes over.
-Needs at least 2 weeks of regular-season data to show up.
+regular-season standings, week by week: rank, team, and record, with
+rows sliding smoothly into their new position as the standings change.
+A dashed line marks that season's actual playoff cutoff (pulled from the
+league's own `playoff_teams` setting), so you can watch teams cross in
+and out of a playoff spot in real time. Press play and watch it unfold,
+or scrub the slider to jump to any week directly. Playoff weeks
+themselves are excluded from the replay, since "climbing the standings"
+stops making sense once the bracket takes over. Needs at least 2 weeks
+of regular-season data to show up.
+
+**Strength of Schedule**, as a new "SOS" column on each Season page's
+Final Standings — each team's average regular-season opponent score,
+right alongside Record/PF/PA/Overall/Luck (not shown on the Total tab,
+since a single-season "toughness" number doesn't carry over meaningfully
+across years). This reuses the same regular-season-only computation as
+the Records-page Toughest/Easiest Schedule cards — fixed those, too,
+while wiring this up: they were previously (incorrectly) including
+playoff matchups in the average, which don't really represent "schedule"
+in the usual sense.
 
 ## Points Left on Bench, Consistency & Strength of Schedule
 

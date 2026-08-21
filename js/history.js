@@ -3,7 +3,10 @@ async function renderHistory() {
 
   try {
     const seasons = await SleeperAPI.getSeasonChain(LEAGUE_ID); // oldest -> newest
-    const manual = await fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] });
+    const rawManual = await fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] });
+    // Guard against an un-replaced template entry (champion still says
+    // "REPLACE_WITH...") ever showing up on the live site.
+    const manual = { ...rawManual, seasons: (rawManual.seasons || []).filter((s) => s.champion && !String(s.champion).startsWith("REPLACE_WITH")) };
 
     if (seasons.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
@@ -46,7 +49,8 @@ async function renderHistory() {
     const fullLedger = [...sleeperLedger, ...manualLedger].sort((a, b) => b.year - a.year);
 
     // ---- Trophy Room: a visual grid of every confirmed champion ----
-    const trophyEntries = fullLedger.filter((row) => row.champion && row.champion !== "In progress" && row.champion !== "Unavailable");
+    const isPlaceholder = (name) => !name || name.startsWith("REPLACE_WITH");
+    const trophyEntries = fullLedger.filter((row) => row.champion && row.champion !== "In progress" && row.champion !== "Unavailable" && !isPlaceholder(row.champion));
     document.getElementById("trophy-room").innerHTML = trophyEntries.length
       ? trophyEntries
           .map((row) => {

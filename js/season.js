@@ -104,7 +104,7 @@ async function renderSelectedSeason() {
     progressBox.style.display = "none";
     content.style.display = "";
     content.innerHTML = renderSummary(summary);
-    initStandingsReplay(summary.standingsHistory);
+    initStandingsReplay(summary.standingsHistory, summary.playoffTeams);
 
     const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
     document.title = (SITE_TITLE || leagueName || "League") + " — " + summary.season + " Season";
@@ -294,7 +294,7 @@ let REPLAY_WEEK_INDEX = 0;
 let REPLAY_SNAPSHOTS = [];
 const REPLAY_ROW_HEIGHT = 36;
 
-function renderStandingsReplaySection(standingsHistory) {
+function renderStandingsReplaySection(standingsHistory, playoffTeams) {
   if (!standingsHistory || standingsHistory.length < 2) return "";
   return `
     <div class="yard-divider">
@@ -308,12 +308,12 @@ function renderStandingsReplaySection(standingsHistory) {
         <input type="range" class="replay-slider" id="replay-slider" min="1" max="${standingsHistory.length}" value="1" />
         <span class="replay-week-label" id="replay-week-label">Week ${standingsHistory[0].week}</span>
       </div>
-      <div class="replay-bars" id="replay-bars"></div>
-      <p class="heatmap-note">Cumulative wins through each regular-season week — bar length is wins, position is rank (PF breaks ties).</p>
+      <div class="replay-bars" id="replay-bars" data-playoff-teams="${playoffTeams || ""}"></div>
+      <p class="heatmap-note">Rank through each regular-season week, sorted by wins (PF breaks ties).${playoffTeams ? ` The dashed line marks the top ${playoffTeams} — this season's playoff cutoff.` : ""}</p>
     </div></div>`;
 }
 
-function initStandingsReplay(standingsHistory) {
+function initStandingsReplay(standingsHistory, playoffTeams) {
   if (REPLAY_TIMER) {
     clearInterval(REPLAY_TIMER);
     REPLAY_TIMER = null;
@@ -327,16 +327,24 @@ function initStandingsReplay(standingsHistory) {
   if (!container) return;
   const rosterOrder = standingsHistory[0].standings.map((s) => s.rosterId);
   container.style.height = `${REPLAY_ROW_HEIGHT * rosterOrder.length}px`;
-  container.innerHTML = rosterOrder
-    .map(
-      (rid) => `
-      <div class="replay-bar-row" id="replay-row-${rid}" style="top:0px;">
-        <div class="replay-bar-label"></div>
-        <div class="replay-bar-track"><div class="replay-bar-fill" style="width:0%"></div></div>
-        <div class="replay-bar-value"></div>
+
+  const playoffLine =
+    playoffTeams && playoffTeams < rosterOrder.length
+      ? `<div class="replay-playoff-line" style="top:${playoffTeams * REPLAY_ROW_HEIGHT}px;"><span class="replay-playoff-line-label">Playoff Line</span></div>`
+      : "";
+
+  container.innerHTML =
+    playoffLine +
+    rosterOrder
+      .map(
+        (rid) => `
+      <div class="replay-row" id="replay-row-${rid}" style="top:0px;">
+        <span class="replay-rank"></span>
+        <span class="replay-team-name"></span>
+        <span class="replay-record"></span>
       </div>`
-    )
-    .join("");
+      )
+      .join("");
 
   renderReplayWeek(0);
 
@@ -378,14 +386,13 @@ function stopReplay() {
 function renderReplayWeek(index) {
   const snapshot = REPLAY_SNAPSHOTS[index];
   if (!snapshot) return;
-  const maxWins = Math.max(1, ...snapshot.standings.map((s) => s.wins));
   snapshot.standings.forEach((s, rank) => {
     const row = document.getElementById(`replay-row-${s.rosterId}`);
     if (!row) return;
     row.style.top = `${rank * REPLAY_ROW_HEIGHT}px`;
-    row.querySelector(".replay-bar-label").textContent = s.username || s.teamName;
-    row.querySelector(".replay-bar-fill").style.width = `${(s.wins / maxWins) * 100}%`;
-    row.querySelector(".replay-bar-value").textContent = `${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}`;
+    row.querySelector(".replay-rank").textContent = `${rank + 1}.`;
+    row.querySelector(".replay-team-name").textContent = s.username || s.teamName;
+    row.querySelector(".replay-record").textContent = `${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}`;
   });
   const weekLabel = document.getElementById("replay-week-label");
   if (weekLabel) weekLabel.textContent = `Week ${snapshot.week}`;
@@ -490,6 +497,7 @@ function renderSummary(s) {
       <td data-label="PA">${t.fptsAgainst.toFixed(1)}</td>
       <td data-label="Overall">${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}</td>
       <td data-label="Luck">${luckBadge(t.luckPct)}</td>
+      ${isTotal ? "" : `<td data-label="SOS">${t.avgOpponentPF != null ? t.avgOpponentPF.toFixed(1) : "—"}</td>`}
     </tr>`
     )
     .join("");
@@ -610,14 +618,14 @@ function renderSummary(s) {
     <div class="wrap"><div class="panel">
       <div class="heatmap-table-wrap">
         <table class="stat-table responsive-stack">
-          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
+          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th>${isTotal ? "" : "<th>SOS</th>"}</tr></thead>
           <tbody>${standingsRows}</tbody>
         </table>
       </div>
-      <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.</p>
+      <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.${isTotal ? "" : " \"SOS\" is average regular-season opponent score faced — higher means a tougher schedule."}</p>
     </div></div>
 
-    ${isTotal ? "" : renderStandingsReplaySection(s.standingsHistory)}
+    ${isTotal ? "" : renderStandingsReplaySection(s.standingsHistory, s.playoffTeams)}
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>

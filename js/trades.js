@@ -62,7 +62,7 @@ function renderTradeCard(trade) {
   const sides = trade.teams
     .map((t) => {
       const items = [
-        ...t.received.players.map((p) => `<li>${escapeHtml(p)}</li>`),
+        ...t.received.players.map((p) => `<li>${escapeHtml(p.name)}${p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""}</li>`),
         ...t.received.picks.map((p) => `<li>${escapeHtml(p)} pick</li>`),
         ...(t.received.faab ? [`<li>$${t.received.faab} FAAB</li>`] : []),
       ].join("");

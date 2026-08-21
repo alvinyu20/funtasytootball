@@ -1085,33 +1085,58 @@ details.bracket-game.championship {
 .replay-slider { flex: 1; min-width: 120px; accent-color: var(--gold); }
 .replay-week-label { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); min-width: 70px; text-align: right; flex-shrink: 0; }
 .replay-bars { position: relative; }
-.replay-bar-row {
+.replay-row {
   position: absolute;
   left: 0;
   right: 0;
   height: 34px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  padding: 0 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   transition: top 0.5s ease;
 }
-.replay-bar-label {
-  width: 130px;
+.replay-rank {
+  width: 26px;
   flex-shrink: 0;
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--chalk);
+  font-size: 13px;
+  color: var(--gold);
   text-align: right;
+}
+.replay-team-name {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--chalk);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.replay-bar-track { flex: 1; height: 18px; background: rgba(255, 255, 255, 0.04); border-radius: 4px; overflow: hidden; }
-.replay-bar-fill { height: 100%; background: var(--gold); border-radius: 4px; transition: width 0.5s ease; }
-.replay-bar-value { width: 64px; flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; color: var(--gold); }
+.replay-record { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); flex-shrink: 0; }
+.replay-playoff-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--gold);
+  z-index: 1;
+}
+.replay-playoff-line-label {
+  position: absolute;
+  right: 4px;
+  top: -9px;
+  background: var(--turf-mid);
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
 @media (max-width: 720px) {
-  .replay-bar-label { width: 78px; font-size: 11px; }
-  .replay-bar-value { width: 50px; font-size: 11px; }
+  .replay-team-name { font-size: 12px; }
+  .replay-record { font-size: 11px; }
 }
 
 /* ==========================================================================

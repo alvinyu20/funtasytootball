@@ -104,7 +104,7 @@ function buildRecordCards(stats) {
   }
   if (r.toughestSchedule) {
     const x = r.toughestSchedule;
-    cards.push(card("Toughest Schedule", `${x.avgOpponentPF.toFixed(1)} PPG faced`, `${escapeHtml(x.teamName)} · ${x.season} · average opponent score`));
+    cards.push(card("Toughest Schedule", `${x.avgOpponentPF.toFixed(1)} PPG faced`, `${escapeHtml(x.teamName)} · ${x.season} · avg. regular-season opponent score`));
   }
   if (r.easiestSchedule) {
     const x = r.easiestSchedule;

@@ -500,10 +500,12 @@ const DeepHistory = {
               const mgr = getManager(info.userId, info.teamName, info.username);
               const result = own > opp ? "W" : own < opp ? "L" : "T";
               mgr.gameLog.push({ result, season, week });
-              if (!opponentPointsByUser.has(info.userId)) opponentPointsByUser.set(info.userId, { sum: 0, count: 0 });
-              const sos = opponentPointsByUser.get(info.userId);
-              sos.sum += opp;
-              sos.count += 1;
+              if (playoffStart == null || week < playoffStart) {
+                if (!opponentPointsByUser.has(info.userId)) opponentPointsByUser.set(info.userId, { sum: 0, count: 0 });
+                const sos = opponentPointsByUser.get(info.userId);
+                sos.sum += opp;
+                sos.count += 1;
+              }
             });
 
             // Head-to-head: each side's record specifically against the other.
@@ -781,6 +783,7 @@ const DeepHistory = {
     const weeklyLeagueAvg = [];
     const teamTotals = new Map(); // rosterId -> {sum, games, teamName, username}
     const seasonPlayerPoints = new Map(); // player_id -> total points, this season
+    const opponentPointsByRoster = new Map(); // rosterId -> {sum, count}, regular-season only (strength of schedule)
 
     let highestWeekScore = null;
     let lowestWeekScore = null;
@@ -836,6 +839,16 @@ const DeepHistory = {
         const aInfo = rosterInfo.get(a.roster_id);
         const bInfo = rosterInfo.get(b.roster_id);
         if (!aInfo || !bInfo) return;
+        if (playoffStart == null || week < playoffStart) {
+          const soaA = opponentPointsByRoster.get(a.roster_id) || { sum: 0, count: 0 };
+          soaA.sum += b.points || 0;
+          soaA.count += 1;
+          opponentPointsByRoster.set(a.roster_id, soaA);
+          const soaB = opponentPointsByRoster.get(b.roster_id) || { sum: 0, count: 0 };
+          soaB.sum += a.points || 0;
+          soaB.count += 1;
+          opponentPointsByRoster.set(b.roster_id, soaB);
+        }
         const margin = Math.abs((a.points || 0) - (b.points || 0));
         const winner = a.points >= b.points ? aInfo.teamName : bInfo.teamName;
         const loser = a.points >= b.points ? bInfo.teamName : aInfo.teamName;
@@ -859,6 +872,11 @@ const DeepHistory = {
 
     const top5Closest = [...allMargins].sort((a, b) => a.margin - b.margin).slice(0, 5);
     const top5Blowouts = [...allMargins].sort((a, b) => b.margin - a.margin).slice(0, 5);
+
+    standings.forEach((s) => {
+      const sos = opponentPointsByRoster.get(s.rosterId);
+      s.avgOpponentPF = sos && sos.count ? sos.sum / sos.count : null;
+    });
 
     // ---- Scoring-by-position table (dedicated slots ranked by score,
     //      pooled together with any same-position player in FLEX/SUPERFLEX) ----
@@ -946,6 +964,7 @@ const DeepHistory = {
       pointsLeader,
       top5FaabPickups,
       standingsHistory: DeepHistory.computeStandingsHistory(seasonEntry, deep),
+      playoffTeams: (league.settings && league.settings.playoff_teams) || null,
       bracket: bracket_,
     };
   },
@@ -2157,11 +2176,17 @@ const DeepHistory = {
 
           Object.entries(tx.adds || {}).forEach(([pid, rid]) => {
             const t = ensure(rid);
-            if (t) t.received.players.push(SleeperAPI.playerName(playerDirectory, pid));
+            if (t) {
+              const p = playerDirectory && playerDirectory[pid];
+              t.received.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), position: (p && p.position) || null });
+            }
           });
           Object.entries(tx.drops || {}).forEach(([pid, rid]) => {
             const t = ensure(rid);
-            if (t) t.gave.players.push(SleeperAPI.playerName(playerDirectory, pid));
+            if (t) {
+              const p = playerDirectory && playerDirectory[pid];
+              t.gave.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), position: (p && p.position) || null });
+            }
           });
           (tx.draft_picks || []).forEach((pick) => {
             const label = `${pick.season} Round ${pick.round}`;
