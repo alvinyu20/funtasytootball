@@ -822,6 +822,19 @@ details.bracket-game.championship {
 @media (max-width: 720px) {
   .bracket-wrap { flex-direction: column; }
   .bracket-sidebar { width: 100%; }
+  .bracket {
+    flex-direction: column;
+    overflow-x: visible;
+    gap: 24px;
+  }
+  .bracket-round {
+    min-width: 0;
+    width: 100%;
+  }
+  .bracket-round:not(:first-child) {
+    padding-top: 20px;
+    border-top: 1px dashed var(--turf-line);
+  }
 }
 
 /* ==========================================================================

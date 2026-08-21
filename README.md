@@ -186,12 +186,16 @@ genuinely on the path to 1st or 3rd place — the 5th-place game, and any
 other consolation-bracket game, are excluded, no matter how big or small
 the league's bracket is.
 
-Each Team Profile also shows: **Regular Season record** and **Playoff
-record** (computed separately, from actual weekly results — not from
-Sleeper's own win/loss counter, which lumps the two together),
+Each Team Profile shows: **Overall Record** (Regular Season + Playoff
+combined — this is what Win % is based on, not Sleeper's own win/loss
+counter, since that one also counts any consolation-bracket games a team
+played), **Regular Season record** and **Playoff record** separately,
 **Championship Games** (career championship-game record, wins vs.
-runner-up finishes), and **Winning/Losing Seasons** (a count of how many
-years their regular-season record finished above vs. below .500).
+runner-up finishes), **Playoff Appearances**, **Byes** (first-round
+playoff byes — detected directly from the bracket structure, works for
+any bracket size), **Winning/Losing Seasons** (years finished above vs.
+below .500), and **1st Pick** (number of times they've had the very
+first pick of the draft).
 
 **The playoff bracket** on each Season page is read directly from
 Sleeper's own bracket data, with scores filled in from that round's actual
@@ -277,6 +281,19 @@ that data was never recovered). Note: `Pathieu` (2021–2022) and `paty23`
 (2023+) are two different people, both named Patrick — Pathieu left the
 league and paty23 joined afterward — so they're kept as separate entries
 in the data, not merged into one.
+
+**2022 chart bug, fixed**: 2022 is the one year with no "Pre" (preseason)
+value in its Power Rank data. That missing value was silently getting
+treated as `0` by the charting code, which corrupted the Y-axis scale
+for every chart on that season's page. Fixed at the source, and the
+chart code itself is now hardened so a gap in any team's data breaks
+that one line cleanly instead of skewing the whole chart.
+
+**Mobile, round two**: the Playoff Bracket now stacks its rounds
+vertically on narrow screens (round 1, then round 2, then the
+championship, top to bottom) instead of requiring a horizontal scroll
+through rounds. Final Standings now uses the same one-card-per-team
+pattern as the other wide tables.
 
 **Season page order**: Playoff Bracket now comes before Final Standings
 on each Season page (the reverse of how it used to read).

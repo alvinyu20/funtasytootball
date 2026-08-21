@@ -222,6 +222,34 @@ const SleeperAPI = {
     return bracket.filter((g) => relevant.has(g.m));
   },
 
+  /*
+    Which roster_ids got a first-round bye — i.e. genuinely relevant
+    playoff teams (see relevantBracketGames) who don't appear in the
+    earliest relevant round at all, but enter directly (via a literal
+    seed, not a t1_from/t2_from result) in a later round. Works for any
+    bracket size (4/6/8-team), not just one specific format.
+  */
+  byeRosterIds(bracket) {
+    const relevant = SleeperAPI.relevantBracketGames(bracket);
+    if (!relevant.length) return [];
+    const minRound = Math.min(...relevant.map((g) => g.r));
+    const firstRoundIds = new Set();
+    relevant
+      .filter((g) => g.r === minRound)
+      .forEach((g) => {
+        if (g.t1 != null) firstRoundIds.add(g.t1);
+        if (g.t2 != null) firstRoundIds.add(g.t2);
+      });
+    const byeIds = new Set();
+    relevant
+      .filter((g) => g.r > minRound)
+      .forEach((g) => {
+        if (g.t1 != null && !firstRoundIds.has(g.t1)) byeIds.add(g.t1);
+        if (g.t2 != null && !firstRoundIds.has(g.t2)) byeIds.add(g.t2);
+      });
+    return [...byeIds];
+  },
+
   // Turns a literal roster_positions slot-type string into a short
   // display label — e.g. "SUPER_FLEX" -> "SFLX". Plain positions (QB, RB,
   // K, DEF...) pass through unchanged. Used anywhere a slot type is shown.

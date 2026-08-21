@@ -126,7 +126,7 @@ const Charts = {
     const innerW = width - padL - padR;
     const innerH = height - padT - padB;
 
-    const allY = validSeries.flatMap((s) => s.points.map((p) => p.y));
+    const allY = validSeries.flatMap((s) => s.points.map((p) => p.y)).filter((v) => v != null);
     const minY = Math.min(...allY);
     const maxY = Math.max(...allY);
     const yRange = maxY - minY || 1;
@@ -149,15 +149,30 @@ const Charts = {
       })
       .join("");
 
+    // Any point with a missing y-value (e.g. a season with no "Pre" data)
+    // breaks the line into a gap rather than being drawn at a wrong
+    // position, so one missing data point can't corrupt the whole chart.
     const paths = validSeries
       .map((s) => {
-        const d = s.points.map((p, i) => `${i === 0 ? "M" : "L"}${xFor(i).toFixed(1)},${yFor(p.y).toFixed(1)}`).join(" ");
+        let d = "";
+        let started = false;
+        s.points.forEach((p, i) => {
+          if (p.y == null) {
+            started = false;
+            return;
+          }
+          const x = xFor(i).toFixed(1);
+          const y = yFor(p.y).toFixed(1);
+          d += `${started ? " L" : d ? " M" : "M"}${x},${y}`;
+          started = true;
+        });
         const dots = s.points
-          .map(
-            (p, i) =>
-              `<circle class="lc-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.y).toFixed(1)}" r="2.5" style="fill:${s.color}"><title>${escapeHtml(
-                s.name
-              )} · ${escapeHtml(String(p.x))}: ${formatter(p.y)}</title></circle>`
+          .map((p, i) =>
+            p.y == null
+              ? ""
+              : `<circle class="lc-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.y).toFixed(1)}" r="2.5" style="fill:${s.color}"><title>${escapeHtml(
+                  s.name
+                )} · ${escapeHtml(String(p.x))}: ${formatter(p.y)}</title></circle>`
           )
           .join("");
         return `<path class="lc-line" style="stroke:${s.color}" d="${d}"></path>${dots}`;

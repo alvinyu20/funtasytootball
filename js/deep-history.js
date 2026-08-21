@@ -241,6 +241,9 @@ const DeepHistory = {
           thirdPlaceFinishes: 0,
           winningSeasons: 0,
           losingSeasons: 0,
+          playoffAppearances: 0,
+          byes: 0,
+          firstPicks: 0,
           careerRegularSeasonWins: 0,
           careerRegularSeasonLosses: 0,
           careerRegularSeasonTies: 0,
@@ -321,6 +324,7 @@ const DeepHistory = {
       const overallRecordByRoster = DeepHistory.computeOverallRecords(deep ? deep.weeks : [], playoffStart);
       const regularSeasonByRoster = DeepHistory.computeActualRecords(deep ? deep.weeks : [], (week) => playoffStart == null || week < playoffStart);
       const playoffByRoster = DeepHistory.computeActualRecords(deep ? deep.weeks : [], (week, a, b) => relevantPlayoffPairs.has(`${week}:${Math.min(a, b)}-${Math.max(a, b)}`));
+      const byeRosterIdsThisSeason = new Set(SleeperAPI.byeRosterIds(bracket));
 
       const seasonEntryByRosterId = new Map(); // this season only, for attaching draft picks below
 
@@ -351,6 +355,8 @@ const DeepHistory = {
           playoffTies: playoff.ties,
           isWinningSeason: regSeason.wins > regSeason.losses,
           isLosingSeason: regSeason.losses > regSeason.wins,
+          isPlayoffAppearance: playoff.wins + playoff.losses + playoff.ties > 0,
+          isBye: byeRosterIdsThisSeason.has(s.rosterId),
           isChampion: s.rosterId === championRosterId,
           isRunnerUp: s.rosterId === runnerUpRosterId,
           isThirdPlace: s.rosterId === thirdPlaceRosterId,
@@ -372,6 +378,8 @@ const DeepHistory = {
         m.careerPlayoffTies += playoff.ties;
         if (seasonEntry.isWinningSeason) m.winningSeasons += 1;
         if (seasonEntry.isLosingSeason) m.losingSeasons += 1;
+        if (seasonEntry.isPlayoffAppearance) m.playoffAppearances += 1;
+        if (seasonEntry.isBye) m.byes += 1;
         if (s.rosterId === championRosterId) m.championships += 1;
         if (s.rosterId === runnerUpRosterId) m.runnerUps += 1;
         if (s.rosterId === thirdPlaceRosterId) m.thirdPlaceFinishes += 1;
@@ -514,6 +522,10 @@ const DeepHistory = {
                 position: (pick.metadata && pick.metadata.position) || "",
                 points: pts,
               });
+            }
+            if (pick.pick_no === 1 && info) {
+              const firstPickManager = getManager(info.userId, info.teamName, info.username);
+              firstPickManager.firstPicks += 1;
             }
           });
         }

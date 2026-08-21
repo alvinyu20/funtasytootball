@@ -70,8 +70,11 @@ function renderFromHash() {
 }
 
 function renderManagerDetail(m) {
-  const winPct = m.careerWins + m.careerLosses + m.careerTies > 0
-    ? (m.careerWins / (m.careerWins + m.careerLosses + m.careerTies) * 100).toFixed(1)
+  const overallWins = m.careerRegularSeasonWins + m.careerPlayoffWins;
+  const overallLosses = m.careerRegularSeasonLosses + m.careerPlayoffLosses;
+  const overallTies = m.careerRegularSeasonTies + m.careerPlayoffTies;
+  const winPct = overallWins + overallLosses + overallTies > 0
+    ? (overallWins / (overallWins + overallLosses + overallTies) * 100).toFixed(1)
     : "0.0";
 
   const chips = m.mostRostered.length
@@ -188,15 +191,17 @@ function renderManagerDetail(m) {
       <h1 class="scoreboard-title">${escapeHtml(m.username || m.teamName)}</h1>
       <p class="scoreboard-sub">${escapeHtml(m.teamName)}</p>
       <div class="scoreboard-ticker">
-        <div class="ticker-stat"><span class="label">Career Record</span><span class="value">${m.careerWins}-${m.careerLosses}${m.careerTies ? "-" + m.careerTies : ""}</span></div>
+        <div class="ticker-stat"><span class="label">Overall Record</span><span class="value">${overallWins}-${overallLosses}${overallTies ? "-" + overallTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Win %</span><span class="value">${winPct}%</span></div>
         <div class="ticker-stat"><span class="label">Regular Season</span><span class="value">${m.careerRegularSeasonWins}-${m.careerRegularSeasonLosses}${m.careerRegularSeasonTies ? "-" + m.careerRegularSeasonTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Playoff Record</span><span class="value">${m.careerPlayoffWins}-${m.careerPlayoffLosses}${m.careerPlayoffTies ? "-" + m.careerPlayoffTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Championship Games</span><span class="value">${m.championships}-${m.runnerUps}</span></div>
+        <div class="ticker-stat"><span class="label">Playoff Appearances</span><span class="value">${m.playoffAppearances}</span></div>
+        <div class="ticker-stat"><span class="label">Byes</span><span class="value">${m.byes}</span></div>
         <div class="ticker-stat"><span class="label">Winning Seasons</span><span class="value">${m.winningSeasons}</span></div>
         <div class="ticker-stat"><span class="label">Losing Seasons</span><span class="value">${m.losingSeasons}</span></div>
         <div class="ticker-stat"><span class="label">3rd Place</span><span class="value">${m.thirdPlaceFinishes}</span></div>
-        <div class="ticker-stat"><span class="label">Career PF</span><span class="value">${m.careerPF.toFixed(1)}</span></div>
+        <div class="ticker-stat"><span class="label">1st Pick</span><span class="value">${m.firstPicks}</span></div>
       </div>
     </div>
 

@@ -297,7 +297,7 @@ function renderPowerRankHistorySection(season) {
     return entries.map(([key, team], i) => ({
       name: team.label || key,
       color: MULTI_LINE_COLORS[i % MULTI_LINE_COLORS.length],
-      points: [{ x: "Pre", y: team.pre }, ...team.weekly.map((v, wi) => ({ x: `W${wi + 1}`, y: v }))],
+      points: [...(team.pre != null ? [{ x: "Pre", y: team.pre }] : []), ...team.weekly.map((v, wi) => ({ x: `W${wi + 1}`, y: v }))],
     }));
   }
 
@@ -377,13 +377,13 @@ function renderSummary(s) {
     .map(
       (t, i) => `
     <tr>
-      <td class="rank">${i + 1}</td>
+      <td class="rank" data-label="#">${i + 1}</td>
       <td class="team-cell">${escapeHtml(t.teamName)}${t.rosterId === s.championRosterId ? " 🏆" : ""}${isTotal && t.championships ? ` ${"🏆".repeat(Math.min(t.championships, 5))}` : ""}</td>
-      <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
-      <td>${t.fpts.toFixed(1)}</td>
-      <td>${t.fptsAgainst.toFixed(1)}</td>
-      <td>${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}</td>
-      <td>${luckBadge(t.luckPct)}</td>
+      <td data-label="Record">${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
+      <td data-label="PF">${t.fpts.toFixed(1)}</td>
+      <td data-label="PA">${t.fptsAgainst.toFixed(1)}</td>
+      <td data-label="Overall">${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}</td>
+      <td data-label="Luck">${luckBadge(t.luckPct)}</td>
     </tr>`
     )
     .join("");
@@ -502,10 +502,12 @@ function renderSummary(s) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <table class="stat-table">
-        <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
-        <tbody>${standingsRows}</tbody>
-      </table>
+      <div class="heatmap-table-wrap">
+        <table class="stat-table responsive-stack">
+          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
+          <tbody>${standingsRows}</tbody>
+        </table>
+      </div>
       <p class="heatmap-note">"Overall" is the record if every team played every other team, every week. "Luck" is the gap between a team's real win % and their Overall win %.</p>
     </div></div>
 
