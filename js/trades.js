@@ -58,11 +58,17 @@ function renderFilterPills(activeKey) {
   return allPill + seasonPills;
 }
 
+function tradePlayerLine(p) {
+  return `<li>${playerPhotoHtml(p.playerId, p.name, "player-photo-xs")}<span>${escapeHtml(p.name)}${
+    p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
+  }</span></li>`;
+}
+
 function renderTradeCard(trade) {
   const sides = trade.teams
     .map((t) => {
       const items = [
-        ...t.received.players.map((p) => `<li>${escapeHtml(p.name)}${p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""}</li>`),
+        ...t.received.players.map(tradePlayerLine),
         ...t.received.picks.map((p) => `<li>${escapeHtml(p)} pick</li>`),
         ...(t.received.faab ? [`<li>$${t.received.faab} FAAB</li>`] : []),
       ].join("");

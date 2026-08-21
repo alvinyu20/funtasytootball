@@ -101,3 +101,34 @@ function gaussianRandom(mean = 0, stdev = 1) {
   const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   return z * stdev + mean;
 }
+
+// Normalizes a player name for matching (lowercase, strips everything but
+// letters/numbers) so "Jaxon Smith-Njigba" and "Jaxon Smith Njigba" match.
+function normalizePlayerName(name) {
+  return (name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+// Builds a normalized-name -> player_id lookup from the player directory,
+// for matching free-text names (e.g. from data/season-awards.json, which
+// only stores names, not IDs) back to a real player for a photo.
+function buildPlayerNameIndex(playerDirectory) {
+  const index = new Map();
+  Object.entries(playerDirectory || {}).forEach(([pid, p]) => {
+    if (p && p.full_name) {
+      const key = normalizePlayerName(p.full_name);
+      if (key && !index.has(key)) index.set(key, pid); // first match wins on a rare collision
+    }
+  });
+  return index;
+}
+
+// Looks up a player_id from free text like "Todd Gurley, 16th" — strips a
+// trailing draft-pick suffix if present, then matches by normalized name.
+// Returns null (not a guess) if there's no confident match, since a wrong
+// photo is worse than no photo.
+function findPlayerIdByName(rawName, nameIndex) {
+  if (!rawName || !nameIndex) return null;
+  const cleaned = rawName.replace(/,\s*\d+(st|nd|rd|th)\.?$/i, "").trim();
+  const key = normalizePlayerName(cleaned);
+  return nameIndex.get(key) || null;
+}

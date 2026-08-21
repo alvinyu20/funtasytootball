@@ -855,7 +855,7 @@ const DeepHistory = {
           seasonPlayerPoints.set(pid, (seasonPlayerPoints.get(pid) || 0) + (pts || 0));
           const pos = nativePosition(pid);
           if (pos) {
-            const entry = { player: playerName(pid), points: pts || 0, week, season: league.season, teamName: info.teamName };
+            const entry = { player: playerName(pid), playerId: pid, points: pts || 0, week, season: league.season, teamName: info.teamName };
             bestByPosition[pos] = pick(bestByPosition[pos], entry, (a, b) => a.points > b.points);
           }
         });
@@ -951,7 +951,7 @@ const DeepHistory = {
 
     let pointsLeader = null;
     seasonPlayerPoints.forEach((pts, pid) => {
-      pointsLeader = pick(pointsLeader, { player: playerName(pid), points: pts, season: league.season }, (a, b) => a.points > b.points);
+      pointsLeader = pick(pointsLeader, { player: playerName(pid), playerId: pid, points: pts, season: league.season }, (a, b) => a.points > b.points);
     });
 
     // ---- Top 5 most expensive FAAB waiver pickups this season (only
@@ -967,6 +967,7 @@ const DeepHistory = {
           const info = rosterInfo.get(rid);
           faabPickups.push({
             player: playerName(playerId),
+            playerId,
             teamName: info ? info.teamName : "Unknown",
             bid,
             week: tx.leg,
@@ -2332,14 +2333,14 @@ const DeepHistory = {
             const t = ensure(rid);
             if (t) {
               const p = playerDirectory && playerDirectory[pid];
-              t.received.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), position: (p && p.position) || null });
+              t.received.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), playerId: pid, position: (p && p.position) || null });
             }
           });
           Object.entries(tx.drops || {}).forEach(([pid, rid]) => {
             const t = ensure(rid);
             if (t) {
               const p = playerDirectory && playerDirectory[pid];
-              t.gave.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), position: (p && p.position) || null });
+              t.gave.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), playerId: pid, position: (p && p.position) || null });
             }
           });
           (tx.draft_picks || []).forEach((pick) => {

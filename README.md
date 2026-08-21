@@ -327,6 +327,31 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Player Photos, Everywhere Sensible
+
+Player headshots now show up in several more places: **Top 5 Priciest
+FAAB Pickups**, **Best By Position**, **Trade History** (every player on
+both sides of a trade), and **Season Awards**. Draft Standouts (Season
+Points Leader, Best Draft Steal, Biggest Draft Bust) moved out of their
+own section and into the **Season Summary** at the top of the page —
+with photos — for completed seasons; in-progress seasons and the Total
+tab still show them in their old spot, since Season Summary only applies
+once a champion's been crowned. The Season Summary section is now also
+resilient to the champion recap failing to compute (e.g. missing bracket
+data) — the draft/points cards still show up instead of the whole
+section disappearing.
+
+Season Awards is the one that needed real work: the data only ever
+stored a player's *name* as free text (e.g. "Todd Gurley, 16th"), never
+an ID, so there's no direct link to a photo. A small matching step
+normalizes both sides (strips punctuation, strips a trailing draft-pick
+suffix) and looks for an exact match in the player directory — enough to
+correctly handle things like "Jaxon Smith Njigba" matching "Jaxon
+Smith-Njigba" despite the missing hyphen. If there's no confident match
+(team defenses, name typos, players not in Sleeper's directory), the
+award still displays normally, just without a photo — a wrong guess
+would be worse than no photo at all, so it never guesses.
+
 ## Season Summary
 
 **Always uses usernames**, not custom Sleeper team names — the champion,

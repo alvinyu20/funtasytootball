@@ -151,6 +151,18 @@ function recordCard(label, value, detail) {
     </div>`;
 }
 
+function recordCardWithPhoto(label, playerId, playerName, detail) {
+  return `
+    <div class="record-card record-card-photo">
+      ${playerPhotoHtml(playerId, playerName, "player-photo-sm")}
+      <div>
+        <p class="record-label">${escapeHtml(label)}</p>
+        <p class="record-value record-value-photo">${escapeHtml(playerName)}</p>
+        ${detail ? `<p class="record-detail">${detail}</p>` : ""}
+      </div>
+    </div>`;
+}
+
 function lineupRows(lineup) {
   return lineup
     .map(
@@ -225,6 +237,23 @@ function renderPositionTable(positionTable) {
       </table>
     </div>
     <p class="heatmap-note">Each column is colored independently — gold is that column's best, rust is its worst.</p>`;
+}
+
+function renderFaabList(items, isTotal) {
+  if (!items.length) return `<div class="empty-state">Not enough games played yet.</div>`;
+  return `<div class="rank-list">${items
+    .map(
+      (p, i) => `
+    <div class="rank-list-row faab-row">
+      <span class="rank-num">${i + 1}</span>
+      ${playerPhotoHtml(p.playerId, p.player, "player-photo-sm")}
+      <span class="desc">${escapeHtml(p.player)}<span class="sub">${escapeHtml(p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${
+        isTotal && p.season ? ` · ${p.season}` : ""
+      }</span></span>
+      <span class="val">$${p.bid}</span>
+    </div>`
+    )
+    .join("")}</div>`;
 }
 
 function renderRankList(items, describe, getLineupSections) {
@@ -456,21 +485,48 @@ function buildSeasonRecordHighlights(records, season) {
   return highlights;
 }
 
-function renderChampionshipRecap(recap, allTimeRecords) {
-  if (!recap || !recap.champion) return "";
-  const c = recap.champion;
-  const highlights = buildSeasonRecordHighlights(allTimeRecords, recap.season);
+function seasonStatCard(label, stat, subFormatter) {
+  if (!stat) return "";
+  return `
+    <div class="recap-player-card">
+      ${playerPhotoHtml(stat.playerId, stat.player, "player-photo-lg")}
+      <div class="recap-player-label">${escapeHtml(label)}</div>
+      <div class="recap-player-name">${escapeHtml(stat.player)}</div>
+      <div class="recap-player-sub">${escapeHtml(subFormatter(stat))}</div>
+    </div>`;
+}
 
-  const mvpHtml = c.seasonMVP
-    ? `
-    <div class="recap-players">
-      <div class="recap-player-card">
-        ${playerPhotoHtml(c.seasonMVP.playerId, c.seasonMVP.player, "player-photo-lg")}
-        <div class="recap-player-label">Season MVP</div>
-        <div class="recap-player-name">${escapeHtml(c.seasonMVP.player)}</div>
-      </div>
+function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
+  const c = recap && recap.champion;
+  const stats = seasonStats || {};
+  const hasSeasonStats = stats.bestValuePick || stats.worstValuePick || stats.pointsLeader;
+  if (!c && !hasSeasonStats) return "";
+
+  const highlights = c ? buildSeasonRecordHighlights(allTimeRecords, recap.season) : [];
+  const season = recap ? recap.season : stats.pointsLeader ? stats.pointsLeader.season : "";
+
+  const mvpHtml =
+    c && c.seasonMVP
+      ? `
+    <div class="recap-player-card">
+      ${playerPhotoHtml(c.seasonMVP.playerId, c.seasonMVP.player, "player-photo-lg")}
+      <div class="recap-player-label">Season MVP</div>
+      <div class="recap-player-name">${escapeHtml(c.seasonMVP.player)}</div>
     </div>`
-    : "";
+      : "";
+
+  const statCardsHtml = [
+    seasonStatCard("Season Points Leader", stats.pointsLeader, (s) => `${s.points.toFixed(1)} total points`),
+    seasonStatCard("Best Draft Steal", stats.bestValuePick, (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.teamName}`),
+    seasonStatCard("Biggest Draft Bust", stats.worstValuePick, (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.teamName}`),
+  ].join("");
+
+  const championHeaderHtml = c
+    ? `
+      <div class="recap-eyebrow">🏆 ${escapeHtml(String(recap.season))} Champion</div>
+      <div class="recap-champ-name">${escapeHtml(c.teamName)}</div>
+      <p class="recap-narrative">${championshipNarrative(c)} ${championshipMvpNarrative(c)}</p>`
+    : `<div class="recap-eyebrow">${escapeHtml(String(season))} Season</div>`;
 
   return `
     <div class="yard-divider">
@@ -479,10 +535,8 @@ function renderChampionshipRecap(recap, allTimeRecords) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <div class="recap-eyebrow">🏆 ${escapeHtml(String(recap.season))} Champion</div>
-      <div class="recap-champ-name">${escapeHtml(c.teamName)}</div>
-      <p class="recap-narrative">${championshipNarrative(c)} ${championshipMvpNarrative(c)}</p>
-      ${mvpHtml}
+      ${championHeaderHtml}
+      ${mvpHtml || statCardsHtml ? `<div class="recap-players">${mvpHtml}${statCardsHtml}</div>` : ""}
       ${
         highlights.length
           ? `
@@ -662,14 +716,35 @@ function renderPowerRankHistorySection(season) {
     ${oddsSection}`;
 }
 
+let PLAYER_NAME_INDEX_CACHE = null;
+function getPlayerNameIndex() {
+  if (!PLAYER_NAME_INDEX_CACHE) PLAYER_NAME_INDEX_CACHE = buildPlayerNameIndex(PLAYER_DIRECTORY);
+  return PLAYER_NAME_INDEX_CACHE;
+}
+
+function awardCard(label, winnerLabel, detail, playerId) {
+  if (!playerId) return recordCard(label, escapeHtml(winnerLabel), detail ? escapeHtml(detail) : "");
+  return `
+    <div class="record-card record-card-photo">
+      ${playerPhotoHtml(playerId, detail || winnerLabel, "player-photo-sm")}
+      <div>
+        <p class="record-label">${escapeHtml(label)}</p>
+        <p class="record-value">${escapeHtml(winnerLabel)}</p>
+        ${detail ? `<p class="record-detail">${escapeHtml(detail)}</p>` : ""}
+      </div>
+    </div>`;
+}
+
 function renderAwardsSection(season) {
   if (!SEASON_AWARDS || !SEASON_AWARDS.seasons) return "";
   const yearAwards = SEASON_AWARDS.seasons[String(season)];
   if (!yearAwards) return "";
+  const nameIndex = getPlayerNameIndex();
   const cards = Object.entries(yearAwards)
     .map(([category, award]) => {
       const winnerLabel = award.username || award.winnerName || "Unknown";
-      return recordCard(category, escapeHtml(winnerLabel), award.detail ? escapeHtml(award.detail) : "");
+      const playerId = award.detail ? findPlayerIdByName(award.detail, nameIndex) : null;
+      return awardCard(category, winnerLabel, award.detail, playerId);
     })
     .join("");
   return `
@@ -772,11 +847,7 @@ function renderSummary(s) {
     : "";
 
   const faabListHtml = s.top5FaabPickups
-    ? renderRankList(s.top5FaabPickups, (p) => ({
-        main: `${escapeHtml(p.player)}`,
-        sub: `${escapeHtml(p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${isTotal && p.season ? ` · ${p.season}` : ""}`,
-        value: `$${p.bid}`,
-      }))
+    ? renderFaabList(s.top5FaabPickups, isTotal)
     : "";
 
   const POSITION_LABELS = { QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", DEF: "DEF" };
@@ -784,20 +855,20 @@ function renderSummary(s) {
     .map(([pos, label]) => {
       const x = s.bestByPosition[pos];
       if (!x) return "";
-      return recordCard(`Best ${label} Week`, x.points.toFixed(1), `${escapeHtml(x.player)} · ${escapeHtml(x.teamName)} · Wk ${x.week}${yearTag(x)}`);
+      return recordCardWithPhoto(`Best ${label} Week`, x.playerId, x.player, `${x.points.toFixed(1)} pts · ${escapeHtml(x.teamName)} · Wk ${x.week}${yearTag(x)}`);
     })
     .join("");
 
   const draftCards = [
-    s.bestValuePick && recordCard("Best Late-Round Steal", escapeHtml(s.bestValuePick.player), `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${yearTag(s.bestValuePick)}`),
-    s.worstValuePick && recordCard("Biggest Draft Bust", escapeHtml(s.worstValuePick.player), `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${yearTag(s.worstValuePick)}`),
-    s.pointsLeader && recordCard("Season Points Leader", escapeHtml(s.pointsLeader.player), `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
+    s.bestValuePick && recordCardWithPhoto("Best Late-Round Steal", s.bestValuePick.playerId, s.bestValuePick.player, `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${yearTag(s.bestValuePick)}`),
+    s.worstValuePick && recordCardWithPhoto("Biggest Draft Bust", s.worstValuePick.playerId, s.worstValuePick.player, `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${yearTag(s.worstValuePick)}`),
+    s.pointsLeader && recordCardWithPhoto("Season Points Leader", s.pointsLeader.playerId, s.pointsLeader.player, `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
   ]
     .filter(Boolean)
     .join("");
 
   return `
-    ${isTotal ? "" : renderChampionshipRecap(s.championshipRecap, s.allTimeRecords)}
+    ${isTotal ? "" : renderChampionshipRecap(s.championshipRecap, s.allTimeRecords, { bestValuePick: s.bestValuePick, worstValuePick: s.worstValuePick, pointsLeader: s.pointsLeader })}
 
     ${
       s.bracket
@@ -916,6 +987,9 @@ function renderSummary(s) {
       <div class="records-grid">${bestByPositionCards || `<div class="empty-state">No lineup data available.</div>`}</div>
     </div>
 
+    ${
+      isTotal || s.status !== "complete"
+        ? `
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
       <span class="label">Draft Standouts</span>
@@ -923,7 +997,9 @@ function renderSummary(s) {
     </div>
     <div class="wrap">
       <div class="records-grid">${draftCards || `<div class="empty-state">No draft data for this season.</div>`}</div>
-    </div>
+    </div>`
+        : ""
+    }
 
     ${
       s.top5FaabPickups && s.top5FaabPickups.length
