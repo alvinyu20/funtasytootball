@@ -2,22 +2,23 @@ let SEASON_CHAIN = null;
 let PLAYER_DIRECTORY = null;
 let SEASON_AWARDS = null;
 let POWER_RANK_CSV_HISTORY = null;
-let ALL_TIME_RECORDS_CACHE = null; // computed lazily, once per page load — see getAllTimeRecords()
+let ALL_TIME_STATS_CACHE = null; // computed lazily, once per page load — see getAllTimeStats()
 
 /*
-  Powers the Season Summary's "records set this season" callouts. This
-  needs every season's data, not just the one being viewed, so it's kept
-  separate from the fast single-season fetch and only triggered when a
-  completed season is actually being displayed (the only time it's
-  used). Cached for the rest of this page visit so switching between
-  completed seasons doesn't redo the work each time.
+  Powers the Season Summary's "records set this season" callouts, and the
+  draft grade model (which needs every pick in league history to fit a
+  meaningful expected-VBD-by-pick curve). This needs every season's data,
+  not just the one being viewed, so it's kept separate from the fast
+  single-season fetch and only triggered when a completed season is
+  actually being displayed (the only time either is used). Cached for the
+  rest of this page visit so switching between completed seasons doesn't
+  redo the work each time.
 */
-async function getAllTimeRecords() {
-  if (ALL_TIME_RECORDS_CACHE) return ALL_TIME_RECORDS_CACHE;
+async function getAllTimeStats() {
+  if (ALL_TIME_STATS_CACHE) return ALL_TIME_STATS_CACHE;
   const deepSeasons = await DeepHistory.buildAll(SEASON_CHAIN, () => {});
-  const stats = DeepHistory.computeStats(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY);
-  ALL_TIME_RECORDS_CACHE = stats.records;
-  return ALL_TIME_RECORDS_CACHE;
+  ALL_TIME_STATS_CACHE = DeepHistory.computeStats(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY);
+  return ALL_TIME_STATS_CACHE;
 }
 
 async function renderSeasonPage() {
@@ -116,13 +117,15 @@ async function renderSelectedSeason() {
       progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
     });
 
-    const summary = DeepHistory.computeSeasonSummary(seasonEntry, deep, PLAYER_DIRECTORY);
-
+    let allTimeStats = null;
     if (seasonEntry.league.status === "complete") {
       progressBox.style.display = "block";
       progressBox.textContent = "Checking league records…";
-      summary.allTimeRecords = await getAllTimeRecords();
+      allTimeStats = await getAllTimeStats();
     }
+
+    const summary = DeepHistory.computeSeasonSummary(seasonEntry, deep, PLAYER_DIRECTORY, allTimeStats ? allTimeStats.draftGradeModel : null);
+    if (allTimeStats) summary.allTimeRecords = allTimeStats.records;
 
     progressBox.style.display = "none";
     content.style.display = "";
@@ -151,12 +154,12 @@ function recordCard(label, value, detail) {
     </div>`;
 }
 
-function recordCardWithPhoto(label, playerId, playerName, detail) {
+function recordCardWithPhoto(label, playerId, playerName, detail, badge) {
   return `
     <div class="record-card record-card-photo">
       ${playerPhotoHtml(playerId, playerName, "player-photo-sm")}
       <div>
-        <p class="record-label">${escapeHtml(label)}</p>
+        <p class="record-label">${escapeHtml(label)}${badge ? ` ${badge}` : ""}</p>
         <p class="record-value record-value-photo">${escapeHtml(playerName)}</p>
         ${detail ? `<p class="record-detail">${detail}</p>` : ""}
       </div>
@@ -490,7 +493,7 @@ function seasonStatCard(label, stat, subFormatter) {
   return `
     <div class="recap-player-card">
       ${playerPhotoHtml(stat.playerId, stat.player, "player-photo-lg")}
-      <div class="recap-player-label">${escapeHtml(label)}</div>
+      <div class="recap-player-label">${escapeHtml(label)} ${gradeBadgeHtml(stat.grade)}</div>
       <div class="recap-player-name">${escapeHtml(stat.player)}</div>
       <div class="recap-player-sub">${escapeHtml(subFormatter(stat))}</div>
     </div>`;
@@ -882,7 +885,8 @@ function renderSummary(s) {
         s.bestValuePick.player,
         `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.username || s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${
           s.bestValuePick.vbd != null ? ` · +${s.bestValuePick.vbd.toFixed(1)} VBD` : ""
-        }${yearTag(s.bestValuePick)}`
+        }${yearTag(s.bestValuePick)}`,
+        gradeBadgeHtml(s.bestValuePick.grade)
       ),
     s.worstValuePick &&
       recordCardWithPhoto(
@@ -891,7 +895,8 @@ function renderSummary(s) {
         s.worstValuePick.player,
         `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.username || s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${
           s.worstValuePick.vbd != null ? ` · ${s.worstValuePick.vbd.toFixed(1)} VBD` : ""
-        }${yearTag(s.worstValuePick)}`
+        }${yearTag(s.worstValuePick)}`,
+        gradeBadgeHtml(s.worstValuePick.grade)
       ),
     s.pointsLeader && recordCardWithPhoto("Season Points Leader", s.pointsLeader.playerId, s.pointsLeader.player, `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
   ]

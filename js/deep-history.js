@@ -313,6 +313,8 @@ const DeepHistory = {
       if (!current || better(candidate, current)) records[recordKey] = candidate;
     }
 
+    const allDraftPickEntries = []; // every draft pick with a valid VBD, across every season — used to fit the league-wide draft grade curve
+
     seasonChain.forEach((seasonEntry, idx) => {
       const { league, rosters, users, bracket } = seasonEntry;
       const chainEntry = seasonEntry; // kept under this name since `seasonEntry` gets shadowed below
@@ -629,16 +631,24 @@ const DeepHistory = {
             const pts = seasonPlayerPoints.get(pick.player_id) || 0;
             const vbdEntry = vbdByPlayer.get(pick.player_id);
             const info = rosterInfo.get(pick.roster_id);
+            // One shared entry object, reused for bestValuePick/worstValuePick
+            // AND the per-manager draftPicks list — a single source of truth,
+            // and grade/expectedVbd/z get filled in after the league-wide
+            // grading model is fit (once every season has been processed).
             const entry = {
               player: playerName(pick.player_id),
               playerId: pick.player_id,
               round: pick.round,
               pickNo: pick.pick_no,
+              position: (pick.metadata && pick.metadata.position) || "",
               points: pts,
               vbd: vbdEntry ? vbdEntry.vbd : null,
               teamName: info ? info.teamName : "Unknown",
               username: info ? info.username : null,
               season,
+              grade: null,
+              expectedVbd: null,
+              z: null,
             };
             // VBD (points above position replacement level) is what actually
             // makes a pick a "steal" or a "bust" — a raw-points comparison
@@ -652,18 +662,11 @@ const DeepHistory = {
               consider("worstValuePick", entry, (a, b) => (a.vbd != null && b.vbd != null ? a.vbd < b.vbd : a.points < b.points));
             }
 
-            const seasonEntry = seasonEntryByRosterId.get(pick.roster_id);
-            if (seasonEntry) {
-              seasonEntry.draftPicks.push({
-                round: pick.round,
-                pickNo: pick.pick_no,
-                player: playerName(pick.player_id),
-                playerId: pick.player_id,
-                position: (pick.metadata && pick.metadata.position) || "",
-                points: pts,
-                vbd: vbdEntry ? vbdEntry.vbd : null,
-              });
-            }
+            allDraftPickEntries.push(entry);
+
+            const seasonEntryForRoster = seasonEntryByRosterId.get(pick.roster_id);
+            if (seasonEntryForRoster) seasonEntryForRoster.draftPicks.push(entry);
+
             if (pick.pick_no === 1 && info) {
               const firstPickManager = getManager(info.userId, info.teamName, info.username);
               firstPickManager.firstPicks += 1;
@@ -695,6 +698,24 @@ const DeepHistory = {
     managers.forEach((m) => {
       m.seasons.forEach((s) => s.draftPicks.sort((a, b) => (a.pickNo || 0) - (b.pickNo || 0)));
     });
+
+    // ---- Draft pick grades: fit the expected-VBD-by-pick-number curve from
+    //      every pick in league history, then grade each one by how far its
+    //      actual VBD fell from what that pick slot should produce. Mutates
+    //      the shared entry objects in place, so this also updates
+    //      bestValuePick/worstValuePick and every season's draftPicks list —
+    //      they're the same objects, not copies. ----
+    const draftGradeModel = DeepHistory.computeDraftGradeModel(allDraftPickEntries);
+    if (draftGradeModel) {
+      allDraftPickEntries.forEach((entry) => {
+        const g = DeepHistory.gradeDraftPick(entry.vbd, entry.pickNo, draftGradeModel);
+        if (g) {
+          entry.expectedVbd = g.expectedVbd;
+          entry.grade = g.grade;
+          entry.z = g.z;
+        }
+      });
+    }
 
     // ---- Streaks + trade/waiver leaders, computed after all seasons are merged ----
     managers.forEach((m) => {
@@ -774,7 +795,7 @@ const DeepHistory = {
       }))
       .sort((a, b) => b.careerWins - a.careerWins || b.careerPF - a.careerPF);
 
-    return { managers: managerList, records, pairGameLog: Object.fromEntries(pairGameLog) };
+    return { managers: managerList, records, pairGameLog: Object.fromEntries(pairGameLog), draftGradeModel };
   },
 
   /*
@@ -782,7 +803,7 @@ const DeepHistory = {
     powers the Season page's charts (weekly scoring trend, team averages,
     scoring by position, that season's extremes and draft standouts).
   */
-  computeSeasonSummary(seasonEntry, deep, playerDirectory) {
+  computeSeasonSummary(seasonEntry, deep, playerDirectory, draftGradeModel) {
     const { league, rosters, users, bracket } = seasonEntry;
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     // Note: on the Season page, "teamName" throughout this function
@@ -955,6 +976,7 @@ const DeepHistory = {
         const pts = seasonPlayerPoints.get(p.player_id) || 0;
         const vbdEntry = vbdByPlayer.get(p.player_id);
         const info = rosterInfo.get(p.roster_id);
+        const grading = draftGradeModel ? DeepHistory.gradeDraftPick(vbdEntry ? vbdEntry.vbd : null, p.pick_no, draftGradeModel) : null;
         const entry = {
           player: playerName(p.player_id),
           playerId: p.player_id,
@@ -965,6 +987,9 @@ const DeepHistory = {
           season: league.season,
           teamName: info ? info.teamName : "Unknown",
           username: info ? info.username : null,
+          grade: grading ? grading.grade : null,
+          expectedVbd: grading ? grading.expectedVbd : null,
+          z: grading ? grading.z : null,
         };
         if (p.round >= lateThreshold) {
           bestValuePick = pick(bestValuePick, entry, (a, b) => (a.vbd != null && b.vbd != null ? a.vbd > b.vbd : a.points > b.points));
@@ -1204,6 +1229,78 @@ const DeepHistory = {
       vbdByPlayer.set(pid, { points, position: p.position, vbd: points - baseline, replacementLevel: baseline });
     });
     return vbdByPlayer;
+  },
+
+  /*
+    Draft pick grades: how good was a pick relative to what a pick at that
+    slot should reasonably produce? Two steps:
+
+    1. Fit an "expected VBD by pick number" curve from every pick in the
+       league's own draft history (any pick with a valid VBD). Value drops
+       off fast in the first round or two and levels out later — the
+       standard shape for this is logarithmic decay, so this is a
+       log-linear regression: expectedVBD = intercept + slope * ln(pickNo).
+       Overall pick number (not round) is used deliberately, so this stays
+       meaningful even across seasons where the league size changed.
+
+    2. For each pick, compare its actual VBD to what the curve expected at
+       that slot. The gap, measured in standard deviations of the
+       historical residuals (a z-score), is what actually determines the
+       grade — that's the "bell curve": most picks land close to their
+       expected value (B range), with A+/F reserved for picks that beat or
+       missed expectations by a lot.
+
+    Needs a reasonable amount of history to be meaningful — returns null
+    (no grading) rather than a shaky curve fit from a handful of picks.
+  */
+  computeDraftGradeModel(picks) {
+    const valid = (picks || []).filter((p) => p.vbd != null && p.pickNo != null && p.pickNo > 0);
+    if (valid.length < 8) return null;
+
+    const xs = valid.map((p) => Math.log(p.pickNo));
+    const ys = valid.map((p) => p.vbd);
+    const n = xs.length;
+    const xMean = xs.reduce((a, b) => a + b, 0) / n;
+    const yMean = ys.reduce((a, b) => a + b, 0) / n;
+    let num = 0;
+    let den = 0;
+    for (let i = 0; i < n; i++) {
+      num += (xs[i] - xMean) * (ys[i] - yMean);
+      den += (xs[i] - xMean) ** 2;
+    }
+    const slope = den !== 0 ? num / den : 0;
+    const intercept = yMean - slope * xMean;
+
+    const residuals = valid.map((p) => p.vbd - (intercept + slope * Math.log(p.pickNo)));
+    const residMean = residuals.reduce((a, b) => a + b, 0) / n; // ~0 by construction of OLS, computed anyway for correctness
+    const variance = residuals.reduce((a, b) => a + (b - residMean) ** 2, 0) / Math.max(1, n - 1);
+    const stdDev = Math.sqrt(variance);
+
+    return { slope, intercept, stdDev, sampleSize: n };
+  },
+
+  predictExpectedVBD(pickNo, model) {
+    if (!model || pickNo == null) return null;
+    return model.intercept + model.slope * Math.log(Math.max(1, pickNo));
+  },
+
+  DRAFT_GRADE_BANDS: [
+    { min: 1.5, grade: "A+" },
+    { min: 1.0, grade: "A" },
+    { min: 0.5, grade: "B+" },
+    { min: -0.5, grade: "B" },
+    { min: -1.0, grade: "C" },
+    { min: -1.5, grade: "D" },
+    { min: -Infinity, grade: "F" },
+  ],
+
+  gradeDraftPick(vbd, pickNo, model) {
+    if (!model || vbd == null || pickNo == null || !(model.stdDev > 0)) return null;
+    const expectedVbd = DeepHistory.predictExpectedVBD(pickNo, model);
+    const residual = vbd - expectedVbd;
+    const z = residual / model.stdDev;
+    const band = DeepHistory.DRAFT_GRADE_BANDS.find((b) => z >= b.min);
+    return { expectedVbd, residual, z, grade: band ? band.grade : "F" };
   },
 
   buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {

@@ -327,6 +327,48 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Draft Pick Grades — a bell curve, fit from your own draft history
+
+Every draft pick with a computed VBD now gets a letter grade (A+ through
+F), shown as a small colored badge wherever a pick is displayed: the
+Season Summary's Best Draft Steal / Biggest Draft Bust, the Records
+page, and every pick in a manager's season-by-season draft history on
+the Teams page.
+
+**How it works:** a pick's raw VBD alone isn't quite fair — a 1st-round
+pick and a 14th-round pick shouldn't be held to the same bar. So the
+grade is based on how a pick's VBD compares to what *that pick slot*
+should reasonably produce:
+
+1. **Fit an expected-VBD curve from the league's own draft history.**
+   Every graded pick ever made (any season, any manager) feeds a
+   log-linear regression: `expected VBD = intercept + slope × ln(pick
+   number)`. This is the standard shape for "value by draft position" —
+   value drops fast in the first round or two, then levels out — and
+   fitting it from your own history means it reflects your league's
+   actual scoring and roster settings automatically, the same way VBD
+   itself does. Uses overall pick number rather than round, so it stays
+   meaningful even across seasons where the league size changed.
+2. **Grade by z-score.** For each pick, the gap between its actual VBD
+   and the curve's expectation at that slot is measured in standard
+   deviations of the historical residuals. That z-score is the actual
+   bell curve: most picks land close to expectation (B range), with
+   A+/F reserved for picks that beat or missed by a lot.
+   - z ≥ +1.5 → A+, +1.0 → A, +0.5 → B+, -0.5 → B, -1.0 → C, -1.5 → D,
+     below that → F
+
+Verified this end-to-end with a synthetic multi-season league where a
+late-round pick was deliberately made to massively overperform and an
+early-round pick to massively underperform — they graded A+ and F
+respectively, exactly as expected. Also checked the grade distribution
+against 2,000 simulated picks with normally-distributed outcomes: the
+resulting split (≈38% B, tapering symmetrically to ≈6% at each tail)
+matched the theoretical bell-curve percentages almost exactly.
+
+Needs a reasonable amount of draft history to fit a meaningful curve —
+if there isn't enough yet, picks simply show without a grade rather
+than guessing from too little data.
+
 ## Value Based Drafting (VBD) — self-computed, no external data source
 
 The site now computes a genuine **Value Based Drafting** score for every

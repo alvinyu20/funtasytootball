@@ -848,6 +848,20 @@ details.bracket-game.championship {
    ========================================================================== */
 .luck-positive { color: #6FBE8C; font-weight: 600; font-variant-numeric: tabular-nums; }
 .luck-negative { color: #E06C5C; font-weight: 600; font-variant-numeric: tabular-nums; }
+.grade-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+}
+.grade-badge.grade-a { color: #1a1410; background: #7FED6E; }
+.grade-badge.grade-b { color: #1a1410; background: var(--gold); }
+.grade-badge.grade-c { color: var(--chalk); background: rgba(255, 255, 255, 0.12); }
+.grade-badge.grade-d { color: #1a1410; background: #E7B040; }
+.grade-badge.grade-f { color: var(--chalk); background: var(--rust); }
 .luck-neutral { color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
 
 .muted-inline {

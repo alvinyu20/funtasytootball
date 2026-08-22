@@ -135,3 +135,12 @@ function findPlayerIdByName(rawName, nameIndex) {
   const key = normalizePlayerName(cleaned);
   return nameIndex.get(key) || null;
 }
+
+// Small colored pill for a draft pick grade (A+ through F). Grades come
+// from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
+// since not every pick can be graded (e.g. a player who never scored).
+function gradeBadgeHtml(grade) {
+  if (!grade) return "";
+  const cls = grade.startsWith("A") ? "grade-a" : grade.startsWith("B") ? "grade-b" : grade === "C" ? "grade-c" : grade === "D" ? "grade-d" : "grade-f";
+  return `<span class="grade-badge ${cls}">${escapeHtml(grade)}</span>`;
+}

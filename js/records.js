@@ -33,10 +33,10 @@ async function renderRecords() {
   }
 }
 
-function card(label, value, detail) {
+function card(label, value, detail, badge) {
   return `
     <div class="record-card">
-      <p class="record-label">${escapeHtml(label)}</p>
+      <p class="record-label">${escapeHtml(label)}${badge ? ` ${badge}` : ""}</p>
       <p class="record-value">${value}</p>
       ${detail ? `<p class="record-detail">${detail}</p>` : ""}
     </div>`;
@@ -76,7 +76,8 @@ function buildRecordCards(stats) {
       card(
         "Best Late-Round Steal",
         escapeHtml(x.player),
-        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`
+        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
+        gradeBadgeHtml(x.grade)
       )
     );
   }
@@ -86,7 +87,8 @@ function buildRecordCards(stats) {
       card(
         "Biggest Draft Bust",
         escapeHtml(x.player),
-        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`
+        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
+        gradeBadgeHtml(x.grade)
       )
     );
   }
