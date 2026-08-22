@@ -61,7 +61,7 @@ function renderFilterPills(activeKey) {
 function tradePlayerLine(p) {
   return `<li>${playerPhotoHtml(p.playerId, p.name, "player-photo-xs")}<span>${escapeHtml(p.name)}${
     p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
-  }</span></li>`;
+  }${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</span></li>`;
 }
 
 function renderTradeCard(trade) {

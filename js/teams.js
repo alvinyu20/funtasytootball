@@ -139,7 +139,7 @@ function renderManagerDetail(m) {
           <div class="draft-pick-row">
             <span>Rd ${p.round}, Pick ${p.pickNo}</span>
             <span class="pick-player">${escapeHtml(p.player)} ${p.position ? `(${escapeHtml(p.position)})` : ""}</span>
-            <span class="pick-points">${p.points.toFixed(1)} pts</span>
+            <span class="pick-points">${p.points.toFixed(1)} pts${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</span>
           </div>`
             )
             .join("")

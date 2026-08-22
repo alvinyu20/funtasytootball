@@ -327,6 +327,68 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Value Based Drafting (VBD) — self-computed, no external data source
+
+The site now computes a genuine **Value Based Drafting** score for every
+player, every season — points scored above "replacement level" (what a
+team could get for free off the wire) at that player's position. This is
+what actually lets a QB's 300 points and a WR's 180 points get compared
+fairly: raw points always favor QBs, since they score more no matter how
+replaceable they are in a given league.
+
+**No external data source, and no hardcoded assumptions about your
+league's settings.** Earlier research looked at pulling VBD from
+Pro-Football-Reference, but their terms of service explicitly prohibit
+automated access, and even if they didn't, a static GitHub Pages site
+can't fetch cross-origin from a site with no public API anyway. The
+better path turned out to be self-contained: your own Sleeper data
+already has every rostered player's points *computed under your league's
+actual scoring rules that season* — that's the only real ingredient VBD
+needs.
+
+**How replacement level is determined — adaptively, every season:**
+`DeepHistory.computeReplacementLevels()` simulates who'd actually win a
+starting lineup slot leaguewide that year, greedily filling every team's
+required slots (dedicated positions first, then FLEX, then SUPER_FLEX —
+reusing the exact same slot-eligibility map the bench-points optimizer
+already uses) with whoever's most valuable at the margin. Replacement
+level at a position is the weakest player who still won a starting slot.
+Since this runs fresh against `league.roster_positions` and the team
+count for *that specific season*, it automatically adapts if your league
+adds SUPER_FLEX, goes TE Premium, changes roster size, or anything else
+— nothing about the algorithm is hardcoded to one year's settings.
+Verified with tests confirming the exact same player pool produces
+different (and correct) replacement levels when roster settings change,
+and that scoring changes like a TE Premium bonus shift VBD accordingly
+with zero code changes needed.
+
+**The one real limitation, same as before:** this only knows about
+players who were actually rostered somewhere in your league that season
+— not the full NFL universe. For grading trades and draft picks between
+your own managers, that's rarely a real gap; you don't need to know
+about a player nobody in your league ever touched.
+
+**Where VBD shows up:**
+- **Best Draft Steal / Biggest Draft Bust** — now ranked by VBD instead
+  of raw points, on the Season Summary, the Records page, and the
+  Season page's Draft Standouts (for in-progress seasons and the Total
+  tab). Verified this fixes exactly the scenario it was built for: a
+  late-round QB with *more* raw points than a late-round WR, where QB is
+  a deep position and WR is scarce — raw points picks the QB, VBD
+  correctly picks the WR.
+- **Trade History** — every traded player shows their VBD for that
+  season, so a trade's value is visible in hindsight (a note on the page
+  clarifies this is the player's whole-season value, not a snapshot from
+  the moment of the trade — computing true point-in-time value would need
+  data this site doesn't have).
+- **Teams page draft picks** — every draft pick in a manager's
+  season-by-season history now shows its VBD alongside raw points.
+
+There were two separate, nearly-identical computations of best/worst
+draft value already in the codebase (the same duplication that caused
+the earlier player-photo bug) — both were updated to VBD consistently
+this time, rather than fixing one and letting them diverge again.
+
 ## Bug Fixes & Mobile Polish
 
 **Best Draft Steal / Biggest Draft Bust photos, fixed.** There turned out

@@ -72,11 +72,23 @@ function buildRecordCards(stats) {
   }
   if (r.bestValuePick) {
     const x = r.bestValuePick;
-    cards.push(card("Best Late-Round Steal", escapeHtml(x.player), `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.teamName)} · ${x.points.toFixed(1)} pts (${x.season})`));
+    cards.push(
+      card(
+        "Best Late-Round Steal",
+        escapeHtml(x.player),
+        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`
+      )
+    );
   }
   if (r.worstValuePick) {
     const x = r.worstValuePick;
-    cards.push(card("Biggest Draft Bust", escapeHtml(x.player), `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.teamName)} · ${x.points.toFixed(1)} pts (${x.season})`));
+    cards.push(
+      card(
+        "Biggest Draft Bust",
+        escapeHtml(x.player),
+        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`
+      )
+    );
   }
   if (r.mostTrades) {
     cards.push(card("Trade Machine", `${r.mostTrades.count}`, `${escapeHtml(r.mostTrades.teamName)} · most trades made`));

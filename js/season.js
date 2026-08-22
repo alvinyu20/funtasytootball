@@ -517,8 +517,16 @@ function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
 
   const statCardsHtml = [
     seasonStatCard("Season Points Leader", stats.pointsLeader, (s) => `${s.points.toFixed(1)} total points`),
-    seasonStatCard("Best Draft Steal", stats.bestValuePick, (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.teamName}`),
-    seasonStatCard("Biggest Draft Bust", stats.worstValuePick, (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.teamName}`),
+    seasonStatCard(
+      "Best Draft Steal",
+      stats.bestValuePick,
+      (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.username || s.teamName}${s.vbd != null ? ` · +${s.vbd.toFixed(1)} VBD` : ""}`
+    ),
+    seasonStatCard(
+      "Biggest Draft Bust",
+      stats.worstValuePick,
+      (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.username || s.teamName}${s.vbd != null ? ` · ${s.vbd.toFixed(1)} VBD` : ""}`
+    ),
   ].join("");
 
   const championHeaderHtml = c
@@ -867,8 +875,24 @@ function renderSummary(s) {
     .join("");
 
   const draftCards = [
-    s.bestValuePick && recordCardWithPhoto("Best Late-Round Steal", s.bestValuePick.playerId, s.bestValuePick.player, `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${yearTag(s.bestValuePick)}`),
-    s.worstValuePick && recordCardWithPhoto("Biggest Draft Bust", s.worstValuePick.playerId, s.worstValuePick.player, `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${yearTag(s.worstValuePick)}`),
+    s.bestValuePick &&
+      recordCardWithPhoto(
+        "Best Late-Round Steal",
+        s.bestValuePick.playerId,
+        s.bestValuePick.player,
+        `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.username || s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${
+          s.bestValuePick.vbd != null ? ` · +${s.bestValuePick.vbd.toFixed(1)} VBD` : ""
+        }${yearTag(s.bestValuePick)}`
+      ),
+    s.worstValuePick &&
+      recordCardWithPhoto(
+        "Biggest Draft Bust",
+        s.worstValuePick.playerId,
+        s.worstValuePick.player,
+        `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.username || s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${
+          s.worstValuePick.vbd != null ? ` · ${s.worstValuePick.vbd.toFixed(1)} VBD` : ""
+        }${yearTag(s.worstValuePick)}`
+      ),
     s.pointsLeader && recordCardWithPhoto("Season Points Leader", s.pointsLeader.playerId, s.pointsLeader.player, `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
   ]
     .filter(Boolean)

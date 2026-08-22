@@ -616,6 +616,7 @@ const DeepHistory = {
           const maxRound = Math.max(...deep.draft.picks.map((p) => p.round || 1));
           const lateThreshold = Math.max(2, Math.ceil(maxRound * 0.6));
           const earlyThreshold = Math.max(1, Math.ceil(maxRound * 0.25));
+          const vbdByPlayer = DeepHistory.computeVBD(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
 
           deep.draft.picks.forEach((pick) => {
             if (!pick.player_id) return;
@@ -626,6 +627,7 @@ const DeepHistory = {
               );
             }
             const pts = seasonPlayerPoints.get(pick.player_id) || 0;
+            const vbdEntry = vbdByPlayer.get(pick.player_id);
             const info = rosterInfo.get(pick.roster_id);
             const entry = {
               player: playerName(pick.player_id),
@@ -633,15 +635,21 @@ const DeepHistory = {
               round: pick.round,
               pickNo: pick.pick_no,
               points: pts,
+              vbd: vbdEntry ? vbdEntry.vbd : null,
               teamName: info ? info.teamName : "Unknown",
               username: info ? info.username : null,
               season,
             };
+            // VBD (points above position replacement level) is what actually
+            // makes a pick a "steal" or a "bust" — a raw-points comparison
+            // always favors QBs, who score more no matter how replaceable
+            // they are. Falls back to raw points only if VBD couldn't be
+            // established for this player (e.g. they never scored at all).
             if (pick.round >= lateThreshold) {
-              consider("bestValuePick", entry, (a, b) => a.points > b.points);
+              consider("bestValuePick", entry, (a, b) => (a.vbd != null && b.vbd != null ? a.vbd > b.vbd : a.points > b.points));
             }
             if (pick.round <= earlyThreshold) {
-              consider("worstValuePick", entry, (a, b) => a.points < b.points);
+              consider("worstValuePick", entry, (a, b) => (a.vbd != null && b.vbd != null ? a.vbd < b.vbd : a.points < b.points));
             }
 
             const seasonEntry = seasonEntryByRosterId.get(pick.roster_id);
@@ -650,8 +658,10 @@ const DeepHistory = {
                 round: pick.round,
                 pickNo: pick.pick_no,
                 player: playerName(pick.player_id),
+                playerId: pick.player_id,
                 position: (pick.metadata && pick.metadata.position) || "",
                 points: pts,
+                vbd: vbdEntry ? vbdEntry.vbd : null,
               });
             }
             if (pick.pick_no === 1 && info) {
@@ -936,16 +946,32 @@ const DeepHistory = {
       const maxRound = Math.max(...picks.map((p) => p.round || 1));
       const lateThreshold = Math.max(2, Math.ceil(maxRound * 0.6));
       const earlyThreshold = Math.max(1, Math.ceil(maxRound * 0.25));
+      const vbdByPlayer = DeepHistory.computeVBD(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
       picks.forEach((p) => {
         if (!p.player_id) return;
         if (p.metadata && (p.metadata.first_name || p.metadata.last_name)) {
           playerNameOverrides.set(p.player_id, `${p.metadata.first_name || ""} ${p.metadata.last_name || ""}`.trim());
         }
         const pts = seasonPlayerPoints.get(p.player_id) || 0;
+        const vbdEntry = vbdByPlayer.get(p.player_id);
         const info = rosterInfo.get(p.roster_id);
-        const entry = { player: playerName(p.player_id), playerId: p.player_id, round: p.round, pickNo: p.pick_no, points: pts, season: league.season, teamName: info ? info.teamName : "Unknown" };
-        if (p.round >= lateThreshold) bestValuePick = pick(bestValuePick, entry, (a, b) => a.points > b.points);
-        if (p.round <= earlyThreshold) worstValuePick = pick(worstValuePick, entry, (a, b) => a.points < b.points);
+        const entry = {
+          player: playerName(p.player_id),
+          playerId: p.player_id,
+          round: p.round,
+          pickNo: p.pick_no,
+          points: pts,
+          vbd: vbdEntry ? vbdEntry.vbd : null,
+          season: league.season,
+          teamName: info ? info.teamName : "Unknown",
+          username: info ? info.username : null,
+        };
+        if (p.round >= lateThreshold) {
+          bestValuePick = pick(bestValuePick, entry, (a, b) => (a.vbd != null && b.vbd != null ? a.vbd > b.vbd : a.points > b.points));
+        }
+        if (p.round <= earlyThreshold) {
+          worstValuePick = pick(worstValuePick, entry, (a, b) => (a.vbd != null && b.vbd != null ? a.vbd < b.vbd : a.points < b.points));
+        }
       });
     }
 
@@ -1076,6 +1102,108 @@ const DeepHistory = {
       }
     });
     return { total, assignments };
+  },
+
+  /*
+    Value Based Drafting (VBD): a player's fantasy points minus the
+    "replacement level" baseline at their position — what a team could get
+    for free off the wire instead. This is what actually lets you compare
+    a QB's 300 points to a WR's 180 points on a level footing, since raw
+    points alone always favor QBs (who score more no matter how replaceable
+    they are in a given league).
+
+    Both the roster requirements (how many teams, how many starters at each
+    position, whether there's a FLEX or SUPER_FLEX) and the scoring rules
+    that produced these points can change every season, so replacement
+    level is computed fresh per season from that season's own
+    league.roster_positions and roster count — never hardcoded.
+
+    The core idea: simulate who'd actually be a "starter" leaguewide by
+    greedily filling every open starting slot (across every team) with the
+    best remaining player it can accept, most-restrictive slot types first
+    (dedicated position slots before FLEX before SUPER_FLEX) — the same
+    approach and the same ELIGIBILITY map as computeOptimalLineup, just
+    applied across the whole league's player pool instead of one team's.
+    Replacement level at a position = the weakest player who still won a
+    starting slot there. Whoever's just outside that cutoff is
+    "replacement level" — freely available, in theory.
+  */
+  computeReplacementLevels(rosterPositions, numTeams, playerPointsMap, playerDirectory) {
+    const ELIGIBILITY = {
+      FLEX: ["RB", "WR", "TE"],
+      SUPER_FLEX: ["QB", "RB", "WR", "TE"],
+      REC_FLEX: ["WR", "TE"],
+      WRRB_FLEX: ["WR", "RB"],
+      IDP_FLEX: ["DL", "LB", "DB"],
+    };
+    const KNOWN_POS = new Set(["QB", "RB", "WR", "TE", "K", "DEF"]);
+    const EXCLUDE = new Set(["BN", "IR", "TAXI"]);
+
+    const slotTypes = (rosterPositions || []).filter((p) => !EXCLUDE.has(p));
+    const countByType = {};
+    slotTypes.forEach((t) => {
+      // Anything not in KNOWN_POS and not a recognized flex type (IDP
+      // slots, or a code this site doesn't know about) is intentionally
+      // skipped — VBD here only covers standard offensive positions.
+      if (!KNOWN_POS.has(t) && !ELIGIBILITY[t]) return;
+      countByType[t] = (countByType[t] || 0) + 1;
+    });
+
+    // Most-restrictive slot types first (dedicated positions, 1 eligible
+    // position) through least-restrictive (SUPER_FLEX, 4 eligible
+    // positions), so a top QB fills the dedicated QB slot before ever
+    // being considered for a SUPER_FLEX slot a lesser player might need.
+    const slotTypesSorted = Object.keys(countByType).sort(
+      (a, b) => (ELIGIBILITY[a] || [a]).length - (ELIGIBILITY[b] || [b]).length
+    );
+
+    const allSlots = [];
+    slotTypesSorted.forEach((slotType) => {
+      const eligible = ELIGIBILITY[slotType] || [slotType];
+      for (let i = 0; i < countByType[slotType] * numTeams; i++) {
+        allSlots.push({ eligible, filled: false });
+      }
+    });
+
+    const pool = [];
+    playerPointsMap.forEach((points, pid) => {
+      const p = playerDirectory && playerDirectory[pid];
+      if (!p || !p.position || !(KNOWN_POS.has(p.position) || p.position === "DL" || p.position === "LB" || p.position === "DB")) return;
+      if (points <= 0) return;
+      pool.push({ position: p.position, points });
+    });
+    pool.sort((a, b) => b.points - a.points); // best players first, across every position at once
+
+    const starterPointsByPosition = {};
+    pool.forEach((player) => {
+      const slot = allSlots.find((s) => !s.filled && s.eligible.includes(player.position));
+      if (!slot) return;
+      slot.filled = true;
+      if (!starterPointsByPosition[player.position]) starterPointsByPosition[player.position] = [];
+      starterPointsByPosition[player.position].push(player.points);
+    });
+
+    const replacementLevel = {};
+    Object.entries(starterPointsByPosition).forEach(([position, pointsList]) => {
+      replacementLevel[position] = Math.min(...pointsList);
+    });
+    return replacementLevel;
+  },
+
+  // playerPointsMap: Map(playerId -> total points this season). Returns
+  // Map(playerId -> { points, position, vbd, replacementLevel }) for every
+  // player a replacement level could be established for.
+  computeVBD(rosterPositions, numTeams, playerPointsMap, playerDirectory) {
+    const replacementLevel = DeepHistory.computeReplacementLevels(rosterPositions, numTeams, playerPointsMap, playerDirectory);
+    const vbdByPlayer = new Map();
+    playerPointsMap.forEach((points, pid) => {
+      const p = playerDirectory && playerDirectory[pid];
+      if (!p || !p.position) return;
+      const baseline = replacementLevel[p.position];
+      if (baseline == null) return;
+      vbdByPlayer.set(pid, { points, position: p.position, vbd: points - baseline, replacementLevel: baseline });
+    });
+    return vbdByPlayer;
   },
 
   buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {
@@ -2311,6 +2439,20 @@ const DeepHistory = {
         });
       });
 
+      // Season-long points + VBD, computed once per season and reused for
+      // every trade that season. A trade's "value" here is judged in
+      // hindsight — how the traded players' whole season actually played
+      // out — not a point-in-time snapshot at the moment of the trade.
+      const seasonPlayerPoints = new Map();
+      (deep.weeks || []).forEach(({ matchups }) => {
+        matchups.forEach((m) => {
+          Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+            seasonPlayerPoints.set(pid, (seasonPlayerPoints.get(pid) || 0) + (pts || 0));
+          });
+        });
+      });
+      const vbdByPlayer = DeepHistory.computeVBD(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
+
       deep.transactions
         .filter((tx) => tx && tx.type === "trade" && tx.status === "complete")
         .forEach((tx) => {
@@ -2333,14 +2475,26 @@ const DeepHistory = {
             const t = ensure(rid);
             if (t) {
               const p = playerDirectory && playerDirectory[pid];
-              t.received.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), playerId: pid, position: (p && p.position) || null });
+              const vbdEntry = vbdByPlayer.get(pid);
+              t.received.players.push({
+                name: SleeperAPI.playerName(playerDirectory, pid),
+                playerId: pid,
+                position: (p && p.position) || null,
+                vbd: vbdEntry ? vbdEntry.vbd : null,
+              });
             }
           });
           Object.entries(tx.drops || {}).forEach(([pid, rid]) => {
             const t = ensure(rid);
             if (t) {
               const p = playerDirectory && playerDirectory[pid];
-              t.gave.players.push({ name: SleeperAPI.playerName(playerDirectory, pid), playerId: pid, position: (p && p.position) || null });
+              const vbdEntry = vbdByPlayer.get(pid);
+              t.gave.players.push({
+                name: SleeperAPI.playerName(playerDirectory, pid),
+                playerId: pid,
+                position: (p && p.position) || null,
+                vbd: vbdEntry ? vbdEntry.vbd : null,
+              });
             }
           });
           (tx.draft_picks || []).forEach((pick) => {
