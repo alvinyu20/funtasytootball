@@ -32,8 +32,12 @@ async function renderTeams() {
 
     LEAGUE_STATS = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
 
+    renderManagerPicker();
     renderFromHash();
-    window.addEventListener("hashchange", renderFromHash);
+    window.addEventListener("hashchange", () => {
+      renderManagerPicker();
+      renderFromHash();
+    });
   } catch (err) {
     console.error(err);
     progressBox.style.display = "none";
@@ -42,30 +46,30 @@ async function renderTeams() {
   }
 }
 
+function renderManagerPicker() {
+  const picker = document.getElementById("manager-picker");
+  const selectedUserId = decodeURIComponent(location.hash.replace(/^#/, ""));
+  picker.innerHTML = LEAGUE_STATS.managers
+    .map((m) => {
+      const isActive = m.userId === selectedUserId;
+      return `<a class="season-pill ${isActive ? "active" : ""}" href="#${encodeURIComponent(m.userId)}">${escapeHtml(m.username || m.teamName)}</a>`;
+    })
+    .join("");
+}
+
 function renderFromHash() {
   const userId = decodeURIComponent(location.hash.replace(/^#/, ""));
-  const listView = document.getElementById("teams-list-view");
+  const emptyView = document.getElementById("teams-empty-view");
   const detailView = document.getElementById("teams-detail-view");
   const manager = userId ? LEAGUE_STATS.managers.find((m) => m.userId === userId) : null;
 
   if (manager) {
-    listView.style.display = "none";
+    emptyView.style.display = "none";
     detailView.style.display = "";
     detailView.innerHTML = renderManagerDetail(manager);
   } else {
     detailView.style.display = "none";
-    listView.style.display = "";
-    listView.innerHTML = LEAGUE_STATS.managers
-      .map(
-        (m, i) => `
-      <a class="leaderboard-row" href="#${encodeURIComponent(m.userId)}">
-        <span class="rank">${i + 1}</span>
-        <span class="name">${escapeHtml(m.username || m.teamName)}</span>
-        <span class="record">${m.careerWins}-${m.careerLosses}${m.careerTies ? "-" + m.careerTies : ""}</span>
-        <span class="rings">${m.championships ? "🏆".repeat(Math.min(m.championships, 5)) : "—"}</span>
-      </a>`
-      )
-      .join("");
+    emptyView.style.display = "";
   }
 }
 
@@ -159,18 +163,18 @@ function renderManagerDetail(m) {
         : `<div class="empty-state">No lineup data for this season.</div>`;
 
       return `
-        <tr>
-          <td class="team-cell">${s.season}</td>
-          <td>${s.rank}</td>
-          <td>${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}</td>
-          <td>${s.fpts.toFixed(1)}</td>
-          <td>${s.fptsAgainst.toFixed(1)}</td>
-          <td>${s.overallWins}-${s.overallLosses}${s.overallTies ? "-" + s.overallTies : ""}</td>
-          <td>${luckBadge(s.luckPct)}</td>
-          <td>${resultBadge}</td>
+        <tr class="season-stat-row">
+          <td class="team-cell" data-label="Year">${s.season}</td>
+          <td data-label="Rank">${s.rank}</td>
+          <td data-label="Record">${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}</td>
+          <td data-label="PF">${s.fpts.toFixed(1)}</td>
+          <td data-label="PA">${s.fptsAgainst.toFixed(1)}</td>
+          <td data-label="Overall">${s.overallWins}-${s.overallLosses}${s.overallTies ? "-" + s.overallTies : ""}</td>
+          <td data-label="Luck">${luckBadge(s.luckPct)}</td>
+          <td data-label="Result">${resultBadge}</td>
         </tr>
-        <tr>
-          <td colspan="8" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
+        <tr class="season-details-row">
+          <td class="season-details-cell" colspan="8" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
             <details class="draft-details">
               <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
               ${lineupHtml}
@@ -285,7 +289,7 @@ function renderManagerDetail(m) {
     </div>
     <div class="wrap">
       <div class="panel">
-        <table class="stat-table">
+        <table class="stat-table responsive-stack">
           <thead><tr><th>Year</th><th>Rank</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th><th>Result</th></tr></thead>
           <tbody>${seasonRows}</tbody>
         </table>

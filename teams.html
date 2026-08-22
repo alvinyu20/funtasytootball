@@ -29,6 +29,7 @@
     <p class="scoreboard-eyebrow">THE LOCKER ROOM</p>
     <h1 class="scoreboard-title">Teams</h1>
     <p class="scoreboard-sub" id="sb-sub">Loading…</p>
+    <div class="season-pills" id="manager-picker"></div>
   </section>
 
   <div class="wrap">
@@ -36,16 +37,9 @@
     <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
   </div>
 
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">All Managers</span>
-    <div class="line"></div>
-  </div>
-
   <main class="wrap">
-    <div class="panel" id="teams-list-view">
-      <div class="loading">Pulling every season's draft, scores, and rosters — this can take a moment the first time…</div>
+    <div class="panel" id="teams-empty-view">
+      <div class="empty-state">Pick a manager above to see their full history.</div>
     </div>
     <div id="teams-detail-view" style="display:none;"></div>
   </main>

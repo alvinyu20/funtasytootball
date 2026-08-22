@@ -662,6 +662,28 @@ table.stat-table td.heat-cell.empty {
   }
   table.stat-table.responsive-stack td.heat-cell.empty { background: transparent !important; }
   table.stat-table.responsive-stack tr td:last-child { border-bottom: none; }
+
+  /* Season By Season (Teams page) is two <tr> per season — a stat row and
+     an expandable details row — rather than one. Join them into a single
+     visual card instead of two separate stacked boxes, and let the
+     <details>/<summary> content render as normal blocks rather than being
+     squeezed into the usual label/value row format. */
+  table.stat-table.responsive-stack tr.season-stat-row {
+    margin-bottom: 0;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+  }
+  table.stat-table.responsive-stack tr.season-details-row {
+    margin-top: -1px;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+  }
+  table.stat-table.responsive-stack td.season-details-cell {
+    display: block;
+    text-align: left;
+    padding: 10px 14px;
+  }
+  table.stat-table.responsive-stack td.season-details-cell::before { content: none; }
 }
 
 /* ==========================================================================
@@ -856,12 +878,8 @@ details.bracket-game.championship {
   padding: 2px 8px;
   border-radius: 10px;
   letter-spacing: 0.02em;
+  color: #1a1410;
 }
-.grade-badge.grade-a { color: #1a1410; background: #7FED6E; }
-.grade-badge.grade-b { color: #1a1410; background: var(--gold); }
-.grade-badge.grade-c { color: var(--chalk); background: rgba(255, 255, 255, 0.12); }
-.grade-badge.grade-d { color: #1a1410; background: #E7B040; }
-.grade-badge.grade-f { color: var(--chalk); background: var(--rust); }
 .luck-neutral { color: var(--chalk-dim); font-variant-numeric: tabular-nums; }
 
 .muted-inline {

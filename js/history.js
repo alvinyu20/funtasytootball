@@ -2,8 +2,11 @@ async function renderHistory() {
   const errorBox = document.getElementById("hist-error");
 
   try {
-    const seasons = await SleeperAPI.getSeasonChain(LEAGUE_ID); // oldest -> newest
-    const rawManual = await fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] });
+    const [seasons, playerDirectory, rawManual] = await Promise.all([
+      SleeperAPI.getSeasonChain(LEAGUE_ID), // oldest -> newest
+      SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
+    ]);
     // Guard against an un-replaced template entry (champion still says
     // "REPLACE_WITH...") ever showing up on the live site.
     const manual = { ...rawManual, seasons: (rawManual.seasons || []).filter((s) => s.champion && !String(s.champion).startsWith("REPLACE_WITH")) };
@@ -91,56 +94,6 @@ async function renderHistory() {
       })
       .join("");
 
-    // ---- All-time career standings, aggregated by Sleeper user_id ----
-    const careerByUser = new Map();
-    seasons.forEach(({ rosters, users }) => {
-      const standings = SleeperAPI.buildStandings(rosters, users);
-      standings.forEach((t) => {
-        if (!t.userId) return;
-        const prev = careerByUser.get(t.userId) || {
-          username: t.username,
-          wins: 0,
-          losses: 0,
-          ties: 0,
-          fpts: 0,
-          championships: 0,
-        };
-        prev.username = t.username || prev.username; // keep most recent username
-        prev.wins += t.wins;
-        prev.losses += t.losses;
-        prev.ties += t.ties;
-        prev.fpts += t.fpts;
-        careerByUser.set(t.userId, prev);
-      });
-    });
-    sleeperLedger.forEach((row) => {
-      // Bump the champion's count by their stable Sleeper user_id — not by
-      // team name, since a manager renaming their team between seasons
-      // would otherwise cause their championship to go uncounted.
-      if (!row.championUserId) return;
-      const rec = careerByUser.get(row.championUserId);
-      if (rec) rec.championships += 1;
-    });
-
-    const careerRows = [...careerByUser.values()].sort(
-      (a, b) => b.wins - a.wins || b.fpts - a.fpts
-    );
-
-    document.getElementById("career-body").innerHTML = careerRows.length
-      ? careerRows
-          .map(
-            (t, i) => `
-      <tr>
-        <td class="rank">${i + 1}</td>
-        <td class="team-cell">${escapeHtml(t.username || "Unknown")}</td>
-        <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
-        <td>${t.fpts.toFixed(1)}</td>
-        <td>${t.championships || 0}</td>
-      </tr>`
-          )
-          .join("")
-      : `<tr><td colspan="5" class="empty-state">No completed seasons yet.</td></tr>`;
-
     // ---- Pre-Sleeper season standings (only if manual data provided) ----
     const preSection = document.getElementById("pre-sleeper-section");
     if (manual.seasons && manual.seasons.some((s) => s.standings && s.standings.length)) {
@@ -165,10 +118,54 @@ async function renderHistory() {
     } else {
       preSection.style.display = "none";
     }
+
+    // ---- All-time career records — deferred, since this needs full deep
+    //      history (not just the fast season-chain data used above) to
+    //      correctly separate genuine playoff games from regular season
+    //      and consolation-bracket games. Kicked off after the fast stuff
+    //      above is already on screen. ----
+    renderCareerRecords(seasons, playerDirectory);
   } catch (err) {
     console.error(err);
     errorBox.textContent = "Couldn't load league history — " + err.message;
     errorBox.style.display = "block";
+  }
+}
+
+async function renderCareerRecords(seasons, playerDirectory) {
+  try {
+    const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
+    const stats = DeepHistory.computeStats(seasons, deepSeasons, playerDirectory);
+
+    const careerRows = stats.managers
+      .map((m) => {
+        const totalGames =
+          m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies + m.careerPlayoffWins + m.careerPlayoffLosses + m.careerPlayoffTies;
+        const totalWins = m.careerRegularSeasonWins + m.careerPlayoffWins;
+        const winPct = totalGames > 0 ? (totalWins / totalGames) * 100 : 0;
+        return { ...m, winPct };
+      })
+      .sort((a, b) => b.winPct - a.winPct || b.careerPF - a.careerPF);
+
+    document.getElementById("career-body").innerHTML = careerRows.length
+      ? careerRows
+          .map(
+            (m, i) => `
+      <tr>
+        <td class="rank" data-label="#">${i + 1}</td>
+        <td class="team-cell" data-label="Manager">${escapeHtml(m.username || m.teamName || "Unknown")}</td>
+        <td data-label="Regular Season">${m.careerRegularSeasonWins}-${m.careerRegularSeasonLosses}${m.careerRegularSeasonTies ? "-" + m.careerRegularSeasonTies : ""}</td>
+        <td data-label="Playoffs">${m.careerPlayoffWins}-${m.careerPlayoffLosses}${m.careerPlayoffTies ? "-" + m.careerPlayoffTies : ""}</td>
+        <td data-label="Win %">${m.winPct.toFixed(1)}%</td>
+        <td data-label="Career PF">${m.careerPF.toFixed(1)}</td>
+        <td data-label="🏆">${m.championships || 0}</td>
+      </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="7" class="empty-state">No completed seasons yet.</td></tr>`;
+  } catch (err) {
+    console.error(err);
+    document.getElementById("career-body").innerHTML = `<tr><td colspan="7" class="empty-state">Couldn't load career records.</td></tr>`;
   }
 }
 

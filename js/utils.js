@@ -139,8 +139,17 @@ function findPlayerIdByName(rawName, nameIndex) {
 // Small colored pill for a draft pick grade (A+ through F). Grades come
 // from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
 // since not every pick can be graded (e.g. a player who never scored).
+// Small colored pill for a draft pick grade (A+ through F). Grades come
+// from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
+// since not every pick can be graded (e.g. a player who never scored).
+// Color is a smooth green -> yellow -> red gradient across the 7 possible
+// grades (computed, not 5 discrete bands), so a B+ and a B genuinely look
+// different rather than sharing one color.
+const GRADE_ORDER = ["A+", "A", "B+", "B", "C", "D", "F"];
 function gradeBadgeHtml(grade) {
   if (!grade) return "";
-  const cls = grade.startsWith("A") ? "grade-a" : grade.startsWith("B") ? "grade-b" : grade === "C" ? "grade-c" : grade === "D" ? "grade-d" : "grade-f";
-  return `<span class="grade-badge ${cls}">${escapeHtml(grade)}</span>`;
+  const idx = GRADE_ORDER.indexOf(grade);
+  if (idx === -1) return "";
+  const hue = 120 - (idx / (GRADE_ORDER.length - 1)) * 120; // 120 = green, 60 = yellow, 0 = red
+  return `<span class="grade-badge" style="background:hsl(${hue.toFixed(0)}, 68%, 45%);">${escapeHtml(grade)}</span>`;
 }

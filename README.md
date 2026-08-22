@@ -327,6 +327,53 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## History, Teams & Draft Grade Refinements
+
+**History page — Career Records rebuilt.** "Career Record" is now
+**Regular Season Record**, with a genuine **Playoff Record** column
+alongside it, plus a combined **Win %**. Getting this right required
+switching the page to reuse `computeStats`'s already-correct data
+instead of the page's own lighter-weight aggregation — the old approach
+couldn't reliably tell a genuine playoff game apart from a regular
+season game or a consolation-bracket game, since Sleeper's raw
+`roster.settings.wins/losses` lumps all of those together. This also let
+championship counting get simpler and more robust: `computeStats` tracks
+it by matching roster IDs within each season directly, not by
+cross-season name matching, so the earlier rename-losing-a-championship
+class of bug can't happen here at all. Verified with a synthetic 4-team
+league with a real bracket — regular season and playoff records came
+back cleanly separated and correct.
+
+**Teams page — "All Managers" replaced with a picker.** Every manager is
+now a clickable pill in the header, same pattern as the season-year
+picker on the Season page. No one is shown by default — just a "pick a
+manager" prompt until you choose someone.
+
+**Draft grades now use a genuine gradient.** Instead of 5 discrete color
+bands, each of the 7 possible grades (A+ through F) gets its own
+computed color along a smooth green → yellow → red spectrum, so a B+ and
+a B actually look different rather than sharing a color.
+
+**Draft grades for players who scored zero points, fixed.** A drafted
+player who never appeared in a single matchup all season (e.g. hurt all
+year) previously fell through a gap: there was no way to compute their
+VBD, so they got no grade at all instead of the F they deserve. Fixed at
+the source — scoring exactly zero points is now graded F outright,
+regardless of whether a VBD or a grading curve could be computed for
+them. Verified with a real drafted-but-never-played player through the
+full pipeline.
+
+**Teams page's Season By Season table, fixed for mobile.** This table
+was missing the `responsive-stack` treatment every other table on the
+site already uses, so it was rendering cramped on phones instead of as
+readable stacked cards. It also has an unusual shape — two table rows
+per season (the stat line, then an expandable row for lineup/draft-pick
+details) — so the standard treatment needed a small adaptation: the two
+rows now visually join into one card instead of stacking as two separate
+boxes, and the `<details>`/`<summary>` content renders as normal text
+instead of being awkwardly squeezed into the usual label/value row
+format.
+
 ## Draft Pick Grades — a bell curve, fit from your own draft history
 
 Every draft pick with a computed VBD now gets a letter grade (A+ through

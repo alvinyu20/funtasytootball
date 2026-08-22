@@ -706,16 +706,14 @@ const DeepHistory = {
     //      bestValuePick/worstValuePick and every season's draftPicks list —
     //      they're the same objects, not copies. ----
     const draftGradeModel = DeepHistory.computeDraftGradeModel(allDraftPickEntries);
-    if (draftGradeModel) {
-      allDraftPickEntries.forEach((entry) => {
-        const g = DeepHistory.gradeDraftPick(entry.vbd, entry.pickNo, draftGradeModel);
-        if (g) {
-          entry.expectedVbd = g.expectedVbd;
-          entry.grade = g.grade;
-          entry.z = g.z;
-        }
-      });
-    }
+    allDraftPickEntries.forEach((entry) => {
+      const g = DeepHistory.gradeDraftPick(entry.vbd, entry.pickNo, draftGradeModel, entry.points);
+      if (g) {
+        entry.expectedVbd = g.expectedVbd;
+        entry.grade = g.grade;
+        entry.z = g.z;
+      }
+    });
 
     // ---- Streaks + trade/waiver leaders, computed after all seasons are merged ----
     managers.forEach((m) => {
@@ -976,7 +974,7 @@ const DeepHistory = {
         const pts = seasonPlayerPoints.get(p.player_id) || 0;
         const vbdEntry = vbdByPlayer.get(p.player_id);
         const info = rosterInfo.get(p.roster_id);
-        const grading = draftGradeModel ? DeepHistory.gradeDraftPick(vbdEntry ? vbdEntry.vbd : null, p.pick_no, draftGradeModel) : null;
+        const grading = DeepHistory.gradeDraftPick(vbdEntry ? vbdEntry.vbd : null, p.pick_no, draftGradeModel, pts);
         const entry = {
           player: playerName(p.player_id),
           playerId: p.player_id,
@@ -1294,7 +1292,12 @@ const DeepHistory = {
     { min: -Infinity, grade: "F" },
   ],
 
-  gradeDraftPick(vbd, pickNo, model) {
+  gradeDraftPick(vbd, pickNo, model, points) {
+    // A player who scored zero points the whole season is an unambiguous
+    // bust, regardless of whether a replacement-level baseline could be
+    // established for their position that year — no model or computed
+    // VBD needed to know that's an F.
+    if (points != null && points <= 0) return { expectedVbd: null, residual: null, z: null, grade: "F" };
     if (!model || vbd == null || pickNo == null || !(model.stdDev > 0)) return null;
     const expectedVbd = DeepHistory.predictExpectedVBD(pickNo, model);
     const residual = vbd - expectedVbd;
