@@ -374,6 +374,72 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Third Round: Attribution Bug, Season Page Reorganization, Waiver Value
+
+**A real injury-attribution bug, found and fixed.** A specific report —
+Malik Nabers missing from hmart92's injury list despite being drafted
+and started early — traced to a gap the last round's fix didn't cover:
+if a manager drops a player the *same week* an injury is first flagged
+(a very common pattern — an injury often happens mid-game, and a
+manager can cut the player before the next weekly snapshot), the
+"first injured week" lookup finds nobody rostering them that exact week
+and silently drops the attribution entirely. Fixed by searching
+backward from the first injured week for the most recent actual owner.
+Reproduced the exact scenario, confirmed the fix, and additionally
+verified a genuine trade correctly attributes to the new owner rather
+than the original drafter. One related edge case is a known,
+accepted limitation rather than a fix: if a player gets hurt, fully
+recovers, then gets hurt *again* later under different ownership, the
+whole season still attributes to the first owner — a much rarer
+combination of events than what was reported.
+
+**Expand indicator added.** Every expandable row (injury dropdown,
+FAAB competing bids, waiver value pickups) now shows a small arrow that
+rotates when opened, so it's clear the row is tappable.
+
+**Season page reorganized**, per specific feedback on redundant or
+misplaced charts:
+- "League Average Score By Week" is now Total-only — a single season's
+  own weekly trend wasn't especially useful on its own.
+- "Average Score Per Week" (the per-team bar chart) is gone entirely;
+  that data is now a column directly in the Final Standings table
+  instead of a separate chart. This needed care since the Total view
+  and per-season view key their team data differently (a stable user ID
+  across all seasons vs. a roster ID specific to one season) — verified
+  the join works correctly for both.
+- Power Rank By Week / Power Score History / Playoff Odds History are
+  now one tabbed panel instead of three simultaneous charts, and a
+  season only gets tabs for data it actually has (an older season with
+  only rank data tracked shows just the one tab, not two empty ones).
+
+**FAAB pickups now show competing bids.** Sleeper returns losing waiver
+bids too, not just the winner — this data was already being fetched
+and simply discarded at the point of use. Recovered it: every FAAB
+pickup with other bidders that week is now expandable to show who else
+was bidding and for how much.
+
+**New: Top 5 Best Waiver Pickups by value added.** A genuinely
+different question from "priciest FAAB pickup" — this ranks by how
+much a pickup actually turned out to be *worth*, cheap or free
+included. Reuses the same replacement-level idea as VBD elsewhere on
+the site (points above what a replacement-level player at that
+position would provide), windowed to "from the week they were picked
+up through the end of the regular season" rather than the whole season,
+so a Week 12 pickup is judged over the weeks they actually had. Shows
+the waiver price and competing bids, or "Free Agent" if there was no
+bidding at all. Verified with a deliberately adversarial test case: a
+free pickup that became a league-winner correctly outranks an
+expensive bust, with both values checked against hand calculations.
+
+**One real bug caught and fixed along the way**: the first version of
+both the FAAB-competing-bids and waiver-value expandable rows used
+`<details>/<summary>`, matching the pattern used for the injury
+dropdown — but `<summary>` can't legally contain the block-level `<div>`
+the player-photo helper returns, which the HTML validator caught
+immediately. Rather than risk modifying that widely-shared function,
+rebuilt both as a plain clickable row with a small JS toggle instead,
+and confirmed zero validation errors as a result.
+
 ## Injury Detail Dropdown, Pick Number Format, and Grade Overhaul
 
 **Injury Luck now shows the individual players behind each team's

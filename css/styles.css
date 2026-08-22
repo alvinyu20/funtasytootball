@@ -533,6 +533,20 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .season-pill:hover:not(.active) { border-color: var(--gold-dim); color: var(--chalk); }
 .season-pill.active { color: var(--turf-dark); background: var(--gold); border-color: var(--gold); font-weight: 600; }
 
+.chart-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.chart-tab {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--turf-line);
+  background: transparent;
+  color: var(--chalk-dim);
+  cursor: pointer;
+}
+.chart-tab:hover:not(.active) { border-color: var(--gold-dim); color: var(--chalk); }
+.chart-tab.active { color: var(--turf-dark); background: var(--gold); border-color: var(--gold); font-weight: 600; }
+
 /* ==========================================================================
    BAR CHART
    ========================================================================== */
@@ -737,8 +751,31 @@ details.rank-list-item { cursor: pointer; }
 details.rank-list-item summary.rank-list-row {
   list-style: none;
   cursor: pointer;
+  grid-template-columns: 24px 1fr auto 16px;
 }
 details.rank-list-item summary::-webkit-details-marker { display: none; }
+details.rank-list-item summary.rank-list-row::after {
+  content: "▾";
+  color: var(--gold);
+  font-size: 10px;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+details.rank-list-item[open] summary.rank-list-row::after { transform: rotate(180deg); }
+details.rank-list-item summary.rank-list-row.faab-row { grid-template-columns: 24px 44px 1fr auto 16px; }
+
+.rank-list-row.faab-row.toggleable { cursor: pointer; position: relative; padding-right: 20px; }
+.rank-list-row.faab-row.toggleable::after {
+  content: "▾";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--gold);
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+.rank-list-row.faab-row.toggleable.open::after { transform: translateY(-50%) rotate(180deg); }
 details.rank-list-item .bracket-lineup-section { padding-bottom: 12px; }
 
 /* ==========================================================================

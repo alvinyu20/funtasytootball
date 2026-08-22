@@ -103,6 +103,7 @@ async function renderSelectedSeason() {
       content.style.display = "";
       content.innerHTML = renderSummary(summary);
       stopReplay();
+      initFaabToggles();
 
       const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
       document.title = (SITE_TITLE || leagueName || "League") + " — All-Time";
@@ -145,6 +146,8 @@ async function renderSelectedSeason() {
     content.style.display = "";
     content.innerHTML = renderSummary(summary);
     initStandingsReplay(summary.standingsHistory, summary.playoffTeams);
+    initPowerRankTabs();
+    initFaabToggles();
 
     const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
     document.title = (SITE_TITLE || leagueName || "League") + " — " + summary.season + " Season";
@@ -259,17 +262,90 @@ function renderPositionTable(positionTable) {
 function renderFaabList(items, isTotal) {
   if (!items.length) return `<div class="empty-state">Not enough games played yet.</div>`;
   return `<div class="rank-list">${items
-    .map(
-      (p, i) => `
-    <div class="rank-list-row faab-row">
+    .map((p, i) => {
+      const row = `
       <span class="rank-num">${i + 1}</span>
       ${playerPhotoHtml(p.playerId, p.player, "player-photo-sm")}
-      <span class="desc">${escapeHtml(p.player)}<span class="sub">${escapeHtml(p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${
+      <span class="desc">${escapeHtml(p.player)}<span class="sub">${escapeHtml(p.username || p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${
         isTotal && p.season ? ` · ${p.season}` : ""
       }</span></span>
-      <span class="val">$${p.bid}</span>
-    </div>`
-    )
+      <span class="val">$${p.bid}</span>`;
+      if (!p.competingBids || !p.competingBids.length) {
+        return `<div class="rank-list-row faab-row">${row}</div>`;
+      }
+      const bidsHtml = p.competingBids
+        .map(
+          (b) => `
+        <div class="injury-detail-row">
+          <span class="injury-detail-name">${escapeHtml(b.username || b.teamName)}</span>
+          <span class="injury-detail-pts">$${b.bid}</span>
+        </div>`
+        )
+        .join("");
+      // Not a <details>/<summary> here — the player photo is a <div>
+      // (block-level), which <summary> can't legally contain. A plain
+      // clickable row + JS toggle (see initFaabToggles) sidesteps that.
+      return `
+      <div class="rank-list-item-toggle">
+        <div class="rank-list-row faab-row toggleable" data-faab-toggle>${row}</div>
+        <div class="injury-detail-list" style="display:none;">
+          <div class="muted-inline" style="padding: 4px 4px 2px;">Other bids that week</div>
+          ${bidsHtml}
+        </div>
+      </div>`;
+    })
+    .join("")}</div>`;
+}
+
+function initFaabToggles() {
+  document.querySelectorAll("[data-faab-toggle]").forEach((row) => {
+    row.onclick = () => {
+      const detail = row.nextElementSibling;
+      const isOpen = detail.style.display !== "none";
+      detail.style.display = isOpen ? "none" : "";
+      row.classList.toggle("open", !isOpen);
+    };
+  });
+}
+
+function bidLabel(w) {
+  if (w.bid == null) return "Free Agent";
+  return w.bid === 0 ? "$0 waiver" : `$${w.bid} waiver`;
+}
+
+function renderWaiverValueList(items, isTotal) {
+  if (!items.length) return `<div class="empty-state">Not enough games played yet.</div>`;
+  return `<div class="rank-list">${items
+    .map((w, i) => {
+      const sign = w.valueAdded >= 0 ? "+" : "";
+      const row = `
+      <span class="rank-num">${i + 1}</span>
+      ${playerPhotoHtml(w.playerId, w.player, "player-photo-sm")}
+      <span class="desc">${escapeHtml(w.player)} <span class="muted-inline">(${escapeHtml(w.position)})</span><span class="sub">${escapeHtml(
+        w.username || w.teamName
+      )} · Week ${w.week} · ${bidLabel(w)}${isTotal && w.season ? ` · ${w.season}` : ""}</span></span>
+      <span class="val">${sign}${w.valueAdded.toFixed(1)} pts</span>`;
+      if (!w.competingBids || !w.competingBids.length) {
+        return `<div class="rank-list-row faab-row">${row}</div>`;
+      }
+      const bidsHtml = w.competingBids
+        .map(
+          (b) => `
+        <div class="injury-detail-row">
+          <span class="injury-detail-name">${escapeHtml(b.username || b.teamName)}</span>
+          <span class="injury-detail-pts">$${b.bid}</span>
+        </div>`
+        )
+        .join("");
+      return `
+      <div class="rank-list-item-toggle">
+        <div class="rank-list-row faab-row toggleable" data-faab-toggle>${row}</div>
+        <div class="injury-detail-list" style="display:none;">
+          <div class="muted-inline" style="padding: 4px 4px 2px;">Other bids that week</div>
+          ${bidsHtml}
+        </div>
+      </div>`;
+    })
     .join("")}</div>`;
 }
 
@@ -753,26 +829,44 @@ function renderPowerRankHistorySection(season) {
     }));
   }
 
-  const rankChart = Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, formatter: (v) => v.toFixed(1) });
   const hasUnknowns = Object.keys(yearData.ranks).some((k) => k.startsWith("unknown-"));
 
-  const scoreSection = yearData.scores
-    ? `
-    <div class="wrap"><div class="panel">
-      <h2>Power Score History</h2>
-      ${Charts.multiLineChart(toSeries(yearData.scores), { invertY: true, formatter: (v) => v.toFixed(2) })}
-      <p class="heatmap-note">Raw weighted PR Score each week — lower is better, same as the rank chart above.</p>
-    </div></div>`
-    : "";
+  // Only seasons with all three datasets get all three tabs — a season
+  // missing Power Score or Playoff Odds data just doesn't offer that tab,
+  // rather than showing an empty chart.
+  const tabs = [
+    {
+      key: "rank",
+      label: "Power Rank By Week",
+      chart: Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, formatter: (v) => v.toFixed(1) }),
+      note: `Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season haven't been identified yet and are labeled by their preseason rank — see data/power-rank-csv-history.json." : ""}`,
+    },
+    yearData.scores && {
+      key: "score",
+      label: "Power Score History",
+      chart: Charts.multiLineChart(toSeries(yearData.scores), { invertY: true, formatter: (v) => v.toFixed(2) }),
+      note: "Raw weighted PR Score each week — lower is better, same as the rank chart.",
+    },
+    yearData.playoffOdds && {
+      key: "odds",
+      label: "Playoff Odds History",
+      chart: Charts.multiLineChart(toFlatSeries(yearData.playoffOdds), { formatter: (v) => v.toFixed(1) + "%" }),
+      note: "Simulated chance of making the playoffs each week — higher is better, unlike the other two charts.",
+    },
+  ].filter(Boolean);
 
-  const oddsSection = yearData.playoffOdds
-    ? `
-    <div class="wrap"><div class="panel">
-      <h2>Playoff Odds History</h2>
-      ${Charts.multiLineChart(toFlatSeries(yearData.playoffOdds), { formatter: (v) => v.toFixed(1) + "%" })}
-      <p class="heatmap-note">Simulated chance of making the playoffs each week — higher is better, unlike the two charts above.</p>
-    </div></div>`
-    : "";
+  const tabButtons = tabs
+    .map((t, i) => `<button type="button" class="chart-tab${i === 0 ? " active" : ""}" data-chart-tab="${t.key}">${escapeHtml(t.label)}</button>`)
+    .join("");
+  const tabPanels = tabs
+    .map(
+      (t, i) => `
+    <div class="chart-tab-panel" data-chart-panel="${t.key}"${i === 0 ? "" : ' style="display:none;"'}>
+      ${t.chart}
+      <p class="heatmap-note">${t.note}</p>
+    </div>`
+    )
+    .join("");
 
   return `
     <div class="yard-divider">
@@ -781,12 +875,24 @@ function renderPowerRankHistorySection(season) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <h2>Power Rank By Week</h2>
-      ${rankChart}
-      <p class="heatmap-note">Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season haven't been identified yet and are labeled by their preseason rank — see data/power-rank-csv-history.json." : ""}</p>
-    </div></div>
-    ${scoreSection}
-    ${oddsSection}`;
+      <div class="chart-tabs">${tabButtons}</div>
+      ${tabPanels}
+    </div></div>`;
+}
+
+function initPowerRankTabs() {
+  document.querySelectorAll(".chart-tabs").forEach((tabRow) => {
+    tabRow.querySelectorAll(".chart-tab").forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.dataset.chartTab;
+        const panelGroup = tabRow.parentElement;
+        tabRow.querySelectorAll(".chart-tab").forEach((b) => b.classList.toggle("active", b === btn));
+        panelGroup.querySelectorAll(".chart-tab-panel").forEach((panel) => {
+          panel.style.display = panel.dataset.chartPanel === key ? "" : "none";
+        });
+      };
+    });
+  });
 }
 
 let PLAYER_NAME_INDEX_CACHE = null;
@@ -842,6 +948,12 @@ function renderSummary(s) {
   const isTotal = s.season === "All-Time";
   const yearTag = (item) => (isTotal && item && item.season ? ` (${item.season})` : "");
 
+  const avgByStandingsKey = new Map();
+  (s.teamAverages || []).forEach((t) => {
+    const key = t.rosterId != null ? t.rosterId : t.userId;
+    if (key != null) avgByStandingsKey.set(key, t.average);
+  });
+
   const standingsRows = s.standings
     .map(
       (t, i) => `
@@ -851,6 +963,7 @@ function renderSummary(s) {
       <td data-label="Record">${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
       <td data-label="PF">${t.fpts.toFixed(1)}</td>
       <td data-label="PA">${t.fptsAgainst.toFixed(1)}</td>
+      <td data-label="Avg/Wk">${avgByStandingsKey.has(t.rosterId) ? avgByStandingsKey.get(t.rosterId).toFixed(1) : "—"}</td>
       <td data-label="Overall">${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}</td>
       <td data-label="Luck">${luckBadge(t.luckPct)}</td>
       ${isTotal ? "" : `<td data-label="SOS">${t.avgOpponentPF != null ? t.avgOpponentPF.toFixed(1) : "—"}</td>`}
@@ -861,10 +974,6 @@ function renderSummary(s) {
   const weeklyTrendChart = Charts.lineChart(
     s.weeklyLeagueAvg.map((w) => ({ x: w.week, y: w.avg })),
     { formatter: (v) => v.toFixed(0) }
-  );
-
-  const teamAvgChart = Charts.barChart(
-    s.teamAverages.map((t) => ({ label: t.teamName, value: t.average }))
   );
 
   const positionTableHtml = renderPositionTable(s.positionTable);
@@ -930,6 +1039,10 @@ function renderSummary(s) {
     ? renderFaabList(s.top5FaabPickups, isTotal)
     : "";
 
+  const waiverValueListHtml = s.top5WaiverValueAdds
+    ? renderWaiverValueList(s.top5WaiverValueAdds, isTotal)
+    : "";
+
   const POSITION_LABELS = { QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", DEF: "DEF" };
   const bestByPositionCards = Object.entries(POSITION_LABELS)
     .map(([pos, label]) => {
@@ -988,7 +1101,7 @@ function renderSummary(s) {
     <div class="wrap"><div class="panel">
       <div class="heatmap-table-wrap">
         <table class="stat-table responsive-stack">
-          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th>${isTotal ? "" : "<th>SOS</th>"}</tr></thead>
+          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th>Overall</th><th>Luck</th>${isTotal ? "" : "<th>SOS</th>"}</tr></thead>
           <tbody>${standingsRows}</tbody>
         </table>
       </div>
@@ -997,27 +1110,22 @@ function renderSummary(s) {
 
     ${isTotal ? "" : renderStandingsReplaySection(s.standingsHistory, s.playoffTeams)}
 
+    ${
+      isTotal
+        ? `
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
       <span class="label">Weekly Scoring Trend</span>
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <h2>${isTotal ? "Average Score By Week Of Season (All Years)" : "League Average Score By Week"}</h2>
+      <h2>Average Score By Week Of Season (All Years)</h2>
       ${weeklyTrendChart}
-    </div></div>
+    </div></div>`
+        : ""
+    }
 
     ${isTotal ? "" : renderPowerRankHistorySection(s.season)}
-
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Team Scoring</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap"><div class="panel">
-      <h2>Average Score Per Week</h2>
-      ${teamAvgChart}
-    </div></div>
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
@@ -1109,6 +1217,18 @@ function renderSummary(s) {
       <div class="panel">
         <h2>Top 5 Priciest FAAB Pickups${isTotal ? " Of All Time" : ""}</h2>
         ${faabListHtml}
+      </div>
+    </div>`
+        : ""
+    }
+    ${
+      s.top5WaiverValueAdds && s.top5WaiverValueAdds.length
+        ? `
+    <div class="wrap">
+      <div class="panel" style="margin-top:24px;">
+        <h2>Top 5 Best Waiver Pickups${isTotal ? " Of All Time" : ""}</h2>
+        ${waiverValueListHtml}
+        <p class="heatmap-note">Ranked by points added above a replacement-level player at that position, counted from the week they were picked up through the end of the regular season — not by price, so a free pickup that hit big can outrank an expensive bust.</p>
       </div>
     </div>`
         : ""

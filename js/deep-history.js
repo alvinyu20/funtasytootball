@@ -1130,6 +1130,24 @@ const DeepHistory = {
     // ---- Top 5 most expensive FAAB waiver pickups this season (only
     //      meaningful for leagues using FAAB bidding — seasons that used
     //      plain waiver priority instead simply won't have bid amounts) ----
+    // First, collect EVERY waiver bid this season (won or lost), grouped
+    // by week+player — Sleeper returns failed bids too (status other than
+    // "complete"), which is what lets a winning pickup show who else was
+    // bidding on the same player that week, and for how much.
+    const allWaiverBidsByWeekPlayer = new Map(); // "week|playerId" -> [{rosterId, bid, status}]
+    if (deep && deep.transactions) {
+      deep.transactions.forEach((tx) => {
+        if (!tx || tx.type !== "waiver") return;
+        const bid = tx.settings && tx.settings.waiver_bid;
+        if (bid == null) return;
+        Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
+          const key = `${tx.leg}|${playerId}`;
+          if (!allWaiverBidsByWeekPlayer.has(key)) allWaiverBidsByWeekPlayer.set(key, []);
+          allWaiverBidsByWeekPlayer.get(key).push({ rosterId: rid, bid, status: tx.status });
+        });
+      });
+    }
+
     const faabPickups = [];
     if (deep && deep.transactions) {
       deep.transactions.forEach((tx) => {
@@ -1138,11 +1156,21 @@ const DeepHistory = {
         if (!bid) return;
         Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
           const info = rosterInfo.get(rid);
+          const allBids = allWaiverBidsByWeekPlayer.get(`${tx.leg}|${playerId}`) || [];
+          const competingBids = allBids
+            .filter((b) => b.status !== "complete")
+            .map((b) => {
+              const bidderInfo = rosterInfo.get(b.rosterId);
+              return { teamName: bidderInfo ? bidderInfo.teamName : "Unknown", username: bidderInfo ? bidderInfo.username : null, bid: b.bid };
+            })
+            .sort((a, b) => b.bid - a.bid);
           faabPickups.push({
             player: playerName(playerId),
             playerId,
             teamName: info ? info.teamName : "Unknown",
+            username: info ? info.username : null,
             bid,
+            competingBids,
             week: tx.leg,
             season: league.season,
           });
@@ -1150,6 +1178,86 @@ const DeepHistory = {
       });
     }
     const top5FaabPickups = [...faabPickups].sort((a, b) => b.bid - a.bid).slice(0, 5);
+
+    // ---- Top 5 best waiver/free-agent pickups by value added for the
+    //      rest of the season. Different question from "priciest FAAB
+    //      pickup" above — this is about who actually turned out to be
+    //      worth adding, cheap or free included. Reuses the same
+    //      replacement-level idea as VBD: how many points above a
+    //      replacement-level player at that position did this pickup
+    //      provide, counting only from the week they were added through
+    //      the end of the regular season (not the whole season — a
+    //      Week 12 pickup should be judged over the ~3 weeks they
+    //      actually had, not penalized for points scored before anyone
+    //      rostered them in this league). ----
+    const totalRegularSeasonWeeksForPickups = playoffStart != null ? playoffStart - 1 : LAST_FANTASY_WEEK;
+    const replacementLevelByPosition = DeepHistory.computeReplacementLevels(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
+    const weeklyPointsByPlayer = new Map(); // playerId -> Map(week -> points), regular season only, every week (unlike the injury-aware healthy-weeks map — this wants realized outcomes, injuries included)
+    if (deep && deep.weeks) {
+      deep.weeks.forEach(({ week, matchups }) => {
+        if (playoffStart != null && week >= playoffStart) return;
+        matchups.forEach((m) => {
+          Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+            if (!weeklyPointsByPlayer.has(pid)) weeklyPointsByPlayer.set(pid, new Map());
+            weeklyPointsByPlayer.get(pid).set(week, pts || 0);
+          });
+        });
+      });
+    }
+
+    const waiverValueAdds = [];
+    if (deep && deep.transactions) {
+      deep.transactions.forEach((tx) => {
+        if (!tx || tx.status !== "complete" || (tx.type !== "waiver" && tx.type !== "free_agent")) return;
+        const pickupWeek = tx.leg;
+        const remainingWeeks = totalRegularSeasonWeeksForPickups - pickupWeek + 1;
+        if (remainingWeeks <= 0) return; // picked up after the regular season ended
+        const bid = tx.type === "waiver" ? tx.settings && tx.settings.waiver_bid : null;
+
+        Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
+          const p = playerDirectory && playerDirectory[playerId];
+          if (!p || !p.position) return;
+          const replacementTotal = replacementLevelByPosition[p.position];
+          if (replacementTotal == null) return;
+          const replacementPPG = replacementTotal / totalRegularSeasonWeeksForPickups;
+
+          const weekPts = weeklyPointsByPlayer.get(playerId);
+          let actualPointsSincePickup = 0;
+          for (let w = pickupWeek; w <= totalRegularSeasonWeeksForPickups; w++) {
+            actualPointsSincePickup += weekPts && weekPts.has(w) ? weekPts.get(w) : 0;
+          }
+          const valueAdded = actualPointsSincePickup - replacementPPG * remainingWeeks;
+
+          const info = rosterInfo.get(rid);
+          let competingBids = [];
+          if (tx.type === "waiver") {
+            const allBids = allWaiverBidsByWeekPlayer.get(`${pickupWeek}|${playerId}`) || [];
+            competingBids = allBids
+              .filter((b) => b.status !== "complete")
+              .map((b) => {
+                const bidderInfo = rosterInfo.get(b.rosterId);
+                return { teamName: bidderInfo ? bidderInfo.teamName : "Unknown", username: bidderInfo ? bidderInfo.username : null, bid: b.bid };
+              })
+              .sort((a, b) => b.bid - a.bid);
+          }
+
+          waiverValueAdds.push({
+            player: playerName(playerId),
+            playerId,
+            position: p.position,
+            teamName: info ? info.teamName : "Unknown",
+            username: info ? info.username : null,
+            week: pickupWeek,
+            season: league.season,
+            bid: tx.type === "waiver" ? bid || 0 : null, // null = free agent, 0 = a $0 winning waiver bid
+            competingBids,
+            pointsSincePickup: actualPointsSincePickup,
+            valueAdded,
+          });
+        });
+      });
+    }
+    const top5WaiverValueAdds = [...waiverValueAdds].sort((a, b) => b.valueAdded - a.valueAdded).slice(0, 5);
 
     const teamAverages = [...teamTotals.entries()]
       .map(([rosterId, t]) => ({
@@ -1187,6 +1295,7 @@ const DeepHistory = {
       worstValuePick,
       pointsLeader,
       top5FaabPickups,
+      top5WaiverValueAdds,
       standingsHistory: DeepHistory.computeStandingsHistory(seasonEntry, deep),
       playoffTeams: (league.settings && league.settings.playoff_teams) || null,
       championshipRecap: DeepHistory.computeChampionshipRecap(seasonEntry, deep, playerDirectory),
@@ -1596,14 +1705,30 @@ const DeepHistory = {
       if (expectedPPG == null) return;
 
       // Attribute the whole injury stint to whoever had this player
-      // rostered at the start of it — not a per-week lookup. Managers
-      // commonly drop a player once they're hurt; that shouldn't transfer
-      // the "bad luck" to whoever (if anyone) picks up the injured player
+      // rostered when it began — not a per-week lookup. Managers commonly
+      // drop a player once they're hurt; that shouldn't transfer the "bad
+      // luck" to whoever (if anyone) picks up the injured player
       // afterward, or erase it if nobody does. The manager who took the
       // injury risk by rostering them is the one who wears the loss.
+      //
+      // "When it began" prefers the first injured week's roster owner,
+      // but falls back to searching backward through prior weeks if
+      // nobody had them rostered exactly then — an injury often happens
+      // during a game, and a manager dropping the player right away (same
+      // week or the week after) shouldn't erase attribution to whoever
+      // actually carried the injury risk.
       const sortedInjuredWeeks = [...injuredWeeks].sort((a, b) => a - b);
       const firstInjuredWeek = sortedInjuredWeeks[0];
-      const attributionRosterId = firstInjuredWeek != null ? rosterByWeekPlayer.get(`${firstInjuredWeek}|${playerId}`) : null;
+      let attributionRosterId = null;
+      if (firstInjuredWeek != null) {
+        for (let w = firstInjuredWeek; w >= 1; w--) {
+          const rid = rosterByWeekPlayer.get(`${w}|${playerId}`);
+          if (rid != null) {
+            attributionRosterId = rid;
+            break;
+          }
+        }
+      }
 
       let totalLost = 0;
       const weeksList = [];
@@ -2468,6 +2593,9 @@ const DeepHistory = {
     const allFaabPickups = perSeason.flatMap((s) => s.top5FaabPickups || []);
     const top5FaabPickups = [...allFaabPickups].sort((a, b) => b.bid - a.bid).slice(0, 5);
 
+    const allWaiverValueAdds = perSeason.flatMap((s) => s.top5WaiverValueAdds || []);
+    const top5WaiverValueAdds = [...allWaiverValueAdds].sort((a, b) => b.valueAdded - a.valueAdded).slice(0, 5);
+
     const bestByPosition = {};
     ["QB", "RB", "WR", "TE", "K", "DEF"].forEach((pos) => {
       let cur = null;
@@ -2515,6 +2643,7 @@ const DeepHistory = {
       top5Luckiest,
       top5Unluckiest,
       top5FaabPickups,
+      top5WaiverValueAdds,
       bestByPosition,
       bestValuePick,
       worstValuePick,
