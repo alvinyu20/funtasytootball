@@ -622,6 +622,7 @@ const DeepHistory = {
         if (deep.draft && deep.draft.picks) {
           const pointsByPlayerWeekForPPG = new Map();
           deep.weeks.forEach(({ week, matchups }) => {
+            if (playoffStart != null && week >= playoffStart) return;
             matchups.forEach((m) => {
               Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
                 const injuredThisWeek = injuriesForSeason[pid] && injuriesForSeason[pid][week] != null;
@@ -1446,6 +1447,7 @@ const DeepHistory = {
     if (!deep || !deep.weeks || !deep.weeks.length || !injuriesForSeason || !expectedPPGModel) {
       return { playerInjuries: [], teamInjuryLuck: [] };
     }
+    const playoffStart = league.settings && league.settings.playoff_week_start;
 
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     const rosterInfo = new Map();
@@ -1460,10 +1462,13 @@ const DeepHistory = {
     // Who rostered which player, each week — full roster, not just
     // starters, since an injured player is typically benched, and the
     // "loss" is about the asset being unavailable, not that week's
-    // literal lineup.
+    // literal lineup. Regular season only — playoff weeks are excluded
+    // entirely here, so both the healthy-week average and the injured-week
+    // tally below are automatically regular-season-only too.
     const rosterByWeekPlayer = new Map(); // "week|playerId" -> rosterId
     const pointsByPlayerWeek = new Map(); // playerId -> Map(week -> points)
     deep.weeks.forEach(({ week, matchups }) => {
+      if (playoffStart != null && week >= playoffStart) return;
       matchups.forEach((m) => {
         (m.players || []).forEach((pid) => {
           rosterByWeekPlayer.set(`${week}|${pid}`, m.roster_id);
@@ -1497,7 +1502,11 @@ const DeepHistory = {
       const weekPts = pointsByPlayerWeek.get(playerId);
       if (!weekPts) return; // never showed up in this league's data at all
 
-      const injuredWeeks = new Set(Object.keys(weeksMap).map(Number));
+      const injuredWeeks = new Set(
+        Object.keys(weeksMap)
+          .map(Number)
+          .filter((week) => playoffStart == null || week < playoffStart)
+      );
       const healthyPoints = [];
       weekPts.forEach((pts, week) => {
         if (!injuredWeeks.has(week)) healthyPoints.push(pts);

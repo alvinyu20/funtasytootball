@@ -543,7 +543,7 @@ function seasonStatCard(label, stat, subFormatter) {
   return `
     <div class="recap-player-card">
       ${playerPhotoHtml(stat.playerId, stat.player, "player-photo-lg")}
-      <div class="recap-player-label">${escapeHtml(label)} ${gradeBadgeHtml(stat.grade)}</div>
+      <div class="recap-player-label">${escapeHtml(label)}</div>
       <div class="recap-player-name">${escapeHtml(stat.player)}</div>
       <div class="recap-player-sub">${escapeHtml(subFormatter(stat))}</div>
     </div>`;
@@ -935,8 +935,7 @@ function renderSummary(s) {
         s.bestValuePick.player,
         `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.username || s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${
           s.bestValuePick.vbd != null ? ` · +${s.bestValuePick.vbd.toFixed(1)} VBD` : ""
-        }${yearTag(s.bestValuePick)}`,
-        gradeBadgeHtml(s.bestValuePick.grade)
+        }${yearTag(s.bestValuePick)}`
       ),
     s.worstValuePick &&
       recordCardWithPhoto(
@@ -945,8 +944,7 @@ function renderSummary(s) {
         s.worstValuePick.player,
         `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.username || s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${
           s.worstValuePick.vbd != null ? ` · ${s.worstValuePick.vbd.toFixed(1)} VBD` : ""
-        }${yearTag(s.worstValuePick)}`,
-        gradeBadgeHtml(s.worstValuePick.grade)
+        }${yearTag(s.worstValuePick)}`
       ),
     s.pointsLeader && recordCardWithPhoto("Season Points Leader", s.pointsLeader.playerId, s.pointsLeader.player, `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
   ]

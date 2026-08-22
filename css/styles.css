@@ -1075,7 +1075,7 @@ details.bracket-game.championship {
 
 .trophy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
 }
 .trophy-card {
@@ -1190,8 +1190,8 @@ details.bracket-game.championship {
 .recap-champ-name { font-family: var(--font-display); font-size: 28px; text-transform: uppercase; color: var(--chalk); line-height: 1.1; margin-bottom: 14px; }
 .recap-narrative { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--chalk); margin: 0 0 20px; }
 .recap-narrative strong { color: var(--gold); }
-.recap-players { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
-.recap-player-card { text-align: center; width: 140px; }
+.recap-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; margin-bottom: 20px; }
+.recap-player-card { text-align: center; }
 .recap-player-card .player-photo-wrap { margin: 0 auto 10px; }
 .recap-player-label {
   font-family: var(--font-mono);

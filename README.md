@@ -374,6 +374,61 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Follow-up Fixes
+
+**Injury Luck — a real gap in the data, found and fixed.** Two notable
+2025 injuries (Joe Burrow, Malik Nabers) were missing from the Top 5
+list, which turned out to be a genuine flaw in the original data source,
+not a fluke. The weekly injury report only tracks "will this player play
+the *upcoming* game" — once a player is placed on injured reserve for an
+extended stretch, the report stops generating new rows for them
+entirely, since there's no week-to-week game-status decision left to
+report. Traced this against both players' real 2025 data and confirmed
+it directly: Nabers' actual season-ending injury never once produced an
+"Out"/"Doubtful" row, and Burrow's showed only 2 weeks of "Out" despite
+being out for far longer.
+
+The fix: a second nflverse dataset (`weekly_rosters`) tracks each
+player's actual roster status per week, including a `RES`
+(Reserve/IR/PUP/NFI) designation — a direct, reliable signal for "this
+player wasn't available," independent of the weekly report's
+limitations. Rebuilt the full 11-year pipeline to union both signals
+(weekly injury report *and* roster status), verified directly against
+real data that Burrow now correctly shows weeks 3–12 and Nabers weeks
+5–18, and reinstalled the corrected `data/injuries.json` (now 285KB,
+still a lightweight periodic-refresh file like the rest of `data/*.json`).
+
+**Injury Luck is now regular-season only.** Both the "healthy weeks"
+baseline and the injured-weeks point total stop at the season's playoff
+cutoff — fixed at the source in `computeInjuryLuck`, plus the same fix
+in the model-fitting step so the underlying expected-PPG curve itself is
+built from regular-season production only. Tested a case with an injury
+window deliberately straddling the regular season/playoff boundary to
+confirm only the regular-season weeks count.
+
+**A real mobile layout bug, found and fixed.** The empty space some
+sections showed on mobile turned out to be a genuine CSS bug, not a
+vague inconsistency: `.trophy-grid` used `auto-fill` instead of
+`auto-fit` in its grid sizing, which reserves invisible empty column
+tracks even when there's no content for them — so a leftover single card
+on the last row would render at half-width with dead space beside it
+rather than expanding to fill it. `.recap-players` (the Season MVP /
+Draft Steal / Draft Bust card row) had the same underlying problem via a
+different mechanism — a hardcoded fixed width on a flex child, which
+doesn't grow to fill space the way a proper grid column does. Both are
+now `auto-fit` grids matching the pattern already used correctly
+elsewhere on the site (`.records-grid`), so a lone card now expands to
+fill its row instead of leaving a visible gap.
+
+**Smaller cleanups**: removed the redundant "🏆 Award" badge from the
+Season Awards list on the Teams page (the section header already makes
+it obvious), and removed the grade badge specifically from Best Draft
+Steal / Biggest Draft Bust in the Season tab — since those are, by
+definition, the most extreme picks in either direction, the grade is
+essentially always A+/F and doesn't add information there (still shown
+everywhere else, like the Records page and the Teams page draft-pick
+history, where it genuinely varies).
+
 ## Injury Luck — a new external data source, brought in responsibly
 
 Every completed season now has an **Injury Luck** section: the top 5

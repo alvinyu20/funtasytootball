@@ -108,7 +108,6 @@ function renderManagerDetail(m) {
           <div class="champ-name">${escapeHtml(a.category)}</div>
           ${a.detail ? `<div class="champ-sub">${escapeHtml(a.detail)}</div>` : ""}
         </div>
-        <span class="badge">🏆 Award</span>
       </div>`
     )
     .join("");
