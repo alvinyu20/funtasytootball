@@ -374,6 +374,40 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Second Round of Fixes + First Newsletter
+
+**Injury Luck attribution, fixed.** A real gap: if a manager drops an
+injured player (very common — nobody wants a dead roster spot), the old
+logic looked up the roster owner separately for *each* injured week,
+so weeks after the drop went either unattributed or, worse, credited to
+whoever (if anyone) picked up an already-injured player afterward. Now
+the whole injury stint is attributed once, to whoever had the player
+rostered when the injury began — dropping them afterward doesn't let a
+manager off the hook for the loss, since they're the one who took the
+injury risk in the first place. Verified against the exact scenario
+reported: a player drafted, injured, and dropped mid-injury — the
+team-level total now correctly matches the player's full loss across
+every injured week, not just the ones before the drop.
+
+**A real mobile CSS bug, found and fixed.** "Everything narrower than
+The Locker Room" had a precise cause: `.wrap`'s padding plus `.panel`'s
+own padding were stacking to ~42px of horizontal inset on mobile, while
+`.scoreboard` (which has no wrapping container at all) sits at just 18px
+with its box touching the screen edges directly. That's the whole gap —
+one section had padding stacked two layers deep, the other didn't have
+a second layer to stack. Trimmed `.wrap`, `.section-grid`, and `.panel`'s
+mobile padding so panel boxes now land close to the same edge position
+as the scoreboard, on every page, not just Teams (these are shared,
+site-wide classes).
+
+**First real newsletter issue** — a Preseason hype piece, added at
+`data/newsletters.json`. Leans on what's genuinely new on the site this
+year (VBD, Draft Grades, Injury Luck) as a fun hook, and keeps anything
+about specific managers framed as open questions rather than claims
+about real outcomes that haven't happened yet — the site can tell you
+who actually had the best draft once the season's underway; a preseason
+hype piece shouldn't try to guess for them.
+
 ## Follow-up Fixes
 
 **Injury Luck — a real gap in the data, found and fixed.** Two notable

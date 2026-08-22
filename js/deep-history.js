@@ -1519,18 +1519,29 @@ const DeepHistory = {
       const expectedPPG = DeepHistory.computeShrunkExpectedPPG(playerOwnAvg, gamesPlayed, baseline, 4);
       if (expectedPPG == null) return;
 
+      // Attribute the whole injury stint to whoever had this player
+      // rostered at the start of it — not a per-week lookup. Managers
+      // commonly drop a player once they're hurt; that shouldn't transfer
+      // the "bad luck" to whoever (if anyone) picks up the injured player
+      // afterward, or erase it if nobody does. The manager who took the
+      // injury risk by rostering them is the one who wears the loss.
+      const sortedInjuredWeeks = [...injuredWeeks].sort((a, b) => a - b);
+      const firstInjuredWeek = sortedInjuredWeeks[0];
+      const attributionRosterId = firstInjuredWeek != null ? rosterByWeekPlayer.get(`${firstInjuredWeek}|${playerId}`) : null;
+
       let totalLost = 0;
       const weeksList = [];
-      injuredWeeks.forEach((week) => {
+      sortedInjuredWeeks.forEach((week) => {
         const actual = weekPts.has(week) ? weekPts.get(week) : 0;
         const lost = Math.max(0, expectedPPG - actual);
         if (lost <= 0) return;
         totalLost += lost;
         weeksList.push({ week, status: weeksMap[week], actual, expected: expectedPPG, lost });
-
-        const rid = rosterByWeekPlayer.get(`${week}|${playerId}`);
-        if (rid != null) teamPointsLost.set(rid, (teamPointsLost.get(rid) || 0) + lost);
       });
+
+      if (attributionRosterId != null && totalLost > 0) {
+        teamPointsLost.set(attributionRosterId, (teamPointsLost.get(attributionRosterId) || 0) + totalLost);
+      }
 
       if (totalLost > 0) {
         playerInjuries.push({

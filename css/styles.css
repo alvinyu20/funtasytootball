@@ -1327,6 +1327,17 @@ table.stat-table td.playoff-cutoff-label {
 @media (max-width: 720px) {
   body { font-size: 14px; }
   .scoreboard { padding: 20px 18px; }
+  /* .wrap's padding + .panel's own padding were stacking to ~42px of
+     horizontal inset on mobile, while .scoreboard (which has no wrapping
+     container) sits at just 18px with its box touching the screen edges
+     directly — that's the "Locker Room looks wider than everything else"
+     bug. Shrinking the outer wrap/grid padding here brings every panel's
+     box edge close to matching the scoreboard's, and panel's own padding
+     is trimmed slightly too so it doesn't just reintroduce the same gap
+     one layer in. */
+  .wrap { padding: 0 10px; }
+  .section-grid { padding: 0 10px; }
+  .panel { padding: 16px 14px; }
   .scoreboard-title { font-size: clamp(22px, 8vw, 30px); }
   .scoreboard-eyebrow { font-size: 10px; }
   .scoreboard-sub { font-size: 12px; }
