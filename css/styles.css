@@ -1371,6 +1371,8 @@ table.stat-table td.playoff-cutoff-label {
 .history-callout-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
 .history-callout-text { font-family: var(--font-body); font-size: 15px; color: var(--chalk); line-height: 1.5; }
 .history-callout-text strong { color: var(--gold); }
+.latest-newsletter-link { display: block; text-decoration: none; transition: border-color 0.15s ease; }
+.latest-newsletter-link:hover { border-color: var(--gold-dim); }
 
 /* ==========================================================================
    MOBILE TEXT SIZE — several of the large "scoreboard" display-font

@@ -374,6 +374,33 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Waiver Value Algorithm Redesign + Home Page Newsletter Link
+
+**Best Waiver Pickups, redesigned around a specific report.** The
+original version had the same flaw the draft-grade fix solved earlier
+in the project, just in a different spot: it summed a pickup's raw
+points across the *entire* pickup-to-end-of-season window, so a player
+who missed time within that window (injury, bye weeks) had their total
+dragged down even if their per-game rate when actually playing was
+elite — exactly the 2023 Kyren Williams pattern (an early-season ankle
+injury, then a dominant stretch once healthy) that prompted this fix.
+Redesigned to count only weeks the player actually played fully (not
+significantly injured, using the same injury data as everywhere else on
+the site), compared against replacement level for that *same* number of
+weeks rather than the full window. Verified with a synthetic version of
+exactly this pattern: a pickup injured for 3 weeks then elite for 11
+straight now correctly ranks above a merely-solid, never-injured
+alternative — and confirmed the fix is precisely targeted, since a
+never-injured pickup's value is completely unchanged by it. Also now
+excludes DEF/K from consideration entirely, and the same fix was wired
+into the Total (all-time) view's internal computation, not just the
+per-season one.
+
+**Latest newsletter link added to the Home Page**, near the top, right
+below the title — a small callout card linking straight to the most
+recent issue. Renders nothing (not an empty box) if there are no
+newsletters yet.
+
 ## Third Round: Attribution Bug, Season Page Reorganization, Waiver Value
 
 **A real injury-attribution bug, found and fixed.** A specific report —

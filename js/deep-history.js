@@ -1185,14 +1185,19 @@ const DeepHistory = {
     //      worth adding, cheap or free included. Reuses the same
     //      replacement-level idea as VBD: how many points above a
     //      replacement-level player at that position did this pickup
-    //      provide, counting only from the week they were added through
-    //      the end of the regular season (not the whole season — a
-    //      Week 12 pickup should be judged over the ~3 weeks they
-    //      actually had, not penalized for points scored before anyone
-    //      rostered them in this league). ----
+    //      provide. DEF/K are excluded — not meaningful enough as
+    //      pickups to compete for this list.
+    //
+    //      Counts only weeks the player actually played fully (not
+    //      significantly injured), compared against replacement level
+    //      for that SAME number of weeks — not the full pickup-to-
+    //      end-of-season window. A pickup who got hurt shortly after
+    //      being added, then came back and carried a team the rest of
+    //      the way, shouldn't have their value dragged down by weeks
+    //      they were merely unavailable rather than unproductive. ----
     const totalRegularSeasonWeeksForPickups = playoffStart != null ? playoffStart - 1 : LAST_FANTASY_WEEK;
     const replacementLevelByPosition = DeepHistory.computeReplacementLevels(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
-    const weeklyPointsByPlayer = new Map(); // playerId -> Map(week -> points), regular season only, every week (unlike the injury-aware healthy-weeks map — this wants realized outcomes, injuries included)
+    const weeklyPointsByPlayer = new Map(); // playerId -> Map(week -> points), regular season only, every week (unlike the injury-aware healthy-weeks map — this wants realized outcomes, injuries included, so the exclusion below can be scoped precisely to injured weeks)
     if (deep && deep.weeks) {
       deep.weeks.forEach(({ week, matchups }) => {
         if (playoffStart != null && week >= playoffStart) return;
@@ -1204,29 +1209,35 @@ const DeepHistory = {
         });
       });
     }
+    const EXCLUDED_PICKUP_POSITIONS = new Set(["DEF", "K"]);
 
     const waiverValueAdds = [];
     if (deep && deep.transactions) {
       deep.transactions.forEach((tx) => {
         if (!tx || tx.status !== "complete" || (tx.type !== "waiver" && tx.type !== "free_agent")) return;
         const pickupWeek = tx.leg;
-        const remainingWeeks = totalRegularSeasonWeeksForPickups - pickupWeek + 1;
-        if (remainingWeeks <= 0) return; // picked up after the regular season ended
+        if (pickupWeek > totalRegularSeasonWeeksForPickups) return; // picked up after the regular season ended
         const bid = tx.type === "waiver" ? tx.settings && tx.settings.waiver_bid : null;
 
         Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
           const p = playerDirectory && playerDirectory[playerId];
-          if (!p || !p.position) return;
+          if (!p || !p.position || EXCLUDED_PICKUP_POSITIONS.has(p.position)) return;
           const replacementTotal = replacementLevelByPosition[p.position];
           if (replacementTotal == null) return;
           const replacementPPG = replacementTotal / totalRegularSeasonWeeksForPickups;
 
+          const injuredWeeksForPlayer = (injuriesForSeason && injuriesForSeason[playerId]) || {};
           const weekPts = weeklyPointsByPlayer.get(playerId);
-          let actualPointsSincePickup = 0;
+          let pointsInActiveWeeks = 0;
+          let activeWeeksCount = 0;
           for (let w = pickupWeek; w <= totalRegularSeasonWeeksForPickups; w++) {
-            actualPointsSincePickup += weekPts && weekPts.has(w) ? weekPts.get(w) : 0;
+            if (injuredWeeksForPlayer[w] != null) continue; // significantly injured that week — excluded from both sides of the comparison
+            activeWeeksCount++;
+            pointsInActiveWeeks += weekPts && weekPts.has(w) ? weekPts.get(w) : 0;
           }
-          const valueAdded = actualPointsSincePickup - replacementPPG * remainingWeeks;
+          if (activeWeeksCount === 0) return; // never played a healthy week after pickup
+
+          const valueAdded = pointsInActiveWeeks - replacementPPG * activeWeeksCount;
 
           const info = rosterInfo.get(rid);
           let competingBids = [];
@@ -1251,7 +1262,8 @@ const DeepHistory = {
             season: league.season,
             bid: tx.type === "waiver" ? bid || 0 : null, // null = free agent, 0 = a $0 winning waiver bid
             competingBids,
-            pointsSincePickup: actualPointsSincePickup,
+            pointsSincePickup: pointsInActiveWeeks,
+            activeWeeks: activeWeeksCount,
             valueAdded,
           });
         });
@@ -2505,8 +2517,10 @@ const DeepHistory = {
     isn't in its own season's top 5 can't possibly be in the all-time top
     5 either), and a true weighted average for career scoring rates.
   */
-  computeTotalSummary(seasonChain, deepSeasons, playerDirectory) {
-    const perSeason = seasonChain.map((entry, idx) => DeepHistory.computeSeasonSummary(entry, deepSeasons[idx], playerDirectory));
+  computeTotalSummary(seasonChain, deepSeasons, playerDirectory, injuriesData) {
+    const perSeason = seasonChain.map((entry, idx) =>
+      DeepHistory.computeSeasonSummary(entry, deepSeasons[idx], playerDirectory, null, null, DeepHistory.extractInjuriesForSeason(injuriesData, entry.league.season))
+    );
     const { managers } = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
 
     const standings = managers

@@ -94,7 +94,7 @@ async function renderSelectedSeason() {
         progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
       });
 
-      const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY);
+      const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA);
       const allTimeStats = await getAllTimeStats();
       summary.allTimeTopInjuries = allTimeStats.allTimeTopInjuries;
       summary.allTimeTeamSeasonInjuryLuck = allTimeStats.allTimeTeamSeasonInjuryLuck;

@@ -1,15 +1,33 @@
 async function renderDashboard() {
   const errorBox = document.getElementById("dash-error");
 
+  function renderLatestNewsletterCallout(newsletters) {
+    const el = document.getElementById("latest-newsletter-callout");
+    if (!el) return;
+    if (!Array.isArray(newsletters) || !newsletters.length) return; // no newsletters yet -- render nothing, not an empty box
+    const latest = newsletters[0]; // newsletters.json keeps the newest issue first
+    el.innerHTML = `
+      <a class="panel latest-newsletter-link" href="newsletters.html#${encodeURIComponent(latest.slug)}">
+        <div class="history-callout-inner">
+          <span class="history-callout-icon">📰</span>
+          <div>
+            <div class="history-callout-eyebrow">Latest Newsletter · ${escapeHtml(latest.issue || "")}</div>
+            <div class="history-callout-text"><strong>${escapeHtml(latest.title)}</strong></div>
+          </div>
+        </div>
+      </a>`;
+  }
+
   try {
     // ---- Phase 1: fast, essential data (standings, matchups, ROS) ----
-    const [league, rosters, users, nflState, teamStrength, playerDirectory] = await Promise.all([
+    const [league, rosters, users, nflState, teamStrength, playerDirectory, newsletters] = await Promise.all([
       SleeperAPI.getLeague(LEAGUE_ID),
       SleeperAPI.getRosters(LEAGUE_ID),
       SleeperAPI.getUsers(LEAGUE_ID),
       SleeperAPI.getNflState(),
       fetchJsonSafe(TEAM_STRENGTH_FILE, { teams: {} }),
       SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(NEWSLETTERS_FILE, []),
     ]);
 
     if (!league || league.detail === "not found") {
@@ -19,6 +37,7 @@ async function renderDashboard() {
     document.title = (SITE_TITLE || league.name || "League") + " — Home";
     document.getElementById("sb-eyebrow").textContent = `${league.season} SEASON`;
     document.getElementById("sb-title").textContent = league.name || "Fantasy League";
+    renderLatestNewsletterCallout(newsletters);
 
     let week = null;
     if (league.status === "in_season" && String(league.season) === String(nflState.season)) {
