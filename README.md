@@ -374,6 +374,64 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Injury Luck — a new external data source, brought in responsibly
+
+Every completed season now has an **Injury Luck** section: the top 5
+most significant individual player injuries, and a full team ranking by
+how many points each roster lost to injury (worst luck first). The Total
+tab shows the all-time top 5 injuries and the top 5 single-season
+injury-luck outcomes across league history.
+
+**Where the data comes from.** Unlike everything else on the site, this
+needed data Sleeper doesn't have — Sleeper only exposes a player's
+*current* injury status, not a historical record. After confirming that
+(and separately confirming Pro-Football-Reference's terms of service
+explicitly prohibit this kind of use), the actual source is
+[nflverse](https://github.com/nflverse/nflverse-data) — a real,
+actively-maintained, CC-BY 4.0 licensed open dataset with weekly injury
+reports back to 2009. This isn't secondhand — the pipeline was verified
+by actually downloading real files: real 2015–2025 injury reports,
+cross-referenced to real Sleeper player IDs via the DynastyProcess ID
+crosswalk (100% match rate after narrowing to skill positions), filtered
+to "Out"/"Doubtful" designations (the statuses that reliably mean a
+player didn't play, unlike "Questionable" which usually still suits up),
+and condensed into a 121KB `data/injuries.json`. This is a periodic
+manual refresh like the other `data/*.json` files, not a live feed —
+re-run the pipeline occasionally to pick up the current season.
+
+**How "points lost" is calculated.** The interesting part: a player hurt
+in Week 1 has no track record yet, so naively using "their own average"
+would be meaningless off a tiny (or zero) sample. This uses shrinkage —
+blending the player's own healthy-week average with a baseline,
+weighted by how many healthy games they'd actually logged:
+
+```
+expectedPPG = (gamesPlayed × ownAvg + k × baselinePPG) / (gamesPlayed + k)
+```
+
+A player hurt in Week 1 (zero healthy games) gets a pure-baseline
+expectation; a player hurt in Week 12 after 10 strong healthy games is
+judged almost entirely on their own established level. `k` (currently 4)
+controls how many games of "trust the baseline" that represents. The
+baseline itself reuses the same idea as the Draft Grade curve — expected
+value decays log-linearly with draft position — but fit **per position**
+on raw points per game rather than VBD, since a 1st-round QB and a
+1st-round RB have very different expected point totals even at similar
+draft-relative value. Undrafted pickups (waiver adds, trade
+acquisitions) are treated as a very late "pick" for baseline purposes —
+a low starting assumption that gets overridden fast by their own
+production once they have any games logged.
+
+For each week a player was significantly injured, "points lost" is
+`max(0, expectedPPG − actualPoints)` — so a player who was on the injury
+report but still played well that week correctly contributes zero,
+rather than being counted as a loss. Verified this whole pipeline with
+tests built specifically to stress the tricky cases: a truly-zero-games
+early injury judged purely on baseline (checked against a hand
+calculation), a late-season injury judged on the player's own real
+level, a "hurt but still balled out" week correctly excluded, and an
+undrafted player still gradable via the fallback.
+
 ## Draft Pick Grades — a bell curve, fit from your own draft history
 
 Every draft pick with a computed VBD now gets a letter grade (A+ through

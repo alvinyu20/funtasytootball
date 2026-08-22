@@ -2,33 +2,35 @@ let SEASON_CHAIN = null;
 let PLAYER_DIRECTORY = null;
 let SEASON_AWARDS = null;
 let POWER_RANK_CSV_HISTORY = null;
+let INJURIES_DATA = null;
 let ALL_TIME_STATS_CACHE = null; // computed lazily, once per page load — see getAllTimeStats()
 
 /*
-  Powers the Season Summary's "records set this season" callouts, and the
-  draft grade model (which needs every pick in league history to fit a
-  meaningful expected-VBD-by-pick curve). This needs every season's data,
-  not just the one being viewed, so it's kept separate from the fast
-  single-season fetch and only triggered when a completed season is
-  actually being displayed (the only time either is used). Cached for the
-  rest of this page visit so switching between completed seasons doesn't
-  redo the work each time.
+  Powers the Season Summary's "records set this season" callouts, the
+  draft grade model, and the injury luck model — all three need every
+  pick/season in league history to fit meaningfully, not just the one
+  season being viewed. Kept separate from the fast single-season fetch
+  and only triggered when a completed season is actually being
+  displayed (the only time any of these are used). Cached for the rest
+  of this page visit so switching between completed seasons doesn't redo
+  the work each time.
 */
 async function getAllTimeStats() {
   if (ALL_TIME_STATS_CACHE) return ALL_TIME_STATS_CACHE;
   const deepSeasons = await DeepHistory.buildAll(SEASON_CHAIN, () => {});
-  ALL_TIME_STATS_CACHE = DeepHistory.computeStats(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY);
+  ALL_TIME_STATS_CACHE = DeepHistory.computeStats(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA);
   return ALL_TIME_STATS_CACHE;
 }
 
 async function renderSeasonPage() {
   const errorBox = document.getElementById("season-error");
   try {
-    const [seasonChain, playerDirectory, seasonAwards, powerRankCsvHistory] = await Promise.all([
+    const [seasonChain, playerDirectory, seasonAwards, powerRankCsvHistory, injuriesData] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }),
       fetchJsonSafe(POWER_RANK_CSV_HISTORY_FILE, { seasons: {} }),
+      fetchJsonSafe(INJURIES_FILE, { players: {} }),
     ]);
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
@@ -38,6 +40,7 @@ async function renderSeasonPage() {
     PLAYER_DIRECTORY = playerDirectory;
     SEASON_AWARDS = seasonAwards;
     POWER_RANK_CSV_HISTORY = powerRankCsvHistory;
+    INJURIES_DATA = injuriesData;
 
     await renderSelectedSeason();
     window.addEventListener("hashchange", renderSelectedSeason);
@@ -92,6 +95,9 @@ async function renderSelectedSeason() {
       });
 
       const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY);
+      const allTimeStats = await getAllTimeStats();
+      summary.allTimeTopInjuries = allTimeStats.allTimeTopInjuries;
+      summary.allTimeTeamSeasonInjuryLuck = allTimeStats.allTimeTeamSeasonInjuryLuck;
 
       progressBox.style.display = "none";
       content.style.display = "";
@@ -124,7 +130,15 @@ async function renderSelectedSeason() {
       allTimeStats = await getAllTimeStats();
     }
 
-    const summary = DeepHistory.computeSeasonSummary(seasonEntry, deep, PLAYER_DIRECTORY, allTimeStats ? allTimeStats.draftGradeModel : null);
+    const injuriesForSeason = allTimeStats ? DeepHistory.extractInjuriesForSeason(INJURIES_DATA, seasonEntry.league.season) : null;
+    const summary = DeepHistory.computeSeasonSummary(
+      seasonEntry,
+      deep,
+      PLAYER_DIRECTORY,
+      allTimeStats ? allTimeStats.draftGradeModel : null,
+      allTimeStats ? allTimeStats.expectedPPGModel : null,
+      injuriesForSeason
+    );
     if (allTimeStats) summary.allTimeRecords = allTimeStats.records;
 
     progressBox.style.display = "none";
@@ -257,6 +271,42 @@ function renderFaabList(items, isTotal) {
     </div>`
     )
     .join("")}</div>`;
+}
+
+function renderInjuryList(items, isTotal) {
+  if (!items.length) return `<div class="empty-state">No significant injuries recorded.</div>`;
+  return `<div class="rank-list">${items
+    .map(
+      (p, i) => `
+    <div class="rank-list-row faab-row">
+      <span class="rank-num">${i + 1}</span>
+      ${playerPhotoHtml(p.playerId, p.player, "player-photo-sm")}
+      <span class="desc">${escapeHtml(p.player)}<span class="sub">${escapeHtml(p.position)} · ${p.weeksInjured} week${p.weeksInjured === 1 ? "" : "s"}${
+        isTotal ? ` · ${escapeHtml(String(p.season))}` : ""
+      }</span></span>
+      <span class="val">${p.pointsLost.toFixed(1)} pts lost</span>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
+function renderTeamInjuryLuckTable(teams) {
+  if (!teams.length) return `<div class="empty-state">No injury data recorded for this season.</div>`;
+  const rows = teams
+    .map(
+      (t, i) => `
+    <tr>
+      <td class="rank" data-label="#">${i + 1}</td>
+      <td class="team-cell" data-label="Team">${escapeHtml(t.username || t.teamName)}</td>
+      <td data-label="Points Lost">${t.pointsLost.toFixed(1)}</td>
+    </tr>`
+    )
+    .join("");
+  return `
+    <table class="stat-table responsive-stack">
+      <thead><tr><th>#</th><th>Team</th><th>Points Lost</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 function renderRankList(items, describe, getLineupSections) {
@@ -1053,6 +1103,38 @@ function renderSummary(s) {
     </div>`
         : ""
     }
+
+    ${(() => {
+      const topInjuries = isTotal ? (s.allTimeTopInjuries || []).slice(0, 5) : s.injuryLuck ? s.injuryLuck.playerInjuries.slice(0, 5) : [];
+      const injuryListHtml = renderInjuryList(topInjuries, isTotal);
+
+      const luckSectionHtml = isTotal
+        ? renderRankList((s.allTimeTeamSeasonInjuryLuck || []).slice(0, 5), (t) => ({
+            main: escapeHtml(t.username || t.teamName),
+            sub: escapeHtml(String(t.season)),
+            value: `${t.pointsLost.toFixed(1)} pts lost`,
+          }))
+        : renderTeamInjuryLuckTable(s.injuryLuck ? s.injuryLuck.teamInjuryLuck : []);
+
+      return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Injury Luck</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <h2>Top 5 Most Significant Player Injuries${isTotal ? " Of All Time" : ""}</h2>
+        ${injuryListHtml}
+        <p class="heatmap-note">"Points lost" compares a player's actual output on weeks they were Out/Doubtful to what they'd reasonably be expected to score — blending their own healthy-week average with a league-wide baseline for their draft slot and position.</p>
+      </div>
+      <div class="panel" style="margin-top:24px;">
+        <h2>${isTotal ? "Top 5 Team Seasons With The Worst Injury Luck" : "Injury Luck Ranking"}</h2>
+        ${luckSectionHtml}
+        ${isTotal ? "" : `<p class="heatmap-note">Ranked worst luck first — total points lost across the whole roster to significant injuries this season.</p>`}
+      </div>
+    </div>`;
+    })()}
 
     ${renderAwardsSection(s.season)}
   `;

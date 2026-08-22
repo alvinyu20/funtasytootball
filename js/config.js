@@ -80,6 +80,18 @@ const POWER_RANK_HISTORY_FILE = "data/power-rank-history.json";
 const POWER_RANK_CSV_HISTORY_FILE = "data/power-rank-csv-history.json";
 
 /*
+  INJURIES_FILE
+  --------------------
+  Historical weekly injury reports (skill positions, "Out"/"Doubtful"
+  only), sourced from nflverse (CC-BY 4.0) and cross-referenced to
+  Sleeper player IDs via the DynastyProcess ID crosswalk — see
+  data/injuries.json. Powers the "injury luck" ranking on the Season
+  page. This is a periodic manual refresh, not a live feed — re-run the
+  pipeline occasionally to pick up the current season as it progresses.
+*/
+const INJURIES_FILE = "data/injuries.json";
+
+/*
   LAST_FANTASY_WEEK
   ------------------
   The last NFL week that actually counts for this league's fantasy season.

@@ -204,12 +204,13 @@ const DeepHistory = {
     Records pages render: per-manager career stats and a set of
     league-wide "fun stat" records.
   */
-  computeStats(seasonChain, deepSeasons, playerDirectory) {
+  computeStats(seasonChain, deepSeasons, playerDirectory, injuriesData) {
     const managers = new Map(); // user_id -> career record
     const playerNameOverrides = new Map(); // player_id -> name, filled in from draft metadata
     const headToHead = new Map(); // userId -> Map(opponentUserId -> {wins, losses, ties})
     const headToHeadPlayoffs = new Map(); // same shape, but only weeks >= that season's playoff start
     const pairGameLog = new Map(); // "userIdA|userIdB" (sorted) -> [{season, week, isPlayoff, aUserId, aScore, bUserId, bScore}]
+    const pickPPGEntries = []; // {pickNo, position, ppg} across every drafted player, every season — fits the injury-luck expected-PPG baseline
 
     function pairKey(userIdA, userIdB) {
       return [userIdA, userIdB].sort().join("|");
@@ -613,6 +614,34 @@ const DeepHistory = {
           consider("fewestRegularSeasonPoints", entry, (a, b) => a.total < b.total);
         });
 
+        // ---- Collect healthy-week PPG per drafted player, for fitting the
+        //      injury-luck expected-PPG baseline (needs every season's
+        //      draft data pooled together — the model itself gets fit in a
+        //      second pass once this per-season loop finishes). ----
+        const injuriesForSeason = DeepHistory.extractInjuriesForSeason(injuriesData, season);
+        if (deep.draft && deep.draft.picks) {
+          const pointsByPlayerWeekForPPG = new Map();
+          deep.weeks.forEach(({ week, matchups }) => {
+            matchups.forEach((m) => {
+              Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+                const injuredThisWeek = injuriesForSeason[pid] && injuriesForSeason[pid][week] != null;
+                if (injuredThisWeek) return;
+                if (!pointsByPlayerWeekForPPG.has(pid)) pointsByPlayerWeekForPPG.set(pid, []);
+                pointsByPlayerWeekForPPG.get(pid).push(pts || 0);
+              });
+            });
+          });
+          deep.draft.picks.forEach((pick) => {
+            if (!pick.player_id) return;
+            const p = playerDirectory && playerDirectory[pick.player_id];
+            if (!p || !p.position) return;
+            const healthyPts = pointsByPlayerWeekForPPG.get(pick.player_id);
+            if (!healthyPts || !healthyPts.length) return;
+            const ppg = healthyPts.reduce((a, b) => a + b, 0) / healthyPts.length;
+            pickPPGEntries.push({ pickNo: pick.pick_no, position: p.position, ppg });
+          });
+        }
+
         // ---- Draft value (best late-round steal / biggest early-round bust) ----
         if (deep.draft && deep.draft.picks && deep.draft.picks.length) {
           const maxRound = Math.max(...deep.draft.picks.map((p) => p.round || 1));
@@ -715,6 +744,30 @@ const DeepHistory = {
       }
     });
 
+    // ---- Injury luck: fit the expected-PPG baseline from every drafted
+    //      player's healthy-week production across league history, then
+    //      compute each season's injury luck using that model. Needs a
+    //      second pass over seasonChain (not just the collected picks)
+    //      since computeInjuryLuck needs each season's full weekly data,
+    //      not just the pooled PPG samples used to fit the curve. ----
+    const expectedPPGModel = DeepHistory.computeExpectedPPGModel(pickPPGEntries);
+    const injuriesBySeason = {}; // season -> { playerInjuries, teamInjuryLuck }
+    const allTimeTopInjuries = [];
+    const allTimeTeamSeasonInjuryLuck = [];
+    if (injuriesData) {
+      seasonChain.forEach((seasonEntry, idx) => {
+        const deep = deepSeasons[idx];
+        if (!deep) return;
+        const injuriesForSeason = DeepHistory.extractInjuriesForSeason(injuriesData, seasonEntry.league.season);
+        const result = DeepHistory.computeInjuryLuck(seasonEntry, deep, playerDirectory, injuriesForSeason, expectedPPGModel);
+        injuriesBySeason[seasonEntry.league.season] = result;
+        allTimeTopInjuries.push(...result.playerInjuries);
+        allTimeTeamSeasonInjuryLuck.push(...result.teamInjuryLuck);
+      });
+      allTimeTopInjuries.sort((a, b) => b.pointsLost - a.pointsLost);
+      allTimeTeamSeasonInjuryLuck.sort((a, b) => b.pointsLost - a.pointsLost);
+    }
+
     // ---- Streaks + trade/waiver leaders, computed after all seasons are merged ----
     managers.forEach((m) => {
       let curResult = null;
@@ -793,7 +846,16 @@ const DeepHistory = {
       }))
       .sort((a, b) => b.careerWins - a.careerWins || b.careerPF - a.careerPF);
 
-    return { managers: managerList, records, pairGameLog: Object.fromEntries(pairGameLog), draftGradeModel };
+    return {
+      managers: managerList,
+      records,
+      pairGameLog: Object.fromEntries(pairGameLog),
+      draftGradeModel,
+      expectedPPGModel,
+      injuriesBySeason,
+      allTimeTopInjuries,
+      allTimeTeamSeasonInjuryLuck,
+    };
   },
 
   /*
@@ -801,7 +863,7 @@ const DeepHistory = {
     powers the Season page's charts (weekly scoring trend, team averages,
     scoring by position, that season's extremes and draft standouts).
   */
-  computeSeasonSummary(seasonEntry, deep, playerDirectory, draftGradeModel) {
+  computeSeasonSummary(seasonEntry, deep, playerDirectory, draftGradeModel, expectedPPGModel, injuriesForSeason) {
     const { league, rosters, users, bracket } = seasonEntry;
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     // Note: on the Season page, "teamName" throughout this function
@@ -1040,6 +1102,10 @@ const DeepHistory = {
       .sort((a, b) => b.average - a.average);
 
     const bracket_ = DeepHistory.buildBracket(seasonEntry, deep, playerDirectory);
+    const injuryLuck =
+      expectedPPGModel && injuriesForSeason
+        ? DeepHistory.computeInjuryLuck(seasonEntry, deep, playerDirectory, injuriesForSeason, expectedPPGModel)
+        : { playerInjuries: [], teamInjuryLuck: [] };
 
     return {
       season: league.season,
@@ -1063,6 +1129,7 @@ const DeepHistory = {
       playoffTeams: (league.settings && league.settings.playoff_teams) || null,
       championshipRecap: DeepHistory.computeChampionshipRecap(seasonEntry, deep, playerDirectory),
       bracket: bracket_,
+      injuryLuck,
     };
   },
 
@@ -1304,6 +1371,202 @@ const DeepHistory = {
     const z = residual / model.stdDev;
     const band = DeepHistory.DRAFT_GRADE_BANDS.find((b) => z >= b.min);
     return { expectedVbd, residual, z, grade: band ? band.grade : "F" };
+  },
+
+  /*
+    Injury luck: how many points did a team lose because a rostered
+    player was on the injury report (Out/Doubtful) that week and scored
+    below what they'd reasonably be expected to?
+
+    "Reasonably expected" is a shrinkage blend of the player's own
+    healthy-week average that season and a baseline — what a player
+    drafted at that slot/position typically produces — weighted by how
+    many healthy games they'd actually played. A player hurt in Week 1
+    has zero healthy games, so their expectation is pure baseline; a
+    player hurt in Week 12 after 10 strong healthy games is judged
+    almost entirely against their own established level, not a generic
+    number. This is the standard fix for the "small sample size" problem
+    with an early-season injury.
+
+    The baseline itself reuses the same idea as the draft grade curve
+    (expected value decays log-linearly with pick number), but fit
+    per-position on raw PPG rather than VBD — a 1st-round RB and a
+    1st-round QB have very different expected point totals, even though
+    they might have similar draft-relative *value*.
+  */
+  computeExpectedPPGModel(picksWithPPG) {
+    const byPosition = {};
+    (picksWithPPG || []).forEach((p) => {
+      if (p.pickNo == null || p.ppg == null || !p.position) return;
+      if (!byPosition[p.position]) byPosition[p.position] = [];
+      byPosition[p.position].push(p);
+    });
+    const models = {};
+    Object.entries(byPosition).forEach(([position, picks]) => {
+      if (picks.length < 8) return; // not enough at this position to fit a meaningful curve
+      const xs = picks.map((p) => Math.log(p.pickNo));
+      const ys = picks.map((p) => p.ppg);
+      const n = xs.length;
+      const xMean = xs.reduce((a, b) => a + b, 0) / n;
+      const yMean = ys.reduce((a, b) => a + b, 0) / n;
+      let num = 0;
+      let den = 0;
+      for (let i = 0; i < n; i++) {
+        num += (xs[i] - xMean) * (ys[i] - yMean);
+        den += (xs[i] - xMean) ** 2;
+      }
+      const slope = den !== 0 ? num / den : 0;
+      const intercept = yMean - slope * xMean;
+      models[position] = { slope, intercept, sampleSize: n };
+    });
+    return models;
+  },
+
+  predictExpectedPPG(pickNo, position, models) {
+    const model = models && models[position];
+    if (!model || pickNo == null) return null;
+    return Math.max(0, model.intercept + model.slope * Math.log(Math.max(1, pickNo)));
+  },
+
+  // k = how many games of "trust the baseline" the shrinkage is worth.
+  // Higher k leans more on the baseline for longer; lower k lets a
+  // player's own hot/cold start matter sooner.
+  computeShrunkExpectedPPG(playerOwnAvg, gamesPlayed, baselinePPG, k) {
+    const kappa = k == null ? 4 : k;
+    if (baselinePPG == null) return playerOwnAvg != null ? playerOwnAvg : null;
+    if (playerOwnAvg == null || !gamesPlayed) return baselinePPG;
+    return (gamesPlayed * playerOwnAvg + kappa * baselinePPG) / (gamesPlayed + kappa);
+  },
+
+  // injuriesForSeason: { playerId: { week: status } } — already narrowed
+  // to one season (see extractInjuriesForSeason). expectedPPGModel: from
+  // computeExpectedPPGModel, fit across the league's full draft history.
+  computeInjuryLuck(seasonEntry, deep, playerDirectory, injuriesForSeason, expectedPPGModel) {
+    const { league, rosters, users } = seasonEntry;
+    if (!deep || !deep.weeks || !deep.weeks.length || !injuriesForSeason || !expectedPPGModel) {
+      return { playerInjuries: [], teamInjuryLuck: [] };
+    }
+
+    const usersById = new Map(users.map((u) => [u.user_id, u]));
+    const rosterInfo = new Map();
+    rosters.forEach((r) => {
+      const user = usersById.get(r.owner_id);
+      rosterInfo.set(r.roster_id, {
+        teamName: SleeperAPI.teamName(user, r.roster_id),
+        username: user ? user.display_name : null,
+      });
+    });
+
+    // Who rostered which player, each week — full roster, not just
+    // starters, since an injured player is typically benched, and the
+    // "loss" is about the asset being unavailable, not that week's
+    // literal lineup.
+    const rosterByWeekPlayer = new Map(); // "week|playerId" -> rosterId
+    const pointsByPlayerWeek = new Map(); // playerId -> Map(week -> points)
+    deep.weeks.forEach(({ week, matchups }) => {
+      matchups.forEach((m) => {
+        (m.players || []).forEach((pid) => {
+          rosterByWeekPlayer.set(`${week}|${pid}`, m.roster_id);
+        });
+        Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+          if (!pointsByPlayerWeek.has(pid)) pointsByPlayerWeek.set(pid, new Map());
+          pointsByPlayerWeek.get(pid).set(week, pts || 0);
+        });
+      });
+    });
+
+    const pickNoByPlayer = new Map();
+    let maxPickNo = 0;
+    if (deep.draft && deep.draft.picks) {
+      deep.draft.picks.forEach((p) => {
+        if (p.player_id) pickNoByPlayer.set(p.player_id, p.pick_no);
+        if (p.pick_no > maxPickNo) maxPickNo = p.pick_no;
+      });
+    }
+    // Undrafted players (waiver/FA/trade acquisitions never drafted this
+    // season) get treated as a very late pick — a low baseline that gets
+    // overridden fast by their own real production once they have any.
+    const undraftedPickNo = maxPickNo > 0 ? maxPickNo + 20 : 300;
+
+    const playerInjuries = [];
+    const teamPointsLost = new Map(); // rosterId -> total
+
+    Object.entries(injuriesForSeason).forEach(([playerId, weeksMap]) => {
+      const p = playerDirectory && playerDirectory[playerId];
+      if (!p || !p.position) return;
+      const weekPts = pointsByPlayerWeek.get(playerId);
+      if (!weekPts) return; // never showed up in this league's data at all
+
+      const injuredWeeks = new Set(Object.keys(weeksMap).map(Number));
+      const healthyPoints = [];
+      weekPts.forEach((pts, week) => {
+        if (!injuredWeeks.has(week)) healthyPoints.push(pts);
+      });
+      const gamesPlayed = healthyPoints.length;
+      const playerOwnAvg = gamesPlayed > 0 ? healthyPoints.reduce((a, b) => a + b, 0) / gamesPlayed : null;
+
+      const pickNo = pickNoByPlayer.get(playerId) || undraftedPickNo;
+      const baseline = DeepHistory.predictExpectedPPG(pickNo, p.position, expectedPPGModel);
+      const expectedPPG = DeepHistory.computeShrunkExpectedPPG(playerOwnAvg, gamesPlayed, baseline, 4);
+      if (expectedPPG == null) return;
+
+      let totalLost = 0;
+      const weeksList = [];
+      injuredWeeks.forEach((week) => {
+        const actual = weekPts.has(week) ? weekPts.get(week) : 0;
+        const lost = Math.max(0, expectedPPG - actual);
+        if (lost <= 0) return;
+        totalLost += lost;
+        weeksList.push({ week, status: weeksMap[week], actual, expected: expectedPPG, lost });
+
+        const rid = rosterByWeekPlayer.get(`${week}|${playerId}`);
+        if (rid != null) teamPointsLost.set(rid, (teamPointsLost.get(rid) || 0) + lost);
+      });
+
+      if (totalLost > 0) {
+        playerInjuries.push({
+          playerId,
+          player: SleeperAPI.playerName(playerDirectory, playerId),
+          position: p.position,
+          season: league.season,
+          pointsLost: totalLost,
+          weeksInjured: weeksList.length,
+          weeks: weeksList,
+        });
+      }
+    });
+
+    playerInjuries.sort((a, b) => b.pointsLost - a.pointsLost);
+
+    const teamInjuryLuck = rosters
+      .map((r) => {
+        const info = rosterInfo.get(r.roster_id) || {};
+        return {
+          rosterId: r.roster_id,
+          teamName: info.teamName,
+          username: info.username,
+          season: league.season,
+          pointsLost: teamPointsLost.get(r.roster_id) || 0,
+        };
+      })
+      .sort((a, b) => b.pointsLost - a.pointsLost);
+
+    return { playerInjuries, teamInjuryLuck };
+  },
+
+  // data/injuries.json is organized player-first (see the file for why —
+  // it's built once from an external pipeline, not per-season). This
+  // flips it to season-first: { playerId: { week: status } } for just
+  // the one season being viewed.
+  extractInjuriesForSeason(injuriesData, season) {
+    const result = {};
+    if (!injuriesData || !injuriesData.players) return result;
+    const seasonKey = String(season);
+    Object.entries(injuriesData.players).forEach(([playerId, p]) => {
+      const weeks = p.weeks && p.weeks[seasonKey];
+      if (weeks && Object.keys(weeks).length) result[playerId] = weeks;
+    });
+    return result;
   },
 
   buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {
