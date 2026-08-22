@@ -500,6 +500,22 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .draft-pick-row .pick-player { color: var(--chalk); font-family: var(--font-body); }
 .draft-pick-row .pick-points { color: var(--gold); }
 
+.injury-detail-list { padding: 4px 4px 6px; }
+.injury-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 6px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--chalk-dim);
+}
+.injury-detail-row:last-child { border-bottom: none; }
+.injury-detail-row .player-photo-wrap { flex-shrink: 0; }
+.injury-detail-name { flex: 1; color: var(--chalk); font-family: var(--font-body); }
+.injury-detail-pts { color: var(--gold); flex-shrink: 0; white-space: nowrap; }
+
 /* ==========================================================================
    SEASON PICKER
    ========================================================================== */

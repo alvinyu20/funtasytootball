@@ -374,6 +374,28 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Injury Detail Dropdown, Pick Number Format, and Grade Overhaul
+
+**Injury Luck now shows the individual players behind each team's
+number.** Every team in the season's Injury Luck ranking is now
+expandable — click it to see exactly which players cost them points and
+how much each one did, with photos. A team with zero injury impact
+doesn't get a pointless empty dropdown; only teams with at least one
+significant injury are expandable.
+
+**Draft picks display as "round.pick" now** — "Rd 2, Pick 17" is "2.7"
+in a 10-team league. Computed from the pick's position within its own
+round (`overallPick − (round−1) × teamCount`), so the format adapts
+automatically if league size changes across seasons — verified against
+the exact 10-team, pick 17, round 2 → "2.7" example.
+
+**Draft Pick Grades were substantially reworked** — see the dedicated
+section below for the full picture: a new S/A/B/C/D/F scale (no
+pluses) verified to produce a real bell curve where B+C together make
+up the majority, plus a fix so injuries no longer unfairly tank a
+grade while still capping the top grades for anyone who wasn't
+available for most of the season.
+
 ## Second Round of Fixes + First Newsletter
 
 **Injury Luck attribution, fixed.** A real gap: if a manager drops an
@@ -523,11 +545,13 @@ undrafted player still gradable via the fallback.
 
 ## Draft Pick Grades — a bell curve, fit from your own draft history
 
-Every draft pick with a computed VBD now gets a letter grade (A+ through
-F), shown as a small colored badge wherever a pick is displayed: the
-Season Summary's Best Draft Steal / Biggest Draft Bust, the Records
-page, and every pick in a manager's season-by-season draft history on
-the Teams page.
+Every draft pick with a computed VBD gets a letter grade (**S, A, B, C,
+D, F** — no pluses), shown as a small colored badge wherever a pick is
+displayed: the Records page, and every pick in a manager's
+season-by-season draft history on the Teams page. (Not shown on the
+Season Summary's Best Draft Steal / Biggest Draft Bust specifically —
+those are, by definition, the most extreme picks in either direction,
+so the grade there is basically always S/F and doesn't add information.)
 
 **How it works:** a pick's raw VBD alone isn't quite fair — a 1st-round
 pick and a 14th-round pick shouldn't be held to the same bar. So the
@@ -545,18 +569,34 @@ should reasonably produce:
    meaningful even across seasons where the league size changed.
 2. **Grade by z-score.** For each pick, the gap between its actual VBD
    and the curve's expectation at that slot is measured in standard
-   deviations of the historical residuals. That z-score is the actual
-   bell curve: most picks land close to expectation (B range), with
-   A+/F reserved for picks that beat or missed by a lot.
-   - z ≥ +1.5 → A+, +1.0 → A, +0.5 → B+, -0.5 → B, -1.0 → C, -1.5 → D,
-     below that → F
+   deviations of the historical residuals — z ≥ +1.5 → S, +0.75 → A,
+   0 → B, -0.75 → C, -1.5 → D, below that → F. Computed the actual
+   normal-distribution percentages for these cutoffs before picking
+   them: S and F are rare (~6.7% each), while B and C together make up
+   ~55% — a genuine majority, matching the request that "most grades
+   will be Bs and Cs."
 
-Verified this end-to-end with a synthetic multi-season league where a
-late-round pick was deliberately made to massively overperform and an
-early-round pick to massively underperform — they graded A+ and F
-respectively, exactly as expected. Also checked the grade distribution
-against 2,000 simulated picks with normally-distributed outcomes: the
-resulting split (≈38% B, tapering symmetrically to ≈6% at each tail)
+**Injuries don't punish a grade — but being unavailable still caps it.**
+A player hurt in Week 1 shouldn't be graded on a season of zeros just
+because they never got the chance to play. Grading uses each player's
+own *healthy-week* average, prorated across the full regular season,
+rather than their raw total — so the grade reflects how good they
+actually were when they played, not how many games the injury cost
+them. But that cuts both ways: a great per-game rate in a tiny sample
+still can't claim the top grades. If a player was healthy for less than
+half the regular season, their grade is capped at B regardless of how
+elite their rate was in the games they did play — being genuinely
+available matters, not just being good when healthy. (A player who
+scored zero points all season is still an automatic F either way —
+there's no "healthy rate" to credit if they never played at all.)
+
+Verified this against realistic scenarios built specifically to stress
+it: a player who was excellent for a few games before a season-ending
+injury correctly avoided the F/D their raw total would've implied, and
+correctly landed at the B cap rather than S/A. A player with only a
+minor injury who was otherwise available all season correctly still
+reached S, uncapped. Also checked the grade distribution against 2,000
+simulated picks with normally-distributed outcomes: the resulting split
 matched the theoretical bell-curve percentages almost exactly.
 
 Needs a reasonable amount of draft history to fit a meaningful curve —

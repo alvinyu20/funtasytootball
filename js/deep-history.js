@@ -614,29 +614,32 @@ const DeepHistory = {
           consider("fewestRegularSeasonPoints", entry, (a, b) => a.total < b.total);
         });
 
-        // ---- Collect healthy-week PPG per drafted player, for fitting the
-        //      injury-luck expected-PPG baseline (needs every season's
-        //      draft data pooled together — the model itself gets fit in a
-        //      second pass once this per-season loop finishes). ----
+        // ---- Collect healthy-week PPG per drafted player. Feeds two
+        //      things: the injury-luck expected-PPG baseline (fit in a
+        //      second pass once every season's draft data is pooled), and
+        //      — reusing the same per-player healthy-week data — a
+        //      "prorated" points total used for draft grading below, so an
+        //      injury doesn't tank a pick's grade just for the games they
+        //      missed. ----
         const injuriesForSeason = DeepHistory.extractInjuriesForSeason(injuriesData, season);
-        if (deep.draft && deep.draft.picks) {
-          const pointsByPlayerWeekForPPG = new Map();
-          deep.weeks.forEach(({ week, matchups }) => {
-            if (playoffStart != null && week >= playoffStart) return;
-            matchups.forEach((m) => {
-              Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
-                const injuredThisWeek = injuriesForSeason[pid] && injuriesForSeason[pid][week] != null;
-                if (injuredThisWeek) return;
-                if (!pointsByPlayerWeekForPPG.has(pid)) pointsByPlayerWeekForPPG.set(pid, []);
-                pointsByPlayerWeekForPPG.get(pid).push(pts || 0);
-              });
+        const healthyPointsByPlayer = new Map(); // playerId -> [points, points, ...] for non-injured weeks only
+        deep.weeks.forEach(({ week, matchups }) => {
+          if (playoffStart != null && week >= playoffStart) return;
+          matchups.forEach((m) => {
+            Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+              const injuredThisWeek = injuriesForSeason[pid] && injuriesForSeason[pid][week] != null;
+              if (injuredThisWeek) return;
+              if (!healthyPointsByPlayer.has(pid)) healthyPointsByPlayer.set(pid, []);
+              healthyPointsByPlayer.get(pid).push(pts || 0);
             });
           });
+        });
+        if (deep.draft && deep.draft.picks) {
           deep.draft.picks.forEach((pick) => {
             if (!pick.player_id) return;
             const p = playerDirectory && playerDirectory[pick.player_id];
             if (!p || !p.position) return;
-            const healthyPts = pointsByPlayerWeekForPPG.get(pick.player_id);
+            const healthyPts = healthyPointsByPlayer.get(pick.player_id);
             if (!healthyPts || !healthyPts.length) return;
             const ppg = healthyPts.reduce((a, b) => a + b, 0) / healthyPts.length;
             pickPPGEntries.push({ pickNo: pick.pick_no, position: p.position, ppg });
@@ -661,6 +664,24 @@ const DeepHistory = {
             const pts = seasonPlayerPoints.get(pick.player_id) || 0;
             const vbdEntry = vbdByPlayer.get(pick.player_id);
             const info = rosterInfo.get(pick.roster_id);
+
+            // Grading uses a "prorated" points total — this player's own
+            // healthy-week average, projected across the full regular
+            // season — rather than their raw total, so missed games from
+            // injury don't tank the grade. Same replacement-level baseline
+            // as the real VBD, just crediting their actual per-game rate
+            // instead of penalizing time they didn't play. Games-played
+            // fraction rides along separately so a great rate in a tiny
+            // sample still can't claim the top grades (see gradeDraftPick).
+            const healthyPts = healthyPointsByPlayer.get(pick.player_id);
+            const totalRegularSeasonWeeks = playoffStart != null ? playoffStart - 1 : LAST_FANTASY_WEEK;
+            const gamesPlayedFraction = totalRegularSeasonWeeks > 0 ? (healthyPts ? healthyPts.length : 0) / totalRegularSeasonWeeks : 0;
+            let gradingVbd = null;
+            if (healthyPts && healthyPts.length && vbdEntry) {
+              const ppgWhenHealthy = healthyPts.reduce((a, b) => a + b, 0) / healthyPts.length;
+              gradingVbd = ppgWhenHealthy * totalRegularSeasonWeeks - vbdEntry.replacementLevel;
+            }
+
             // One shared entry object, reused for bestValuePick/worstValuePick
             // AND the per-manager draftPicks list — a single source of truth,
             // and grade/expectedVbd/z get filled in after the league-wide
@@ -670,9 +691,12 @@ const DeepHistory = {
               playerId: pick.player_id,
               round: pick.round,
               pickNo: pick.pick_no,
+              pickInRound: pick.pick_no - (pick.round - 1) * rosters.length,
               position: (pick.metadata && pick.metadata.position) || "",
               points: pts,
               vbd: vbdEntry ? vbdEntry.vbd : null,
+              gradingVbd,
+              gamesPlayedFraction,
               teamName: info ? info.teamName : "Unknown",
               username: info ? info.username : null,
               season,
@@ -737,7 +761,13 @@ const DeepHistory = {
     //      they're the same objects, not copies. ----
     const draftGradeModel = DeepHistory.computeDraftGradeModel(allDraftPickEntries);
     allDraftPickEntries.forEach((entry) => {
-      const g = DeepHistory.gradeDraftPick(entry.vbd, entry.pickNo, draftGradeModel, entry.points);
+      const g = DeepHistory.gradeDraftPick(
+        entry.gradingVbd != null ? entry.gradingVbd : entry.vbd,
+        entry.pickNo,
+        draftGradeModel,
+        entry.points,
+        entry.gamesPlayedFraction
+      );
       if (g) {
         entry.expectedVbd = g.expectedVbd;
         entry.grade = g.grade;
@@ -1029,6 +1059,27 @@ const DeepHistory = {
       const lateThreshold = Math.max(2, Math.ceil(maxRound * 0.6));
       const earlyThreshold = Math.max(1, Math.ceil(maxRound * 0.25));
       const vbdByPlayer = DeepHistory.computeVBD(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
+
+      // Same healthy-week collection as computeStats — grading uses each
+      // player's own healthy-week rate, prorated to a full season, rather
+      // than their raw total, so an injury doesn't tank the grade for
+      // games they simply didn't play.
+      const healthyPointsByPlayer = new Map();
+      if (deep.weeks) {
+        deep.weeks.forEach(({ week, matchups }) => {
+          if (playoffStart != null && week >= playoffStart) return;
+          matchups.forEach((m) => {
+            Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
+              const injuredThisWeek = injuriesForSeason && injuriesForSeason[pid] && injuriesForSeason[pid][week] != null;
+              if (injuredThisWeek) return;
+              if (!healthyPointsByPlayer.has(pid)) healthyPointsByPlayer.set(pid, []);
+              healthyPointsByPlayer.get(pid).push(pts || 0);
+            });
+          });
+        });
+      }
+      const totalRegularSeasonWeeks = playoffStart != null ? playoffStart - 1 : LAST_FANTASY_WEEK;
+
       picks.forEach((p) => {
         if (!p.player_id) return;
         if (p.metadata && (p.metadata.first_name || p.metadata.last_name)) {
@@ -1037,12 +1088,22 @@ const DeepHistory = {
         const pts = seasonPlayerPoints.get(p.player_id) || 0;
         const vbdEntry = vbdByPlayer.get(p.player_id);
         const info = rosterInfo.get(p.roster_id);
-        const grading = DeepHistory.gradeDraftPick(vbdEntry ? vbdEntry.vbd : null, p.pick_no, draftGradeModel, pts);
+
+        const healthyPts = healthyPointsByPlayer.get(p.player_id);
+        const gamesPlayedFraction = totalRegularSeasonWeeks > 0 ? (healthyPts ? healthyPts.length : 0) / totalRegularSeasonWeeks : 0;
+        let gradingVbd = null;
+        if (healthyPts && healthyPts.length && vbdEntry) {
+          const ppgWhenHealthy = healthyPts.reduce((a, b) => a + b, 0) / healthyPts.length;
+          gradingVbd = ppgWhenHealthy * totalRegularSeasonWeeks - vbdEntry.replacementLevel;
+        }
+
+        const grading = DeepHistory.gradeDraftPick(gradingVbd != null ? gradingVbd : (vbdEntry ? vbdEntry.vbd : null), p.pick_no, draftGradeModel, pts, gamesPlayedFraction);
         const entry = {
           player: playerName(p.player_id),
           playerId: p.player_id,
           round: p.round,
           pickNo: p.pick_no,
+          pickInRound: p.pick_no - (p.round - 1) * rosters.length,
           points: pts,
           vbd: vbdEntry ? vbdEntry.vbd : null,
           season: league.season,
@@ -1351,16 +1412,23 @@ const DeepHistory = {
   },
 
   DRAFT_GRADE_BANDS: [
-    { min: 1.5, grade: "A+" },
-    { min: 1.0, grade: "A" },
-    { min: 0.5, grade: "B+" },
-    { min: -0.5, grade: "B" },
-    { min: -1.0, grade: "C" },
+    { min: 1.5, grade: "S" },
+    { min: 0.75, grade: "A" },
+    { min: 0, grade: "B" },
+    { min: -0.75, grade: "C" },
     { min: -1.5, grade: "D" },
     { min: -Infinity, grade: "F" },
   ],
 
-  gradeDraftPick(vbd, pickNo, model, points) {
+  // Below this fraction of the regular season actually played healthy, a
+  // pick is capped out of the top grades — a great per-game rate in a
+  // tiny sample shouldn't outrank someone who was actually available all
+  // year. Doesn't touch S alone; being unavailable for half the season
+  // caps out at B, however good the rate was in the time they did play.
+  GAMES_PLAYED_GRADE_CAP_THRESHOLD: 0.5,
+  GAMES_PLAYED_GRADE_CAP: "B",
+
+  gradeDraftPick(vbd, pickNo, model, points, gamesPlayedFraction) {
     // A player who scored zero points the whole season is an unambiguous
     // bust, regardless of whether a replacement-level baseline could be
     // established for their position that year — no model or computed
@@ -1371,7 +1439,15 @@ const DeepHistory = {
     const residual = vbd - expectedVbd;
     const z = residual / model.stdDev;
     const band = DeepHistory.DRAFT_GRADE_BANDS.find((b) => z >= b.min);
-    return { expectedVbd, residual, z, grade: band ? band.grade : "F" };
+    let grade = band ? band.grade : "F";
+    if (
+      gamesPlayedFraction != null &&
+      gamesPlayedFraction < DeepHistory.GAMES_PLAYED_GRADE_CAP_THRESHOLD &&
+      (grade === "S" || grade === "A")
+    ) {
+      grade = DeepHistory.GAMES_PLAYED_GRADE_CAP;
+    }
+    return { expectedVbd, residual, z, grade };
   },
 
   /*
@@ -1544,6 +1620,7 @@ const DeepHistory = {
       }
 
       if (totalLost > 0) {
+        const attrInfo = attributionRosterId != null ? rosterInfo.get(attributionRosterId) : null;
         playerInjuries.push({
           playerId,
           player: SleeperAPI.playerName(playerDirectory, playerId),
@@ -1552,6 +1629,9 @@ const DeepHistory = {
           pointsLost: totalLost,
           weeksInjured: weeksList.length,
           weeks: weeksList,
+          rosterId: attributionRosterId,
+          teamName: attrInfo ? attrInfo.teamName : null,
+          username: attrInfo ? attrInfo.username : null,
         });
       }
     });

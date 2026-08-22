@@ -290,23 +290,35 @@ function renderInjuryList(items, isTotal) {
     .join("")}</div>`;
 }
 
-function renderTeamInjuryLuckTable(teams) {
+function renderTeamInjuryLuckList(teams, playerInjuries) {
   if (!teams.length) return `<div class="empty-state">No injury data recorded for this season.</div>`;
-  const rows = teams
-    .map(
-      (t, i) => `
-    <tr>
-      <td class="rank" data-label="#">${i + 1}</td>
-      <td class="team-cell" data-label="Team">${escapeHtml(t.username || t.teamName)}</td>
-      <td data-label="Points Lost">${t.pointsLost.toFixed(1)}</td>
-    </tr>`
-    )
-    .join("");
-  return `
-    <table class="stat-table responsive-stack">
-      <thead><tr><th>#</th><th>Team</th><th>Points Lost</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  return `<div class="rank-list">${teams
+    .map((t, i) => {
+      const summary = `
+      <span class="rank-num">${i + 1}</span>
+      <span class="desc">${escapeHtml(t.username || t.teamName)}</span>
+      <span class="val">${t.pointsLost.toFixed(1)} pts lost</span>`;
+      const teamPlayers = (playerInjuries || []).filter((p) => p.rosterId === t.rosterId).sort((a, b) => b.pointsLost - a.pointsLost);
+      if (!teamPlayers.length) {
+        return `<div class="rank-list-row">${summary}</div>`;
+      }
+      const playersHtml = teamPlayers
+        .map(
+          (p) => `
+        <div class="injury-detail-row">
+          ${playerPhotoHtml(p.playerId, p.player, "player-photo-xs")}
+          <span class="injury-detail-name">${escapeHtml(p.player)} <span class="muted-inline">(${escapeHtml(p.position)})</span></span>
+          <span class="injury-detail-pts">${p.pointsLost.toFixed(1)} pts lost</span>
+        </div>`
+        )
+        .join("");
+      return `
+      <details class="rank-list-item">
+        <summary class="rank-list-row">${summary}</summary>
+        <div class="injury-detail-list">${playersHtml}</div>
+      </details>`;
+    })
+    .join("")}</div>`;
 }
 
 function renderRankList(items, describe, getLineupSections) {
@@ -573,12 +585,12 @@ function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
     seasonStatCard(
       "Best Draft Steal",
       stats.bestValuePick,
-      (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.username || s.teamName}${s.vbd != null ? ` · +${s.vbd.toFixed(1)} VBD` : ""}`
+      (s) => `${s.round}.${s.pickInRound} by ${s.username || s.teamName}${s.vbd != null ? ` · +${s.vbd.toFixed(1)} VBD` : ""}`
     ),
     seasonStatCard(
       "Biggest Draft Bust",
       stats.worstValuePick,
-      (s) => `Rd ${s.round} Pick ${s.pickNo} by ${s.username || s.teamName}${s.vbd != null ? ` · ${s.vbd.toFixed(1)} VBD` : ""}`
+      (s) => `${s.round}.${s.pickInRound} by ${s.username || s.teamName}${s.vbd != null ? ` · ${s.vbd.toFixed(1)} VBD` : ""}`
     ),
   ].join("");
 
@@ -933,7 +945,7 @@ function renderSummary(s) {
         "Best Late-Round Steal",
         s.bestValuePick.playerId,
         s.bestValuePick.player,
-        `Rd ${s.bestValuePick.round} Pick ${s.bestValuePick.pickNo} by ${escapeHtml(s.bestValuePick.username || s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${
+        `${s.bestValuePick.round}.${s.bestValuePick.pickInRound} by ${escapeHtml(s.bestValuePick.username || s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${
           s.bestValuePick.vbd != null ? ` · +${s.bestValuePick.vbd.toFixed(1)} VBD` : ""
         }${yearTag(s.bestValuePick)}`
       ),
@@ -942,7 +954,7 @@ function renderSummary(s) {
         "Biggest Draft Bust",
         s.worstValuePick.playerId,
         s.worstValuePick.player,
-        `Rd ${s.worstValuePick.round} Pick ${s.worstValuePick.pickNo} by ${escapeHtml(s.worstValuePick.username || s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${
+        `${s.worstValuePick.round}.${s.worstValuePick.pickInRound} by ${escapeHtml(s.worstValuePick.username || s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${
           s.worstValuePick.vbd != null ? ` · ${s.worstValuePick.vbd.toFixed(1)} VBD` : ""
         }${yearTag(s.worstValuePick)}`
       ),
@@ -1112,7 +1124,7 @@ function renderSummary(s) {
             sub: escapeHtml(String(t.season)),
             value: `${t.pointsLost.toFixed(1)} pts lost`,
           }))
-        : renderTeamInjuryLuckTable(s.injuryLuck ? s.injuryLuck.teamInjuryLuck : []);
+        : renderTeamInjuryLuckList(s.injuryLuck ? s.injuryLuck.teamInjuryLuck : [], s.injuryLuck ? s.injuryLuck.playerInjuries : []);
 
       return `
     <div class="yard-divider">
@@ -1129,7 +1141,7 @@ function renderSummary(s) {
       <div class="panel" style="margin-top:24px;">
         <h2>${isTotal ? "Top 5 Team Seasons With The Worst Injury Luck" : "Injury Luck Ranking"}</h2>
         ${luckSectionHtml}
-        ${isTotal ? "" : `<p class="heatmap-note">Ranked worst luck first — total points lost across the whole roster to significant injuries this season.</p>`}
+        ${isTotal ? "" : `<p class="heatmap-note">Ranked worst luck first — total points lost across the whole roster to significant injuries this season. Click a team to see which players and how much each cost them.</p>`}
       </div>
     </div>`;
     })()}

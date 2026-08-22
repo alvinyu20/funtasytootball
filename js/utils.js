@@ -145,7 +145,7 @@ function findPlayerIdByName(rawName, nameIndex) {
 // Color is a smooth green -> yellow -> red gradient across the 7 possible
 // grades (computed, not 5 discrete bands), so a B+ and a B genuinely look
 // different rather than sharing one color.
-const GRADE_ORDER = ["A+", "A", "B+", "B", "C", "D", "F"];
+const GRADE_ORDER = ["S", "A", "B", "C", "D", "F"];
 function gradeBadgeHtml(grade) {
   if (!grade) return "";
   const idx = GRADE_ORDER.indexOf(grade);

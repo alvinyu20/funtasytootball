@@ -76,7 +76,7 @@ function buildRecordCards(stats) {
       card(
         "Best Late-Round Steal",
         escapeHtml(x.player),
-        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
+        `${x.round}.${x.pickInRound} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
         gradeBadgeHtml(x.grade)
       )
     );
@@ -87,7 +87,7 @@ function buildRecordCards(stats) {
       card(
         "Biggest Draft Bust",
         escapeHtml(x.player),
-        `Rd ${x.round} Pick ${x.pickNo} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
+        `${x.round}.${x.pickInRound} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
         gradeBadgeHtml(x.grade)
       )
     );
