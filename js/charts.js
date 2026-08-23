@@ -117,8 +117,14 @@ const Charts = {
   // Multiple teams' trajectories on one chart. series: [{ name, color,
   // points: [{x, y}] }] — every series should share the same x values
   // (e.g. "Pre", "W1", "W2", ...). Set invertY: true for rank-style data
-  // where smaller is better (so rank 1 plots at the top).
-  multiLineChart(series, { width = 720, height = 360, formatter = (v) => v.toFixed(1), invertY = false } = {}) {
+  // where smaller is better (so rank 1 plots at the top). Set rankMode:
+  // true for a true bump-chart look — Y positions become evenly-spaced
+  // integer rank slots (a gridline + label at every rank, 1 at top)
+  // instead of a continuous min/max value scale, and dots render larger
+  // as bump-chart "nodes". Every line, dot, and end label carries a
+  // data-series attribute so hover highlighting (see
+  // initChartHoverLinking in animations.js) can tie them together.
+  multiLineChart(series, { width = 720, height = 360, formatter = (v) => v.toFixed(1), invertY = false, rankMode = false } = {}) {
     const validSeries = series.filter((s) => s.points && s.points.length);
     if (!validSeries.length) return `<div class="empty-state">Not enough data yet.</div>`;
 
@@ -127,7 +133,7 @@ const Charts = {
     // legend below the chart (NYT's graphics team calls this out
     // specifically: a tooltip or legend the reader has to cross-reference
     // gets skipped; a label sitting right at the line doesn't).
-    const padL = 40, padR = 92, padT = 16, padB = 32;
+    const padL = rankMode ? 28 : 40, padR = 92, padT = 16, padB = 32;
     const innerW = width - padL - padR;
     const innerH = height - padT - padB;
 
@@ -135,8 +141,13 @@ const Charts = {
     const minY = Math.min(...allY);
     const maxY = Math.max(...allY);
     const yRange = maxY - minY || 1;
+    const rankCount = rankMode ? Math.max(1, Math.round(maxY)) : null;
 
     function yFor(value) {
+      if (rankMode) {
+        const t = (value - 1) / Math.max(1, rankCount - 1);
+        return padT + t * innerH;
+      }
       const t = (value - minY) / yRange;
       return invertY ? padT + t * innerH : padT + innerH - t * innerH;
     }
@@ -147,21 +158,33 @@ const Charts = {
       return padL + i * xStep;
     }
 
-    const gridLines = [0, 0.5, 1]
-      .map((f) => {
-        const y = padT + innerH * f;
-        return `<line class="lc-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}" />`;
-      })
-      .join("");
+    // Rank mode gets a gridline + rank-number label at every integer
+    // rank (the classic bump-chart look); everything else keeps the
+    // existing 3 fractional gridlines with min/mid/max value labels.
+    const gridLines = rankMode
+      ? Array.from({ length: rankCount }, (_, i) => i + 1)
+          .map((rank) => {
+            const y = yFor(rank);
+            return `<line class="lc-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}" />`;
+          })
+          .join("")
+      : [0, 0.5, 1]
+          .map((f) => {
+            const y = padT + innerH * f;
+            return `<line class="lc-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${width - padR}" y2="${y.toFixed(1)}" />`;
+          })
+          .join("");
 
     // Any point with a missing y-value (e.g. a season with no "Pre" data)
     // breaks the line into a gap rather than being drawn at a wrong
     // position, so one missing data point can't corrupt the whole chart.
     // Also tracks each series' last plotted point, needed below for the
     // direct end labels and leader highlight.
+    const dotRadius = rankMode ? 4 : 2.5;
     const lastPointBySeries = new Map(); // series index -> { x, y, value }
     const paths = validSeries
       .map((s, si) => {
+        const seriesAttr = escapeHtml(s.name);
         let d = "";
         let started = false;
         s.points.forEach((p, i) => {
@@ -179,12 +202,12 @@ const Charts = {
           .map((p, i) =>
             p.y == null
               ? ""
-              : `<circle class="lc-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.y).toFixed(1)}" r="2.5" style="fill:${s.color}"><title>${escapeHtml(
-                  s.name
-                )} · ${escapeHtml(String(p.x))}: ${formatter(p.y)}</title></circle>`
+              : `<circle class="lc-dot" data-series="${seriesAttr}" cx="${xFor(i).toFixed(1)}" cy="${yFor(p.y).toFixed(1)}" r="${dotRadius}" style="fill:${
+                  s.color
+                }"><title>${escapeHtml(s.name)} · ${escapeHtml(String(p.x))}: ${formatter(p.y)}</title></circle>`
           )
           .join("");
-        return { si, s, d, dots };
+        return { si, s, d, dots, seriesAttr };
       });
 
     // The leader is whoever's most recent value is "best" — lowest for
@@ -203,7 +226,11 @@ const Charts = {
     });
 
     const pathsHtml = paths
-      .map(({ si, s, d, dots }) => `<path class="lc-line${si === leaderSi ? " lc-line-leader" : ""}" style="stroke:${s.color}" d="${d}"></path>${dots}`)
+      .map(
+        ({ si, s, d, dots, seriesAttr }) => `
+      <path class="lc-line-hover-catcher" data-series="${seriesAttr}" d="${d}"></path>
+      <path class="lc-line${si === leaderSi ? " lc-line-leader" : ""}" data-series="${seriesAttr}" style="stroke:${s.color}" d="${d}"></path>${dots}`
+      )
       .join("");
 
     const labelEvery = Math.max(1, Math.ceil(pointCount / 14));
@@ -215,9 +242,13 @@ const Charts = {
       })
       .join("");
 
-    const yLabels = [minY, (minY + maxY) / 2, maxY]
-      .map((v) => `<text class="lc-value-label" x="${padL - 8}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end">${formatter(v)}</text>`)
-      .join("");
+    const yLabels = rankMode
+      ? Array.from({ length: rankCount }, (_, i) => i + 1)
+          .map((rank) => `<text class="lc-value-label" x="${padL - 8}" y="${(yFor(rank) + 3).toFixed(1)}" text-anchor="end">${rank}</text>`)
+          .join("")
+      : [minY, (minY + maxY) / 2, maxY]
+          .map((v) => `<text class="lc-value-label" x="${padL - 8}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end">${formatter(v)}</text>`)
+          .join("");
 
     // Direct end-of-line labels, replacing the separate legend below the
     // chart. Sorted top to bottom and pushed apart wherever two lines
@@ -245,9 +276,9 @@ const Charts = {
     const endLabels = endLabelData
       .map(
         (lbl) => `
-      <text class="lc-end-label${lbl.si === leaderSi ? " lc-end-label-leader" : ""}" x="${(lbl.x + 8).toFixed(1)}" y="${(lbl.adjY + 3).toFixed(
+      <text class="lc-end-label${lbl.si === leaderSi ? " lc-end-label-leader" : ""}" data-series="${escapeHtml(lbl.name)}" x="${(lbl.x + 8).toFixed(
           1
-        )}" style="fill:${lbl.color}">${lbl.si === leaderSi ? "★ " : ""}${escapeHtml(truncateLabel(lbl.name))}</text>`
+        )}" y="${(lbl.adjY + 3).toFixed(1)}" style="fill:${lbl.color}">${lbl.si === leaderSi ? "★ " : ""}${escapeHtml(truncateLabel(lbl.name))}</text>`
       )
       .join("");
 

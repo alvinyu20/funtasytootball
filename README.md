@@ -374,6 +374,66 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Tier 2 Motion & Interactivity, Plus Dropdowns Everywhere
+
+**Every dropdown on the site now animates**, not just the ones on the
+Season page. There turned out to be four different expandable patterns
+across the codebase (injury rows, bracket games, expandable record
+cards, and Teams page's draft-pick/lineup details — which had never
+been wired up for animation at all). Rather than hardcode each one's
+specific class name, the logic was generalized to work on *any*
+`<details>` element, finding its content generically as "whatever
+comes right after `<summary>`" — more robust, and automatically covers
+any dropdown added later without needing to update a class list.
+Verified all four real structures resolve correctly, including the
+tricky edge case of a bracket game with no lineup data at all (nothing
+after the summary to animate — left with its native, un-animated
+toggle rather than crashing).
+
+**Bump chart for Power Rankings.** Rather than a separate chart type,
+`multiLineChart` gained a `rankMode` option — Y positions become
+evenly-spaced integer rank slots (a gridline at literally every rank,
+not just three fractional reference lines) with larger "node" dots,
+while reusing all the tested end-label and leader-highlight logic from
+Tier 1. Verified rank 1 correctly lands at the very top, and — just as
+importantly — confirmed the *existing* non-rank-mode charts (Score
+History, Playoff Odds) are completely unaffected by the change.
+
+**Linked hover across every multi-line chart.** Hovering a line, one of
+its dots, or its end label dims every other series in the chart and
+emphasizes that one — the specific "linked small multiples" technique
+from NYT's own graphics work, since every line already shares one set
+of axes. Tagged every line, dot, and label with a shared `data-series`
+attribute, and added invisible wider "hover-catcher" paths so a thin
+line is actually easy to point at. Built with event delegation
+specifically to avoid a flicker bug reasoned through in advance —
+moving the pointer between two elements of the same line (say, the
+hover-catcher path and one of its own dots) doesn't toggle the
+highlight off and back on.
+
+**Scroll-triggered section reveals for the Season Summary.** Each
+top-level section fades and slides gently into place as it's scrolled
+to, rather than the whole long page just being "there" on load —
+turning a wall of stats into something closer to being told to you
+section by section. Scoped specifically to the Season page's own
+content container, not applied globally, so it can't accidentally
+affect unrelated panels elsewhere.
+
+**A real correctness issue caught along the way**: the Power Rank tabs
+toggle chart panels via `display:none`, and a `display:none` toggle
+isn't reliably treated the same as "scrolled into view" by
+`IntersectionObserver` across browsers — so a chart on a newly-selected
+tab might never trigger its own draw-in animation. Fixed by directly
+re-triggering the draw-in on every tab switch instead of leaving it to
+chance, rather than shipping something that might silently not work in
+some browsers.
+
+**One bug in my own work, caught and fixed before shipping**: an early
+edit meant to be a no-op accidentally left a duplicate, misplaced copy
+of the hover-linking function in `animations.js`. Caught via careful
+review before this went out — removed the duplicate, verified every
+function in the file now appears exactly once.
+
 ## Tier 1 Motion & Interactivity — Charts, Numbers, Dropdowns
 
 The first pass on the design proposal's Tier 1 list, grounded in the

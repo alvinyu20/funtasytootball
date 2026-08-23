@@ -142,12 +142,85 @@ function initScrollAnimations() {
 }
 
 /* ---------------------------------------------------------------------
-   Animated dropdowns — covers both expandable patterns used on the
-   site: native <details class="rank-list-item"> (injury team rows,
-   lineup sections) and the custom [data-faab-toggle] rows (FAAB/waiver
-   rows, which can't use <details> since a player photo is a <div> and
-   <summary> can only legally contain phrasing content). Both animate
-   height via a measured max-height transition rather than snapping.
+   Linked hover highlighting for multi-line charts — hovering a line
+   (or its end label, or a dot) dims every other series and emphasizes
+   that one everywhere it appears in the same chart. This is the core
+   "linked small multiples" technique NYT's graphics team uses: since
+   every line already shares one set of axes, this is what makes a
+   crowded chart with several similar-looking lines actually readable
+   at a glance. Uses event delegation on the SVG itself (mouseover
+   bubbles, mouseenter/leave don't) so moving between two elements of
+   the same series — the hover-catcher path and one of its own dots,
+   say — doesn't flicker the highlight off and back on.
+   --------------------------------------------------------------------- */
+
+function initChartHoverLinking() {
+  document.querySelectorAll(".line-chart-wrap").forEach((wrap) => {
+    const svg = wrap.querySelector("svg");
+    if (!svg) return;
+
+    function setHovered(seriesName) {
+      wrap.classList.toggle("has-hover", !!seriesName);
+      svg.querySelectorAll("[data-series]").forEach((el) => {
+        el.classList.toggle("hovered", seriesName != null && el.getAttribute("data-series") === seriesName);
+      });
+    }
+
+    svg.addEventListener("mouseover", (e) => {
+      const target = e.target.closest("[data-series]");
+      if (target) setHovered(target.getAttribute("data-series"));
+    });
+    svg.addEventListener("mouseleave", () => setHovered(null));
+  });
+}
+
+/* ---------------------------------------------------------------------
+   Scroll-triggered section reveal — each top-level panel within the
+   given container fades and slides gently into place as it's scrolled
+   into view, rather than the whole page just being "there" on load.
+   Turns a long page of stats into something that reads more like it's
+   being told to you section by section. Scoped to a container (rather
+   than the whole document) so it can be applied precisely — e.g. only
+   the Season Summary's own content, not an unrelated panel elsewhere
+   on the page.
+   --------------------------------------------------------------------- */
+
+function initSectionReveal(container) {
+  const root = container || document;
+  const panels = root.querySelectorAll(".wrap > .panel");
+  if (!panels.length) return;
+
+  if (prefersReducedMotion() || !("IntersectionObserver" in window)) {
+    panels.forEach((el) => el.classList.add("reveal-on-scroll", "in-view"));
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries, obs) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("in-view");
+        obs.unobserve(entry.target);
+      });
+    },
+    { threshold: 0.1, rootMargin: "0px 0px -60px 0px" }
+  );
+
+  panels.forEach((el) => {
+    el.classList.add("reveal-on-scroll");
+    observer.observe(el);
+  });
+}
+
+/* ---------------------------------------------------------------------
+   Animated dropdowns — covers every expandable pattern on the site:
+   native <details> (used for injury team rows, lineup sections, draft
+   picks, bracket games — several different classes, all the same
+   underlying pattern) and the custom [data-faab-toggle] rows (FAAB/
+   waiver rows, which can't use <details> since a player photo is a
+   <div> and <summary> can only legally contain phrasing content). Both
+   animate height via a measured max-height transition rather than
+   snapping.
    --------------------------------------------------------------------- */
 
 function animateOpen(content) {
@@ -195,13 +268,21 @@ function animateClose(content, onDone) {
 function initAnimatedDropdowns() {
   const reduced = prefersReducedMotion();
 
-  // Native <details> — intercept the click so the open/close can be
-  // animated instead of snapping, while keeping <details>'s own
-  // keyboard and screen-reader semantics intact.
-  document.querySelectorAll("details.rank-list-item").forEach((details) => {
-    const summary = details.querySelector("summary");
-    const content = details.querySelector(".injury-detail-list, .bracket-lineup-section");
-    if (!summary || !content) return;
+  // Native <details>, any class — intercept the click so the open/close
+  // can be animated instead of snapping, while keeping <details>'s own
+  // keyboard and screen-reader semantics intact. The content to animate
+  // is whatever element comes right after <summary> — a generic rule
+  // that works across every dropdown pattern on the site (injury rows,
+  // lineup sections, draft picks, bracket games) without needing to
+  // know each one's specific class name. A <details> with nothing after
+  // its summary (e.g. a bracket game with no lineup data) is simply
+  // left with its native, un-animated toggle — there's nothing to
+  // measure or animate anyway.
+  document.querySelectorAll("details").forEach((details) => {
+    const summary = details.querySelector(":scope > summary");
+    if (!summary) return;
+    const content = Array.from(details.children).find((el) => el !== summary);
+    if (!content) return;
     summary.addEventListener("click", (e) => {
       e.preventDefault();
       if (reduced) {

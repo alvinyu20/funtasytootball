@@ -68,6 +68,7 @@ function renderFromHash() {
     detailView.style.display = "";
     detailView.innerHTML = renderManagerDetail(manager);
     initScrollAnimations();
+    initAnimatedDropdowns();
   } else {
     detailView.style.display = "none";
     emptyView.style.display = "";
@@ -177,11 +178,11 @@ function renderManagerDetail(m) {
           <td class="season-details-cell" colspan="8" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
             <details class="draft-details">
               <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
-              ${lineupHtml}
+              <div class="draft-details-content">${lineupHtml}</div>
             </details>
             <details class="draft-details">
               <summary>Draft picks (${s.draftPicks.length})</summary>
-              ${picksHtml}
+              <div class="draft-details-content">${picksHtml}</div>
             </details>
           </td>
         </tr>`;

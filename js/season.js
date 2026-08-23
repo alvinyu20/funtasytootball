@@ -105,6 +105,8 @@ async function renderSelectedSeason() {
       stopReplay();
       initAnimatedDropdowns();
       initScrollAnimations();
+      initChartHoverLinking();
+      initSectionReveal(content);
 
       const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
       document.title = (SITE_TITLE || leagueName || "League") + " — All-Time";
@@ -150,6 +152,8 @@ async function renderSelectedSeason() {
     initPowerRankTabs();
     initAnimatedDropdowns();
     initScrollAnimations();
+    initChartHoverLinking();
+    initSectionReveal(content);
 
     const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
     document.title = (SITE_TITLE || leagueName || "League") + " — " + summary.season + " Season";
@@ -829,7 +833,7 @@ function renderPowerRankHistorySection(season) {
     {
       key: "rank",
       label: "Power Rank By Week",
-      chart: Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, formatter: (v) => v.toFixed(1) }),
+      chart: Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, rankMode: true, formatter: (v) => v.toFixed(0) }),
       note: `Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season haven't been identified yet and are labeled by their preseason rank — see data/power-rank-csv-history.json." : ""}`,
     },
     yearData.scores && {
@@ -879,7 +883,20 @@ function initPowerRankTabs() {
         const panelGroup = tabRow.parentElement;
         tabRow.querySelectorAll(".chart-tab").forEach((b) => b.classList.toggle("active", b === btn));
         panelGroup.querySelectorAll(".chart-tab-panel").forEach((panel) => {
-          panel.style.display = panel.dataset.chartPanel === key ? "" : "none";
+          const showing = panel.dataset.chartPanel === key;
+          panel.style.display = showing ? "" : "none";
+          if (showing && !prefersReducedMotion()) {
+            // A newly-revealed panel's chart hasn't necessarily crossed
+            // the IntersectionObserver's threshold on its own — a
+            // display:none toggle isn't reliably treated as "entering the
+            // viewport" the same way scrolling is, across browsers. Redraw
+            // it directly on every tab switch instead of leaving that to
+            // chance; re-revealing on each switch reads as intentional
+            // rather than repetitive at this scale (3 tabs, occasional
+            // clicks).
+            const wrap = panel.querySelector(".line-chart-wrap");
+            if (wrap) animateLinesIn(wrap);
+          }
         });
       };
     });

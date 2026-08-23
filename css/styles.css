@@ -217,6 +217,15 @@ main { padding-bottom: 80px; }
   border-radius: var(--radius);
   padding: 20px 22px;
 }
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.reveal-on-scroll.in-view {
+  opacity: 1;
+  transform: translateY(0);
+}
 .panel h2 {
   font-family: var(--font-display);
   text-transform: uppercase;
@@ -625,13 +634,25 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .line-chart-wrap { width: 100%; overflow-x: auto; }
 .line-chart-wrap svg { display: block; }
 .line-chart-wrap .lc-grid { stroke: var(--turf-line); stroke-width: 1; }
-.line-chart-wrap .lc-line { fill: none; stroke: var(--gold); stroke-width: 2; transition: stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1); }
+.line-chart-wrap .lc-line { fill: none; stroke: var(--gold); stroke-width: 2; transition: stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, stroke-width 0.2s ease; }
 .line-chart-wrap .lc-line-leader { stroke-width: 3; }
-.line-chart-wrap .lc-dot { fill: var(--gold); }
+.line-chart-wrap .lc-line-hover-catcher { fill: none; stroke: transparent; stroke-width: 14; cursor: pointer; }
+.line-chart-wrap .lc-dot { fill: var(--gold); cursor: pointer; transition: opacity 0.2s ease; }
 .line-chart-wrap .lc-axis-label { font-family: var(--font-mono); font-size: 10px; fill: var(--chalk-dim); }
 .line-chart-wrap .lc-value-label { font-family: var(--font-mono); font-size: 10px; fill: var(--chalk-dim); }
-.line-chart-wrap .lc-end-label { font-family: var(--font-mono); font-size: 10px; dominant-baseline: middle; }
+.line-chart-wrap .lc-end-label { font-family: var(--font-mono); font-size: 10px; dominant-baseline: middle; cursor: pointer; transition: opacity 0.2s ease; }
 .line-chart-wrap .lc-end-label-leader { font-weight: 700; font-size: 11px; }
+
+/* Linked hover highlighting — see initChartHoverLinking in animations.js.
+   .has-hover on the wrapper enables the dim state only while something
+   is actively being pointed at; .hovered marks every element (line,
+   dots, label) sharing the same data-series as whatever's under the
+   pointer, whether that's the line itself or its end label. */
+.line-chart-wrap.has-hover .lc-line:not(.hovered) { opacity: 0.18; }
+.line-chart-wrap.has-hover .lc-dot:not(.hovered) { opacity: 0.18; }
+.line-chart-wrap.has-hover .lc-end-label:not(.hovered) { opacity: 0.3; }
+.line-chart-wrap .lc-line.hovered { stroke-width: 4; }
+.line-chart-wrap .lc-end-label.hovered { font-weight: 700; }
 
 /* ==========================================================================
    HEATMAP TABLE (scoring by position, per season)
