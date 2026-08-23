@@ -1198,6 +1198,7 @@ const DeepHistory = {
     const totalRegularSeasonWeeksForPickups = playoffStart != null ? playoffStart - 1 : LAST_FANTASY_WEEK;
     const replacementLevelByPosition = DeepHistory.computeReplacementLevels(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
     const weeklyPointsByPlayer = new Map(); // playerId -> Map(week -> points), regular season only, every week (unlike the injury-aware healthy-weeks map — this wants realized outcomes, injuries included, so the exclusion below can be scoped precisely to injured weeks)
+    const rosterByWeekPlayerForPickups = new Map(); // "week|playerId" -> rosterId, so a pickup's window stops once the manager who made it drops/trades the player away, instead of running to the end of the season regardless
     if (deep && deep.weeks) {
       deep.weeks.forEach(({ week, matchups }) => {
         if (playoffStart != null && week >= playoffStart) return;
@@ -1205,6 +1206,9 @@ const DeepHistory = {
           Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
             if (!weeklyPointsByPlayer.has(pid)) weeklyPointsByPlayer.set(pid, new Map());
             weeklyPointsByPlayer.get(pid).set(week, pts || 0);
+          });
+          (m.players || []).forEach((pid) => {
+            rosterByWeekPlayerForPickups.set(`${week}|${pid}`, m.roster_id);
           });
         });
       });
@@ -1231,11 +1235,27 @@ const DeepHistory = {
           let pointsInActiveWeeks = 0;
           let activeWeeksCount = 0;
           for (let w = pickupWeek; w <= totalRegularSeasonWeeksForPickups; w++) {
+            // Stop once this roster no longer has the player — dropped or
+            // traded away. Without this, a manager who added a player and
+            // dropped them a week later would get credited for everything
+            // that player did for the rest of the season on someone else's
+            // roster, which is exactly backwards.
+            //
+            // This check is skipped for the pickup week itself: we already
+            // know from the transaction record that this roster added the
+            // player that week, and a same-week roster snapshot can lag
+            // behind waiver processing depending on when Sleeper generates
+            // it — a mismatch there would otherwise break the loop on its
+            // very first iteration and silently drop an entirely
+            // legitimate, never-dropped pickup from the list. From the
+            // following week on, the snapshot has had time to catch up, so
+            // it's trustworthy for detecting a genuine later drop.
+            if (w > pickupWeek && rosterByWeekPlayerForPickups.get(`${w}|${playerId}`) !== rid) break;
             if (injuredWeeksForPlayer[w] != null) continue; // significantly injured that week — excluded from both sides of the comparison
             activeWeeksCount++;
             pointsInActiveWeeks += weekPts && weekPts.has(w) ? weekPts.get(w) : 0;
           }
-          if (activeWeeksCount === 0) return; // never played a healthy week after pickup
+          if (activeWeeksCount === 0) return; // never had a healthy, rostered week after pickup
 
           const valueAdded = pointsInActiveWeeks - replacementPPG * activeWeeksCount;
 

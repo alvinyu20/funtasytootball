@@ -374,6 +374,123 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Tier 1 Motion & Interactivity — Charts, Numbers, Dropdowns
+
+The first pass on the design proposal's Tier 1 list, grounded in the
+actual NYT graphics-team principles researched for that proposal (not
+generic "add animation" trend-chasing): a visible annotation layer
+instead of hidden tooltips, direct labeling over legends, and motion
+used with real purpose.
+
+**Multi-line charts (Power Rank By Week, Score History, Playoff Odds)
+now label lines directly instead of using a separate legend below the
+chart.** Straight from Archie Tse's own rule as NYT's Graphics
+Director — a legend the reader has to cross-reference gets skipped; a
+label sitting right at the end of the line doesn't. Labels use a
+standard collision-avoidance pass (sorted top to bottom, pushed apart
+wherever two lines would otherwise end close enough to overlap — tested
+directly: three teams ending within 0.2 of each other still land at
+least 13px apart) and truncate long names with an ellipsis. The current
+leader (lowest value for rank-style data, highest for percentage-style
+data like playoff odds — verified correct for both) gets a bolder line
+and a star-marked label, so the single most important fact in the chart
+is visible by default, not something you have to hover to find.
+
+**Charts draw themselves in on scroll.** Line charts measure their own
+real SVG path length (`getTotalLength()`) and reveal via a
+stroke-dashoffset animation rather than a faked/approximated length; bar
+charts grow via a CSS custom property (`--bar-w`) set by the existing
+server-side template, so the JS side only has to toggle one class rather
+than know each bar's target width. Both automatically respect
+`prefers-reduced-motion` — the CSS-driven versions inherit the site's
+existing global rule that disables all transitions, verified via the
+control-flow logic directly.
+
+**Headline numbers count up when scrolled into view** — Records page
+cards, the Home page's Top Score / Closest Game, and Teams page career
+stats (the simple ones; record-style stats like "10-4" were deliberately
+left alone, since only the leading number would animate and the rest
+would look inconsistent). Built a small parser that splits rendered text
+into prefix/number/suffix so "$33", "+119.0 pts", and "1,532.4" all
+animate correctly while non-numeric content like a player's name is
+safely left untouched — tested against 12 cases covering every format
+actually used on the site, all passing.
+
+**Dropdowns (injury/FAAB/waiver detail rows) animate open and closed**
+instead of snapping instantly, via a measured max-height transition —
+covers both the native `<details>` pattern and the custom JS-toggle
+pattern the FAAB rows use. Explicitly checks for reduced-motion
+preference and skips straight to the final state rather than risking a
+wait on a `transitionend` event that a disabled transition would never
+fire.
+
+Wired into every page that has the relevant content: Season (all four:
+charts, dropdowns, count-up), Records (count-up), Home (count-up), and
+Teams (count-up).
+
+## Waiver Value: A Second Bug, Found From Specific Details
+
+The details provided — waiver pickup at $33, never dropped, started as
+part of the regular lineup — ruled out the drop-detection fix above as
+the cause and pointed at something more precise: this exact profile
+(never dropped, so nothing should be capping the window early) still
+wasn't showing up. Re-examining the drop-detection check with that in
+mind found it: the check ran starting on the **pickup week itself**,
+comparing the transaction's recorded roster against that week's own
+weekly-matchup roster snapshot. If those two data points have any
+timing mismatch on the very first week — plausible, since waiver
+processing and a week's matchup roster snapshot aren't necessarily
+generated at the identical moment — the check would immediately break
+on its first iteration, before counting a single week, silently
+dropping an entirely legitimate pickup from the list altogether. That
+matches the actual symptom exactly: not a low ranking, but complete
+absence, despite being a real, productive, never-dropped starter.
+
+Fixed by trusting the transaction record for the pickup week itself
+(the transaction data already confirms the add happened that week — no
+need to double-check it against a snapshot that might lag by a cycle),
+and only requiring the roster-match check for weeks *after* the pickup,
+which is both when a genuine later drop actually needs detecting and
+when the snapshot has had time to catch up. Verified by reproducing the
+exact reported scenario — a waiver pickup with a same-week roster
+snapshot gap, never dropped, elite every week after — and confirming
+the entry now appears with the correct full window and value. Also
+re-confirmed both earlier fixes (drop detection, injury exclusion)
+still work correctly alongside this one.
+
+## Waiver Value: A Real Over-Crediting Bug
+
+Investigating a specific report — Kyren Williams correctly made the Top
+5 after the last fix, but Puka Nacua (2023) still didn't, despite being
+one of the most dominant fantasy WRs of that season — surfaced a
+genuine, separate bug: the "value added" window ran from a pickup
+straight through to the end of the season *regardless of whether the
+manager who made the pickup still had the player*. A manager who added
+a player and dropped them a week later was getting credited for
+everything that player did afterward on someone else's roster — exactly
+backwards, and it can crowd a legitimately correct entry (from whoever
+actually carried the player through their big stretch) out of the Top 5
+with an inflated, bogus one.
+
+Fixed by tracking who actually rostered the player each week and
+stopping a pickup's counted window the moment that specific manager no
+longer has them (dropped or traded away) — not just running to the end
+of the season on autopilot. Verified directly: a synthetic case with a
+player added by one manager for 2 weeks, dropped, then added by a
+second manager who kept them for the rest of a dominant season — the
+first manager's entry now correctly caps at 2 weeks instead of
+claiming credit for all 14, and the second manager's entry correctly
+reflects only the weeks they actually had the player. Confirmed this
+coexists correctly with the injury-exclusion fix from before.
+
+Worth being direct about: this is a real, meaningful bug and the fix is
+verified to work correctly — but without live access to this league's
+actual 2023 transaction history, it can't be confirmed with certainty
+that this fully explains Puka Nacua's specific case, only that this
+class of bug is now fixed. If he still doesn't show up correctly after
+this, the most useful next step would be checking the actual week he
+was added, whether he was ever dropped and re-added, and by whom.
+
 ## Waiver Value Algorithm Redesign + Home Page Newsletter Link
 
 **Best Waiver Pickups, redesigned around a specific report.** The

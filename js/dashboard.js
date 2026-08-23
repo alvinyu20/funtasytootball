@@ -59,6 +59,7 @@ async function renderDashboard() {
       rawMatchups = await SleeperAPI.getMatchups(LEAGUE_ID, week).catch(() => []);
     }
     renderMatchupsAndFeatured(rawMatchups, standings, week);
+    initScrollAnimations();
 
     fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
 
@@ -178,11 +179,11 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
     tickerEl.innerHTML = `
       <div class="ticker-stat">
         <span class="label">Top Score</span>
-        <span class="value">${topScore.pts.toFixed(1)} · ${escapeHtml(topScore.name)}</span>
+        <span class="value" data-count-up>${topScore.pts.toFixed(1)} · ${escapeHtml(topScore.name)}</span>
       </div>
       <div class="ticker-stat">
         <span class="label">Closest Game</span>
-        <span class="value">${closest.diff.toFixed(1)} pt gap</span>
+        <span class="value" data-count-up>${closest.diff.toFixed(1)} pt gap</span>
       </div>`;
   }
 

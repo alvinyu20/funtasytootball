@@ -67,6 +67,7 @@ function renderFromHash() {
     emptyView.style.display = "none";
     detailView.style.display = "";
     detailView.innerHTML = renderManagerDetail(manager);
+    initScrollAnimations();
   } else {
     detailView.style.display = "none";
     emptyView.style.display = "";
@@ -195,16 +196,16 @@ function renderManagerDetail(m) {
       <p class="scoreboard-sub">${escapeHtml(m.teamName)}</p>
       <div class="scoreboard-ticker">
         <div class="ticker-stat"><span class="label">Overall Record</span><span class="value">${overallWins}-${overallLosses}${overallTies ? "-" + overallTies : ""}</span></div>
-        <div class="ticker-stat"><span class="label">Win %</span><span class="value">${winPct}%</span></div>
+        <div class="ticker-stat"><span class="label">Win %</span><span class="value" data-count-up>${winPct}%</span></div>
         <div class="ticker-stat"><span class="label">Regular Season</span><span class="value">${m.careerRegularSeasonWins}-${m.careerRegularSeasonLosses}${m.careerRegularSeasonTies ? "-" + m.careerRegularSeasonTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Playoff Record</span><span class="value">${m.careerPlayoffWins}-${m.careerPlayoffLosses}${m.careerPlayoffTies ? "-" + m.careerPlayoffTies : ""}</span></div>
         <div class="ticker-stat"><span class="label">Championship Games</span><span class="value">${m.championships}-${m.runnerUps}</span></div>
-        <div class="ticker-stat"><span class="label">Playoff Appearances</span><span class="value">${m.playoffAppearances}</span></div>
-        <div class="ticker-stat"><span class="label">Byes</span><span class="value">${m.byes}</span></div>
-        <div class="ticker-stat"><span class="label">Winning Seasons</span><span class="value">${m.winningSeasons}</span></div>
-        <div class="ticker-stat"><span class="label">Losing Seasons</span><span class="value">${m.losingSeasons}</span></div>
-        <div class="ticker-stat"><span class="label">3rd Place</span><span class="value">${m.thirdPlaceFinishes}</span></div>
-        <div class="ticker-stat"><span class="label">1st Pick</span><span class="value">${m.firstPicks}</span></div>
+        <div class="ticker-stat"><span class="label">Playoff Appearances</span><span class="value" data-count-up>${m.playoffAppearances}</span></div>
+        <div class="ticker-stat"><span class="label">Byes</span><span class="value" data-count-up>${m.byes}</span></div>
+        <div class="ticker-stat"><span class="label">Winning Seasons</span><span class="value" data-count-up>${m.winningSeasons}</span></div>
+        <div class="ticker-stat"><span class="label">Losing Seasons</span><span class="value" data-count-up>${m.losingSeasons}</span></div>
+        <div class="ticker-stat"><span class="label">3rd Place</span><span class="value" data-count-up>${m.thirdPlaceFinishes}</span></div>
+        <div class="ticker-stat"><span class="label">1st Pick</span><span class="value" data-count-up>${m.firstPicks}</span></div>
       </div>
     </div>
 

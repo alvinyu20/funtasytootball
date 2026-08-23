@@ -103,7 +103,8 @@ async function renderSelectedSeason() {
       content.style.display = "";
       content.innerHTML = renderSummary(summary);
       stopReplay();
-      initFaabToggles();
+      initAnimatedDropdowns();
+      initScrollAnimations();
 
       const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
       document.title = (SITE_TITLE || leagueName || "League") + " — All-Time";
@@ -147,7 +148,8 @@ async function renderSelectedSeason() {
     content.innerHTML = renderSummary(summary);
     initStandingsReplay(summary.standingsHistory, summary.playoffTeams);
     initPowerRankTabs();
-    initFaabToggles();
+    initAnimatedDropdowns();
+    initScrollAnimations();
 
     const leagueName = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
     document.title = (SITE_TITLE || leagueName || "League") + " — " + summary.season + " Season";
@@ -284,7 +286,7 @@ function renderFaabList(items, isTotal) {
         .join("");
       // Not a <details>/<summary> here — the player photo is a <div>
       // (block-level), which <summary> can't legally contain. A plain
-      // clickable row + JS toggle (see initFaabToggles) sidesteps that.
+      // clickable row + JS toggle (see initAnimatedDropdowns in animations.js) sidesteps that.
       return `
       <div class="rank-list-item-toggle">
         <div class="rank-list-row faab-row toggleable" data-faab-toggle>${row}</div>
@@ -295,17 +297,6 @@ function renderFaabList(items, isTotal) {
       </div>`;
     })
     .join("")}</div>`;
-}
-
-function initFaabToggles() {
-  document.querySelectorAll("[data-faab-toggle]").forEach((row) => {
-    row.onclick = () => {
-      const detail = row.nextElementSibling;
-      const isOpen = detail.style.display !== "none";
-      detail.style.display = isOpen ? "none" : "";
-      row.classList.toggle("open", !isOpen);
-    };
-  });
 }
 
 function bidLabel(w) {

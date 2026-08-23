@@ -18,7 +18,7 @@ const Charts = {
         (d) => `
       <div class="bar-chart-row">
         <span class="bar-label">${escapeHtml(d.label)}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${Math.max(2, (d.value / maxVal) * 100)}%"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="--bar-w:${Math.max(2, (d.value / maxVal) * 100)}%"></div></div>
         <span class="bar-value">${formatter(d.value)}</span>
       </div>`
       )
@@ -45,7 +45,7 @@ const Charts = {
         return `
         <div class="stacked-row">
           <span class="bar-label">${escapeHtml(r.label)}</span>
-          <div class="stacked-track" style="width:${Math.max(4, (totals[i] / maxTotal) * 100)}%">${segs}</div>
+          <div class="stacked-track" style="--bar-w:${Math.max(4, (totals[i] / maxTotal) * 100)}%">${segs}</div>
         </div>`;
       })
       .join("");
@@ -122,7 +122,12 @@ const Charts = {
     const validSeries = series.filter((s) => s.points && s.points.length);
     if (!validSeries.length) return `<div class="empty-state">Not enough data yet.</div>`;
 
-    const padL = 40, padR = 16, padT = 16, padB = 32;
+    // Wider right margin than the single-series line chart — this is
+    // where the direct end-of-line labels live, replacing a separate
+    // legend below the chart (NYT's graphics team calls this out
+    // specifically: a tooltip or legend the reader has to cross-reference
+    // gets skipped; a label sitting right at the line doesn't).
+    const padL = 40, padR = 92, padT = 16, padB = 32;
     const innerW = width - padL - padR;
     const innerH = height - padT - padB;
 
@@ -152,8 +157,11 @@ const Charts = {
     // Any point with a missing y-value (e.g. a season with no "Pre" data)
     // breaks the line into a gap rather than being drawn at a wrong
     // position, so one missing data point can't corrupt the whole chart.
+    // Also tracks each series' last plotted point, needed below for the
+    // direct end labels and leader highlight.
+    const lastPointBySeries = new Map(); // series index -> { x, y, value }
     const paths = validSeries
-      .map((s) => {
+      .map((s, si) => {
         let d = "";
         let started = false;
         s.points.forEach((p, i) => {
@@ -165,6 +173,7 @@ const Charts = {
           const y = yFor(p.y).toFixed(1);
           d += `${started ? " L" : d ? " M" : "M"}${x},${y}`;
           started = true;
+          lastPointBySeries.set(si, { x: xFor(i), y: yFor(p.y), value: p.y });
         });
         const dots = s.points
           .map((p, i) =>
@@ -175,8 +184,26 @@ const Charts = {
                 )} · ${escapeHtml(String(p.x))}: ${formatter(p.y)}</title></circle>`
           )
           .join("");
-        return `<path class="lc-line" style="stroke:${s.color}" d="${d}"></path>${dots}`;
-      })
+        return { si, s, d, dots };
+      });
+
+    // The leader is whoever's most recent value is "best" — lowest for
+    // rank-style (invertY) data, highest otherwise. Drawn with a bolder
+    // stroke and a marked label, so the chart's single most important
+    // fact is visible without anyone having to hover for it.
+    let leaderSi = null;
+    lastPointBySeries.forEach((pt, si) => {
+      if (leaderSi === null) {
+        leaderSi = si;
+        return;
+      }
+      const cur = lastPointBySeries.get(leaderSi);
+      const better = invertY ? pt.value < cur.value : pt.value > cur.value;
+      if (better) leaderSi = si;
+    });
+
+    const pathsHtml = paths
+      .map(({ si, s, d, dots }) => `<path class="lc-line${si === leaderSi ? " lc-line-leader" : ""}" style="stroke:${s.color}" d="${d}"></path>${dots}`)
       .join("");
 
     const labelEvery = Math.max(1, Math.ceil(pointCount / 14));
@@ -192,8 +219,36 @@ const Charts = {
       .map((v) => `<text class="lc-value-label" x="${padL - 8}" y="${(yFor(v) + 3).toFixed(1)}" text-anchor="end">${formatter(v)}</text>`)
       .join("");
 
-    const legend = validSeries
-      .map((s) => `<span><span class="swatch" style="background:${s.color}"></span>${escapeHtml(s.name)}</span>`)
+    // Direct end-of-line labels, replacing the separate legend below the
+    // chart. Sorted top to bottom and pushed apart wherever two lines
+    // would otherwise end close enough to overlap — a standard
+    // label-collision technique, kept simple since this chart tops out
+    // around 10 series.
+    const MAX_LABEL_CHARS = 12;
+    function truncateLabel(name) {
+      return name.length > MAX_LABEL_CHARS ? name.slice(0, MAX_LABEL_CHARS - 1) + "…" : name;
+    }
+    const labelMinGap = 13;
+    const endLabelData = validSeries
+      .map((s, si) => {
+        const pt = lastPointBySeries.get(si);
+        if (!pt) return null;
+        return { si, name: s.name, color: s.color, rawY: pt.y, x: pt.x };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.rawY - b.rawY);
+    let prevY = -Infinity;
+    endLabelData.forEach((lbl) => {
+      lbl.adjY = Math.max(lbl.rawY, prevY + labelMinGap);
+      prevY = lbl.adjY;
+    });
+    const endLabels = endLabelData
+      .map(
+        (lbl) => `
+      <text class="lc-end-label${lbl.si === leaderSi ? " lc-end-label-leader" : ""}" x="${(lbl.x + 8).toFixed(1)}" y="${(lbl.adjY + 3).toFixed(
+          1
+        )}" style="fill:${lbl.color}">${lbl.si === leaderSi ? "★ " : ""}${escapeHtml(truncateLabel(lbl.name))}</text>`
+      )
       .join("");
 
     return `
@@ -201,11 +256,11 @@ const Charts = {
         <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="xMinYMin meet">
           ${gridLines}
           ${yLabels}
-          ${paths}
+          ${pathsHtml}
           ${xLabels}
+          ${endLabels}
         </svg>
-      </div>
-      <div class="chart-legend">${legend}</div>`;
+      </div>`;
   },
 };
 

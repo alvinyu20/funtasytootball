@@ -25,6 +25,7 @@ async function renderRecords() {
 
     const stats = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
     grid.innerHTML = buildRecordCards(stats);
+    initScrollAnimations();
   } catch (err) {
     console.error(err);
     progressBox.style.display = "none";
@@ -37,7 +38,7 @@ function card(label, value, detail, badge) {
   return `
     <div class="record-card">
       <p class="record-label">${escapeHtml(label)}${badge ? ` ${badge}` : ""}</p>
-      <p class="record-value">${value}</p>
+      <p class="record-value" data-count-up>${value}</p>
       ${detail ? `<p class="record-detail">${detail}</p>` : ""}
     </div>`;
 }
