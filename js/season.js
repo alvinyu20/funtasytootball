@@ -312,14 +312,16 @@ function renderWaiverValueList(items, isTotal) {
   if (!items.length) return `<div class="empty-state">Not enough games played yet.</div>`;
   return `<div class="rank-list">${items
     .map((w, i) => {
-      const sign = w.valueAdded >= 0 ? "+" : "";
+      const sign = w.relativeValue >= 0 ? "+" : "";
       const row = `
       <span class="rank-num">${i + 1}</span>
       ${playerPhotoHtml(w.playerId, w.player, "player-photo-sm")}
       <span class="desc">${escapeHtml(w.player)} <span class="muted-inline">(${escapeHtml(w.position)})</span><span class="sub">${escapeHtml(
         w.username || w.teamName
-      )} · Week ${w.week} · ${bidLabel(w)}${isTotal && w.season ? ` · ${w.season}` : ""}</span></span>
-      <span class="val">${sign}${w.valueAdded.toFixed(1)} pts</span>`;
+      )} · Week ${w.week} · ${bidLabel(w)}${isTotal && w.season ? ` · ${w.season}` : ""} · ${w.pickupPPG.toFixed(1)} PPG vs ${w.positionMeanPPG.toFixed(
+        1
+      )} avg ${escapeHtml(w.position)}</span></span>
+      <span class="val">${sign}${w.relativeValue.toFixed(1)}σ</span>`;
       if (!w.competingBids || !w.competingBids.length) {
         return `<div class="rank-list-row faab-row">${row}</div>`;
       }
@@ -1236,7 +1238,7 @@ function renderSummary(s) {
       <div class="panel" style="margin-top:24px;">
         <h2>Top 5 Best Waiver Pickups${isTotal ? " Of All Time" : ""}</h2>
         ${waiverValueListHtml}
-        <p class="heatmap-note">Ranked by points added above a replacement-level player at that position, counted from the week they were picked up through the end of the regular season — not by price, so a free pickup that hit big can outrank an expensive bust.</p>
+        <p class="heatmap-note">Ranked by standard deviations above the average points-per-game for that position among this league's starter-caliber players that season — not raw points, which would otherwise favor high-scoring positions like QB in a SuperFlex format over an equally dominant WR or RB season. Counted from the week they were picked up through the end of the regular season, not by price, so a free pickup that hit big can outrank an expensive bust.</p>
       </div>
     </div>`
         : ""

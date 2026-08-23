@@ -374,6 +374,75 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Waiver Value Redesign: Position-Relative Instead of Raw Points
+
+With real 2023 numbers in hand (194.15 total points, 18.4 in Week 1,
+never dropped, WR4 overall in raw points that season) the math checked
+out — the previous Top 5 (QB, RB, QB, TE, RB, zero WRs) wasn't a bug,
+it was raw points-above-replacement structurally favoring
+high-scoring positions in a SuperFlex league, where the replacement-
+level QB still puts up bigger raw numbers than an excellent WR simply
+because QBs score more per game across the board.
+
+Redesigned the metric to rank pickups by **standard deviations above
+the mean points-per-game for their own position**, among that season's
+starter-caliber pool, instead of raw points above a replacement floor.
+This is what makes a dominant WR season and a hot streaming-QB week
+comparable on the same scale — each pickup is judged against the
+spread of players at their own position, not against everyone
+regardless of position.
+
+Implementation: extracted the shared starter-pool simulation (the
+greedy slot-fill that both the old replacement-level function and the
+new one depend on) into one helper, so `computeReplacementLevels`
+(still used by draft grades) and the new `computePositionValueStats`
+are guaranteed to agree on who counts as a "starter" at each position,
+rather than risking two separate simulations drifting apart over time.
+`computeReplacementLevels` itself is completely unchanged behaviorally
+— verified directly that `computeVBD` (draft grades) still produces
+identical output through the refactored code path.
+
+Verified the core claim with a realistic SuperFlex test: a dominant
+WR at 13.5 PPG (matching the real Week 2–14 rate) against a solid-but-
+unspectacular streaming QB at 20 PPG in a stacked 12-QB pool — despite
+the QB's raw PPG being 6.5 points higher, the WR's z-score comes out
+higher, because 13.5 is further above a tight WR average than 20 is
+above a wide QB average. Also reconfirmed the active-weeks window
+mechanics (drop detection, injury exclusion, pickup-week exemption)
+are completely untouched by this change and still work correctly —
+only the final ranking metric changed, not how a pickup's counted
+weeks are determined.
+
+Display updated to show the z-score (e.g. "+2.1σ") as the primary
+number, with the pickup's own PPG and their position's average PPG
+shown alongside for context, and the panel's description text rewritten
+to explain the new methodology in plain terms.
+
+## Draft Page Follow-Ups
+
+**Fixed the actual root cause of the board looking hidden/cut off**:
+the replay feature defaulted to `revealedCount = 0` on page load,
+meaning the board started completely hidden every time — which is
+almost certainly what read as "cut off." Changed the default to fully
+revealed (replay is opt-in, not the default view) and added a "Show
+All" button for jumping back to that state after using replay.
+
+**Found and fixed the real "right side cut off" bug**: `.draft-board`
+had `width: 100%`, which forces a table to compress its columns to fit
+the container rather than expand to its natural content width — this
+meant the table could never actually exceed its wrapper, so the
+wrapper's `overflow-x: auto` never had anything to scroll. Switched to
+`width: max-content; min-width: 100%`, which lets the table grow past
+its container when there are enough columns, correctly triggering
+horizontal scroll instead of compressing/clipping.
+
+**S grade is now visibly a tier above A**, not the same treatment:
+thicker glow with actual blur (not just an outline), a star badge, and
+a slow pulse, versus A's original modest ring. Caught and fixed a real
+interaction bug in the process — the glow was initially still visible
+through `.draft-cell-hidden` during replay, which would have spoiled
+an upcoming pick's grade before it was actually revealed.
+
 ## New Draft Page, Third Nacua Investigation, Header Readability
 
 **New Draft page** (`draft.html` / `js/draft.js`), added to the nav on

@@ -105,9 +105,9 @@ function posClassFor(position) {
 
 function renderDraftCell(pick) {
   if (!pick) return `<td class="draft-cell draft-cell-empty"></td>`;
-  const isTopGrade = pick.grade === "S" || pick.grade === "A";
+  const gradeClass = pick.grade === "S" ? " draft-cell-s-grade" : pick.grade === "A" ? " draft-cell-a-grade" : "";
   return `
-    <td class="draft-cell ${posClassFor(pick.position)}${isTopGrade ? " draft-cell-top-grade" : ""}" data-player-id="${escapeHtml(
+    <td class="draft-cell ${posClassFor(pick.position)}${gradeClass}" data-player-id="${escapeHtml(
     pick.playerId || ""
   )}" data-pick-no="${pick.pickNo}">
       <div class="draft-cell-pick">${pick.round}.${pick.pickInRound}</div>
@@ -152,7 +152,8 @@ function renderSelectedDraft() {
     <div class="wrap">
       <div class="draft-legend">
         ${["QB", "RB", "WR", "TE", "K", "DEF"].map((pos) => `<span class="draft-legend-item"><span class="draft-legend-swatch ${posClassFor(pos)}"></span>${pos}</span>`).join("")}
-        <span class="draft-legend-item draft-legend-grade"><span class="draft-cell-top-grade-sample"></span>S / A grade</span>
+        <span class="draft-legend-item"><span class="draft-cell-s-grade-sample"></span>S grade</span>
+        <span class="draft-legend-item"><span class="draft-cell-a-grade-sample"></span>A grade</span>
       </div>
     </div>
     ${renderDraftReplaySection(board)}
@@ -173,27 +174,34 @@ function renderDraftReplaySection(board) {
       <h2>Draft Replay</h2>
       <div class="replay-controls">
         <button class="replay-btn" id="draft-replay-play-btn" type="button">▶ Play</button>
-        <input type="range" class="replay-slider" id="draft-replay-slider" min="0" max="${board.allPicks.length}" value="0" />
+        <input type="range" class="replay-slider" id="draft-replay-slider" min="0" max="${board.allPicks.length}" value="${board.allPicks.length}" />
+        <button class="replay-btn" id="draft-replay-show-all-btn" type="button">Show All</button>
         <span class="replay-week-label" id="draft-replay-label"></span>
       </div>
-      <p class="heatmap-note">Step or play through the draft pick by pick, in the order it actually happened.</p>
+      <p class="heatmap-note">Step or play through the draft pick by pick, in the order it actually happened — or just browse the full board below.</p>
     </div></div>`;
 }
 
 function initDraftReplay(board) {
   stopDraftReplay();
   DRAFT_REPLAY_PICKS = board.allPicks;
-  DRAFT_REPLAY_INDEX = 0;
+  DRAFT_REPLAY_INDEX = DRAFT_REPLAY_PICKS.length; // start fully revealed — replay is opt-in, not the default view
 
   const slider = document.getElementById("draft-replay-slider");
   const playBtn = document.getElementById("draft-replay-play-btn");
+  const showAllBtn = document.getElementById("draft-replay-show-all-btn");
   if (!slider || !playBtn || !DRAFT_REPLAY_PICKS.length) return;
 
-  renderDraftReplayState(0);
+  renderDraftReplayState(DRAFT_REPLAY_INDEX);
 
   slider.oninput = () => {
     stopDraftReplay();
     DRAFT_REPLAY_INDEX = Number(slider.value);
+    renderDraftReplayState(DRAFT_REPLAY_INDEX);
+  };
+  showAllBtn.onclick = () => {
+    stopDraftReplay();
+    DRAFT_REPLAY_INDEX = DRAFT_REPLAY_PICKS.length;
     renderDraftReplayState(DRAFT_REPLAY_INDEX);
   };
   playBtn.onclick = () => {

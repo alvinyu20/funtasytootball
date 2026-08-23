@@ -1473,10 +1473,18 @@ table.stat-table td.playoff-cutoff-label {
 .draft-legend-swatch.pos-te { background: var(--pos-te); }
 .draft-legend-swatch.pos-k { background: var(--pos-k); }
 .draft-legend-swatch.pos-def { background: var(--pos-def); }
-.draft-cell-top-grade-sample { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--gold); }
+.draft-cell-a-grade-sample { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--gold); }
+.draft-cell-s-grade-sample {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 3px solid var(--gold);
+  box-shadow: 0 0 8px 1px rgba(232, 178, 61, 0.7);
+}
 
 .draft-board-wrap { overflow-x: auto; margin-bottom: 24px; }
-.draft-board { border-collapse: separate; border-spacing: 4px; width: 100%; }
+.draft-board { border-collapse: separate; border-spacing: 4px; width: max-content; min-width: 100%; }
 .draft-round-label { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); white-space: nowrap; padding: 4px 8px; text-align: right; }
 .draft-board thead th {
   font-family: var(--font-mono);
@@ -1497,6 +1505,7 @@ table.stat-table td.playoff-cutoff-label {
   padding: 6px 8px;
   min-width: 112px;
   vertical-align: top;
+  position: relative;
 }
 .draft-cell.pos-qb { border-left-color: var(--pos-qb); }
 .draft-cell.pos-rb { border-left-color: var(--pos-rb); }
@@ -1505,13 +1514,46 @@ table.stat-table td.playoff-cutoff-label {
 .draft-cell.pos-k { border-left-color: var(--pos-k); }
 .draft-cell.pos-def { border-left-color: var(--pos-def); }
 .draft-cell-empty { background: transparent; border: 1px dashed var(--turf-line); border-left: 1px dashed var(--turf-line); }
-.draft-cell-top-grade { box-shadow: 0 0 0 2px var(--gold) inset; }
+
+/* A grade: a modest highlight ring. */
+.draft-cell-a-grade { box-shadow: 0 0 0 2px var(--gold) inset; }
+
+/* S grade: meaningfully more noticeable than A — thicker ring plus an
+   actual glow (not just an inset outline), a star badge, and a slow
+   pulse, so it reads as a clear tier above A rather than the same
+   treatment at a glance. */
+.draft-cell-s-grade {
+  box-shadow: 0 0 0 3px var(--gold) inset, 0 0 16px 2px rgba(232, 178, 61, 0.55);
+  animation: draft-s-grade-pulse 2.2s ease-in-out infinite;
+}
+.draft-cell-s-grade::after {
+  content: "★";
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  color: var(--gold);
+  font-size: 12px;
+  line-height: 1;
+  text-shadow: 0 0 6px rgba(232, 178, 61, 0.9);
+}
+@keyframes draft-s-grade-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--gold) inset, 0 0 16px 2px rgba(232, 178, 61, 0.55); }
+  50% { box-shadow: 0 0 0 3px var(--gold) inset, 0 0 22px 4px rgba(232, 178, 61, 0.8); }
+}
 
 .draft-cell.draft-cell-hidden { background: var(--turf-dark); }
 .draft-cell.draft-cell-hidden .draft-cell-player,
 .draft-cell.draft-cell-hidden .draft-cell-meta {
   visibility: hidden;
 }
+/* The grade glow/star would otherwise spoil an unrevealed pick's grade
+   during replay before it's actually shown. */
+.draft-cell.draft-cell-hidden.draft-cell-s-grade,
+.draft-cell.draft-cell-hidden.draft-cell-a-grade {
+  box-shadow: none;
+  animation: none;
+}
+.draft-cell.draft-cell-hidden.draft-cell-s-grade::after { display: none; }
 .draft-cell.draft-cell-on-clock {
   border-left-color: var(--gold) !important;
   box-shadow: 0 0 0 2px var(--gold) inset;

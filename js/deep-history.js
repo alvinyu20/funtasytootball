@@ -1196,7 +1196,7 @@ const DeepHistory = {
     //      the way, shouldn't have their value dragged down by weeks
     //      they were merely unavailable rather than unproductive. ----
     const totalRegularSeasonWeeksForPickups = playoffStart != null ? playoffStart - 1 : LAST_FANTASY_WEEK;
-    const replacementLevelByPosition = DeepHistory.computeReplacementLevels(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
+    const positionValueStats = DeepHistory.computePositionValueStats(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory, totalRegularSeasonWeeksForPickups);
     const weeklyPointsByPlayer = new Map(); // playerId -> Map(week -> points), regular season only, every week (unlike the injury-aware healthy-weeks map — this wants realized outcomes, injuries included, so the exclusion below can be scoped precisely to injured weeks)
     const rosterByWeekPlayerForPickups = new Map(); // "week|playerId" -> rosterId, so a pickup's window stops once the manager who made it drops/trades the player away, instead of running to the end of the season regardless
     if (deep && deep.weeks) {
@@ -1238,9 +1238,8 @@ const DeepHistory = {
         Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
           const p = playerDirectory && playerDirectory[playerId];
           if (!p || !p.position || EXCLUDED_PICKUP_POSITIONS.has(p.position)) return;
-          const replacementTotal = replacementLevelByPosition[p.position];
-          if (replacementTotal == null) return;
-          const replacementPPG = replacementTotal / totalRegularSeasonWeeksForPickups;
+          const posStats = positionValueStats[p.position];
+          if (!posStats || !(posStats.stdDevPPG > 0)) return; // no meaningful spread to compare against at this position
 
           const injuredWeeksForPlayer = (injuriesForSeason && injuriesForSeason[playerId]) || {};
           const weekPts = weeklyPointsByPlayer.get(playerId);
@@ -1269,7 +1268,8 @@ const DeepHistory = {
           }
           if (activeWeeksCount === 0) return; // never had a healthy, rostered week after pickup
 
-          const valueAdded = pointsInActiveWeeks - replacementPPG * activeWeeksCount;
+          const pickupPPG = pointsInActiveWeeks / activeWeeksCount;
+          const relativeValue = (pickupPPG - posStats.meanPPG) / posStats.stdDevPPG;
 
           const info = rosterInfo.get(rid);
           let competingBids = [];
@@ -1296,12 +1296,14 @@ const DeepHistory = {
             competingBids,
             pointsSincePickup: pointsInActiveWeeks,
             activeWeeks: activeWeeksCount,
-            valueAdded,
+            pickupPPG,
+            positionMeanPPG: posStats.meanPPG,
+            relativeValue,
           });
         });
       });
     }
-    const top5WaiverValueAdds = [...waiverValueAdds].sort((a, b) => b.valueAdded - a.valueAdded).slice(0, 5);
+    const top5WaiverValueAdds = [...waiverValueAdds].sort((a, b) => b.relativeValue - a.relativeValue).slice(0, 5);
 
     const teamAverages = [...teamTotals.entries()]
       .map(([rosterId, t]) => ({
@@ -1433,7 +1435,17 @@ const DeepHistory = {
     starting slot there. Whoever's just outside that cutoff is
     "replacement level" — freely available, in theory.
   */
-  computeReplacementLevels(rosterPositions, numTeams, playerPointsMap, playerDirectory) {
+  // Shared simulation used by both computeReplacementLevels (below) and
+  // computePositionValueStats: greedily fills every open starting slot
+  // leaguewide with the best remaining eligible player, most-restrictive
+  // slot types first, and returns the full list of season points for
+  // every player who won a slot, grouped by position — not just the
+  // minimum (that's what computeReplacementLevels reduces it to) or the
+  // mean/spread (that's computePositionValueStats). Kept as one function
+  // so both callers are guaranteed to agree on who counts as a "starter"
+  // at each position, rather than risking two slightly different
+  // simulations drifting apart over time.
+  _computeStarterPointsByPosition(rosterPositions, numTeams, playerPointsMap, playerDirectory) {
     const ELIGIBILITY = {
       FLEX: ["RB", "WR", "TE"],
       SUPER_FLEX: ["QB", "RB", "WR", "TE"],
@@ -1447,17 +1459,10 @@ const DeepHistory = {
     const slotTypes = (rosterPositions || []).filter((p) => !EXCLUDE.has(p));
     const countByType = {};
     slotTypes.forEach((t) => {
-      // Anything not in KNOWN_POS and not a recognized flex type (IDP
-      // slots, or a code this site doesn't know about) is intentionally
-      // skipped — VBD here only covers standard offensive positions.
       if (!KNOWN_POS.has(t) && !ELIGIBILITY[t]) return;
       countByType[t] = (countByType[t] || 0) + 1;
     });
 
-    // Most-restrictive slot types first (dedicated positions, 1 eligible
-    // position) through least-restrictive (SUPER_FLEX, 4 eligible
-    // positions), so a top QB fills the dedicated QB slot before ever
-    // being considered for a SUPER_FLEX slot a lesser player might need.
     const slotTypesSorted = Object.keys(countByType).sort(
       (a, b) => (ELIGIBILITY[a] || [a]).length - (ELIGIBILITY[b] || [b]).length
     );
@@ -1477,7 +1482,7 @@ const DeepHistory = {
       if (points <= 0) return;
       pool.push({ position: p.position, points });
     });
-    pool.sort((a, b) => b.points - a.points); // best players first, across every position at once
+    pool.sort((a, b) => b.points - a.points);
 
     const starterPointsByPosition = {};
     pool.forEach((player) => {
@@ -1487,12 +1492,42 @@ const DeepHistory = {
       if (!starterPointsByPosition[player.position]) starterPointsByPosition[player.position] = [];
       starterPointsByPosition[player.position].push(player.points);
     });
+    return starterPointsByPosition;
+  },
 
+  computeReplacementLevels(rosterPositions, numTeams, playerPointsMap, playerDirectory) {
+    const starterPointsByPosition = DeepHistory._computeStarterPointsByPosition(rosterPositions, numTeams, playerPointsMap, playerDirectory);
     const replacementLevel = {};
     Object.entries(starterPointsByPosition).forEach(([position, pointsList]) => {
       replacementLevel[position] = Math.min(...pointsList);
     });
     return replacementLevel;
+  },
+
+  /*
+    Position-relative value: unlike replacement level (a floor), this is
+    the mean and spread of the whole starter-caliber pool at each
+    position, expressed as a per-week rate. Built specifically so a
+    pickup's value can be judged by how many standard deviations above
+    a typical starter at THEIR OWN position they ran — not by raw
+    points, which structurally favors high-scoring positions (a
+    SuperFlex league's replacement-level QB still puts up bigger raw
+    numbers than an excellent WR, simply because QBs score more per
+    game across the board). Dividing by each position's own spread is
+    what makes a dominant WR season and a hot streaming-QB week
+    comparable on the same scale.
+  */
+  computePositionValueStats(rosterPositions, numTeams, playerPointsMap, playerDirectory, totalWeeks) {
+    const starterPointsByPosition = DeepHistory._computeStarterPointsByPosition(rosterPositions, numTeams, playerPointsMap, playerDirectory);
+    const stats = {};
+    Object.entries(starterPointsByPosition).forEach(([position, pointsList]) => {
+      const rates = pointsList.map((pts) => pts / totalWeeks);
+      const n = rates.length;
+      const meanPPG = rates.reduce((a, b) => a + b, 0) / n;
+      const stdDevPPG = Math.sqrt(rates.reduce((a, b) => a + (b - meanPPG) ** 2, 0) / n);
+      stats[position] = { meanPPG, stdDevPPG, n };
+    });
+    return stats;
   },
 
   // playerPointsMap: Map(playerId -> total points this season). Returns
@@ -2640,7 +2675,7 @@ const DeepHistory = {
     const top5FaabPickups = [...allFaabPickups].sort((a, b) => b.bid - a.bid).slice(0, 5);
 
     const allWaiverValueAdds = perSeason.flatMap((s) => s.top5WaiverValueAdds || []);
-    const top5WaiverValueAdds = [...allWaiverValueAdds].sort((a, b) => b.valueAdded - a.valueAdded).slice(0, 5);
+    const top5WaiverValueAdds = [...allWaiverValueAdds].sort((a, b) => b.relativeValue - a.relativeValue).slice(0, 5);
 
     const bestByPosition = {};
     ["QB", "RB", "WR", "TE", "K", "DEF"].forEach((pos) => {
