@@ -766,7 +766,8 @@ const DeepHistory = {
         entry.pickNo,
         draftGradeModel,
         entry.points,
-        entry.gamesPlayedFraction
+        entry.gamesPlayedFraction,
+        entry.position
       );
       if (g) {
         entry.expectedVbd = g.expectedVbd;
@@ -1097,7 +1098,15 @@ const DeepHistory = {
           gradingVbd = ppgWhenHealthy * totalRegularSeasonWeeks - vbdEntry.replacementLevel;
         }
 
-        const grading = DeepHistory.gradeDraftPick(gradingVbd != null ? gradingVbd : (vbdEntry ? vbdEntry.vbd : null), p.pick_no, draftGradeModel, pts, gamesPlayedFraction);
+        const pickPosition = playerDirectory && playerDirectory[p.player_id] ? playerDirectory[p.player_id].position : null;
+        const grading = DeepHistory.gradeDraftPick(
+          gradingVbd != null ? gradingVbd : (vbdEntry ? vbdEntry.vbd : null),
+          p.pick_no,
+          draftGradeModel,
+          pts,
+          gamesPlayedFraction,
+          pickPosition
+        );
         const entry = {
           player: playerName(p.player_id),
           playerId: p.player_id,
@@ -1269,7 +1278,23 @@ const DeepHistory = {
           if (activeWeeksCount === 0) return; // never had a healthy, rostered week after pickup
 
           const pickupPPG = pointsInActiveWeeks / activeWeeksCount;
-          const relativeValue = (pickupPPG - posStats.meanPPG) / posStats.stdDevPPG;
+          // Per-week rate in position-normalized units — mathematically, the
+          // sum of each individual week's own z-score against the position
+          // average, divided by the number of weeks (a constant baseline
+          // subtracted and divided by a constant is linear, so this average
+          // is exactly equivalent to averaging the per-week z-scores
+          // directly).
+          const relativeValuePerWeek = (pickupPPG - posStats.meanPPG) / posStats.stdDevPPG;
+          // The actual ranking metric: that same per-week rate, weighted by
+          // how many weeks it was sustained for. Un-doing the division by
+          // activeWeeksCount above turns the average back into a sum across
+          // every counted week — so a great single week (small sample, easy
+          // to run hot) can no longer dominate a whole season of solid,
+          // sustained production the way a pure rate can. A Week 14 pickup
+          // with one big game and a Week 2 pickup who was steadily good all
+          // year are no longer compared as if they'd contributed the same
+          // amount, even at an identical per-week rate.
+          const relativeValue = relativeValuePerWeek * activeWeeksCount;
 
           const info = rosterInfo.get(rid);
           let competingBids = [];
@@ -1298,6 +1323,7 @@ const DeepHistory = {
             activeWeeks: activeWeeksCount,
             pickupPPG,
             positionMeanPPG: posStats.meanPPG,
+            relativeValuePerWeek,
             relativeValue,
           });
         });
@@ -1616,7 +1642,19 @@ const DeepHistory = {
   GAMES_PLAYED_GRADE_CAP_THRESHOLD: 0.5,
   GAMES_PLAYED_GRADE_CAP: "B",
 
-  gradeDraftPick(vbd, pickNo, model, points, gamesPlayedFraction) {
+  // K/DEF get pooled into the same pick-number model as every skill
+  // position for simplicity, but their VBD distribution is much
+  // narrower and more homogeneous — a modestly-above-expectation
+  // kicker or defense can post a residual that reads as S/A-worthy
+  // against a model mostly shaped by skill positions, even though the
+  // position itself isn't especially differentiated or draft-relevant.
+  // Capped the same way an unavailable-most-of-the-season pick is
+  // capped, rather than building an entirely separate grading model
+  // for two low-investment positions.
+  LOW_IMPACT_POSITIONS: new Set(["K", "DEF"]),
+  LOW_IMPACT_POSITION_GRADE_CAP: "B",
+
+  gradeDraftPick(vbd, pickNo, model, points, gamesPlayedFraction, position) {
     // A player who scored zero points the whole season is an unambiguous
     // bust, regardless of whether a replacement-level baseline could be
     // established for their position that year — no model or computed
@@ -1634,6 +1672,9 @@ const DeepHistory = {
       (grade === "S" || grade === "A")
     ) {
       grade = DeepHistory.GAMES_PLAYED_GRADE_CAP;
+    }
+    if (DeepHistory.LOW_IMPACT_POSITIONS.has(position) && (grade === "S" || grade === "A")) {
+      grade = DeepHistory.LOW_IMPACT_POSITION_GRADE_CAP;
     }
     return { expectedVbd, residual, z, grade };
   },

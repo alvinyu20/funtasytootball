@@ -320,8 +320,8 @@ function renderWaiverValueList(items, isTotal) {
         w.username || w.teamName
       )} · Week ${w.week} · ${bidLabel(w)}${isTotal && w.season ? ` · ${w.season}` : ""} · ${w.pickupPPG.toFixed(1)} PPG vs ${w.positionMeanPPG.toFixed(
         1
-      )} avg ${escapeHtml(w.position)}</span></span>
-      <span class="val">${sign}${w.relativeValue.toFixed(1)}σ</span>`;
+      )} avg ${escapeHtml(w.position)} over ${w.activeWeeks} wk${w.activeWeeks === 1 ? "" : "s"}</span></span>
+      <span class="val">${sign}${w.relativeValue.toFixed(1)}</span>`;
       if (!w.competingBids || !w.competingBids.length) {
         return `<div class="rank-list-row faab-row">${row}</div>`;
       }
@@ -1238,7 +1238,7 @@ function renderSummary(s) {
       <div class="panel" style="margin-top:24px;">
         <h2>Top 5 Best Waiver Pickups${isTotal ? " Of All Time" : ""}</h2>
         ${waiverValueListHtml}
-        <p class="heatmap-note">Ranked by standard deviations above the average points-per-game for that position among this league's starter-caliber players that season — not raw points, which would otherwise favor high-scoring positions like QB in a SuperFlex format over an equally dominant WR or RB season. Counted from the week they were picked up through the end of the regular season, not by price, so a free pickup that hit big can outrank an expensive bust.</p>
+        <p class="heatmap-note">Ranked by standard deviations above the average points-per-game for that position among this league's starter-caliber players that season, accumulated across every week the pickup actually contributed — not raw points, which would favor high-scoring positions like QB in a SuperFlex format, and not a bare per-week rate either, which would let one huge Week 14 game outrank a whole season of sustained production. A pickup has to be both good and lasting to rank highly here.</p>
       </div>
     </div>`
         : ""

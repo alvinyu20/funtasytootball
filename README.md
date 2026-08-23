@@ -374,6 +374,48 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Duration-Weighted Waiver Value, and Capping K/DEF Draft Grades
+
+**The position-relative redesign had a real flaw**: a pure per-week
+rate, with no weight for how long it was sustained, let a single hot
+week from a Week 14 pickup outrank a whole season of solid, steady
+production — exactly backwards from "a pickup should matter more the
+longer they actually contributed." It also explains a symptom that
+had been reported: a 5th-place entry sitting at +0.0, most likely a
+tiny, noisy sample that got lucky enough to edge out sustained
+performers for a spot in the list.
+
+Fixed by making the ranking metric **cumulative** rather than a bare
+rate: the per-week z-score multiplied by how many weeks it was
+sustained for. This isn't an ad-hoc tweak — summing each individual
+week's own z-score against the position average is mathematically
+identical to (rate × weeks), since both the average and the spread
+being divided into are constants. Verified directly with the scenario
+this was built to fix: a player at a modest, sustained rate for 13
+weeks against a one-week outlier at a much hotter rate — the one-week
+spike has the higher *per-week* number, exactly as expected, but the
+sustained performer now wins on the *cumulative* score that actually
+determines the ranking. Display updated to show both the cumulative
+score and the underlying rate-vs-position-average with a weeks count,
+so the reasoning behind a ranking is visible, not just the final
+number.
+
+**Draft grades for K/DEF are now capped at B.** Reusing the exact
+pattern already established for the "unavailable most of the season"
+cap rather than inventing a new mechanism: K/DEF get pooled into the
+same pick-number model as every skill position for simplicity, but
+their real VBD distribution is much narrower — a modestly-above-
+expectation kicker or defense can post a residual that looks S/A-
+worthy against a model shaped mostly by skill positions, even though
+neither position is especially differentiated or draft-relevant.
+Verified directly: a K and a DEF with the same strong z-score (0.94,
+which would ordinarily land solidly in A territory) both correctly cap
+at B, while a WR with an even stronger z-score in the same test is
+completely unaffected and still reaches S. Applied to both places a
+pick gets graded — the shared computation the new Draft page reads
+from, and the Season page's separate Best-Steal/Biggest-Bust
+computation — so the cap is consistent everywhere grades appear.
+
 ## Waiver Value Redesign: Position-Relative Instead of Raw Points
 
 With real 2023 numbers in hand (194.15 total points, 18.4 in Week 1,
