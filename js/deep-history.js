@@ -1137,7 +1137,7 @@ const DeepHistory = {
     const allWaiverBidsByWeekPlayer = new Map(); // "week|playerId" -> [{rosterId, bid, status}]
     if (deep && deep.transactions) {
       deep.transactions.forEach((tx) => {
-        if (!tx || tx.type !== "waiver") return;
+        if (!tx || tx.type === "trade") return;
         const bid = tx.settings && tx.settings.waiver_bid;
         if (bid == null) return;
         Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
@@ -1218,10 +1218,22 @@ const DeepHistory = {
     const waiverValueAdds = [];
     if (deep && deep.transactions) {
       deep.transactions.forEach((tx) => {
-        if (!tx || tx.status !== "complete" || (tx.type !== "waiver" && tx.type !== "free_agent")) return;
+        // Any completed, non-trade transaction that adds a player counts
+        // as a "pickup" — not just the two most common type labels
+        // ("waiver", "free_agent"). Sleeper also has other transaction
+        // types (e.g. a commissioner manually processing a late or
+        // disputed claim), and any of those still represents a genuine
+        // acquisition; only a trade is a fundamentally different kind of
+        // move and is excluded on purpose.
+        if (!tx || tx.status !== "complete" || tx.type === "trade") return;
         const pickupWeek = tx.leg;
-        if (pickupWeek > totalRegularSeasonWeeksForPickups) return; // picked up after the regular season ended
-        const bid = tx.type === "waiver" ? tx.settings && tx.settings.waiver_bid : null;
+        if (pickupWeek == null || pickupWeek > totalRegularSeasonWeeksForPickups) return; // no week on the record, or picked up after the regular season ended
+        // Whether this was a paid waiver claim is determined by whether a
+        // bid amount is actually present, not by the transaction's type
+        // label specifically — more robust than assuming only
+        // type === "waiver" ever carries one.
+        const hasBid = tx.settings && tx.settings.waiver_bid != null;
+        const bid = hasBid ? tx.settings.waiver_bid : null;
 
         Object.entries(tx.adds || {}).forEach(([playerId, rid]) => {
           const p = playerDirectory && playerDirectory[playerId];
@@ -1261,7 +1273,7 @@ const DeepHistory = {
 
           const info = rosterInfo.get(rid);
           let competingBids = [];
-          if (tx.type === "waiver") {
+          if (hasBid) {
             const allBids = allWaiverBidsByWeekPlayer.get(`${pickupWeek}|${playerId}`) || [];
             competingBids = allBids
               .filter((b) => b.status !== "complete")
@@ -1280,7 +1292,7 @@ const DeepHistory = {
             username: info ? info.username : null,
             week: pickupWeek,
             season: league.season,
-            bid: tx.type === "waiver" ? bid || 0 : null, // null = free agent, 0 = a $0 winning waiver bid
+            bid: hasBid ? bid || 0 : null, // null = free agent, 0 = a $0 winning waiver bid
             competingBids,
             pointsSincePickup: pointsInActiveWeeks,
             activeWeeks: activeWeeksCount,

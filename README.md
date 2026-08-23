@@ -374,6 +374,67 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## New Draft Page, Third Nacua Investigation, Header Readability
+
+**New Draft page** (`draft.html` / `js/draft.js`), added to the nav on
+every page. Shows the full draft board for any season, color-coded by
+position (a left-border accent per cell, using the site's existing
+`--pos-*` position colors) and highlighting every S/A-grade pick with a
+gold glow. Reuses `computeStats`' already-tested per-manager draft
+pick data rather than a new computation — grades, positions, and VBD
+all come from the same league-wide model already used on
+Records/Teams. Columns are fixed per team by their Round 1 draft slot
+(not by "who's on the clock this round"), which is what makes a snake
+draft actually readable as a grid — verified directly with a 4-team
+snake-draft test confirming Round 2's reversal correctly lands each
+team's pick in their own column instead of scrambling positions.
+
+**Animated draft replay**, also on the new Draft page — matches the
+existing play/pause-button-plus-slider convention from the Season
+page's "Standings Over Time" replay rather than inventing a new
+pattern. Steps or auto-plays through the draft pick by pick in actual
+order; each newly-revealed pick pops in, and the next slot to be
+filled pulses gold with an "on the clock" indicator. Tested the
+core reveal-tracking and labeling logic directly (which picks are
+visible at a given step, what the label says at the start / midway /
+after the last pick) before touching any rendering.
+
+**A third round on the Puka Nacua investigation.** New specifics this
+time — a concrete external VBD reference point, and confirmation he
+was picked up after Week 1 and never dropped — ruled out both earlier
+fixes as the cause (nothing to drop, and the pickup-week exemption
+already covers a Week 2 add). Extensive re-review of the value-added
+math itself, including `computeReplacementLevels` line by line, didn't
+turn up a bug there. What it did turn up: the transaction filter only
+ever accepted `tx.type === "waiver"` or `"free_agent"` — but Sleeper
+has other transaction types too (e.g. a commissioner manually
+processing a late or disputed claim), and any of those still
+represents a genuine pickup. If this specific transaction used a
+different type label, it would've been silently skipped entirely, not
+just ranked low. Broadened the filter to accept any non-trade
+transaction, and switched the FAAB-vs-free-agent distinction to key off
+whether a bid amount is actually present rather than the exact type
+label, which is more robust. Verified against the exact unusual-type
+scenario, confirmed trades are still correctly excluded, and
+reconfirmed the earlier Kyren Williams fix still holds.
+
+Being direct about the limits here: this is a real, verified gap, and
+it may or may not be the full explanation for this specific case —
+without live access to this league's actual 2023 transaction data,
+that can't be confirmed with certainty. If the issue persists after
+this, the most useful thing to check would be the exact transaction
+type Sleeper recorded for that specific pickup.
+
+**Header readability.** Softened the two most common header styles
+site-wide — `.scoreboard-title` (every page's main title) and
+`.panel h2` (used in essentially every section) — from full-bright
+chalk to a new, slightly muted intermediate tone, plus both newsletter
+headers. Worth flagging: the display font (Anton) only ships in one
+very heavy weight, so literal "unbolding" via `font-weight` isn't
+actually possible without switching fonts entirely — this addresses
+the readability complaint by softening brightness/contrast instead,
+which is a related but different fix from true unbolding.
+
 ## Tier 2 Motion & Interactivity, Plus Dropdowns Everywhere
 
 **Every dropdown on the site now animates**, not just the ones on the
