@@ -374,6 +374,54 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Layout Round: Draft Width, Nav Drawer, Mobile-Compact Tables, Header Font
+
+**Draft board no longer needs horizontal scroll on desktop.** Added a
+new `.wrap-wide` container (up to 1600px, scales with viewport) used
+specifically for the draft board, plus a modest cell width reduction.
+Verified with actual arithmetic, not just "looks about right": a
+10-team board needs roughly 1103px, which comfortably fits even a
+fairly modest 1280px-wide browser window with real margin to spare.
+
+**Top nav rebuilt as a hamburger + slide-out drawer**, replacing the
+horizontal link list on every page — with ten sections now, the nav's
+own centered max-width meant it would stay cramped at *any* browser
+window size, not just on mobile, so a responsive breakpoint wouldn't
+have actually fixed it. Required restructuring the nav markup on all
+ten pages; did this via a script rather than by hand specifically to
+guarantee every page kept its own correct "active" link through the
+transformation, and verified this directly afterward rather than
+assuming the script worked. New `js/nav.js` (small, dependency-free,
+loaded on every page) handles the toggle; verified the full
+interaction lifecycle directly — opens on click, closes on second
+click, closes on backdrop click, and closes on nav-link click (this
+last one matters even for links, since Season and Draft switch content
+via URL hash without a real page reload).
+
+**Final Standings and the lineup-slot heatmap no longer eat a screen's
+worth of vertical space on mobile.** Both previously used the site's
+existing "stack every row into a tall card" mobile pattern, which is
+great for avoiding horizontal scroll but genuinely expensive
+vertically for a many-column table — a 10-team, 9-column standings
+table was turning into roughly ten stacked cards, each several rows
+tall. Built an alternative treatment (`compact-mobile` /
+`stay-scrollable`) that keeps these two tables as compact, real
+tables that scroll horizontally instead, at a smaller mobile-specific
+font/padding — trading a bit of horizontal scroll for a lot less
+vertical scroll, which is the right trade for a table this wide.
+Scoped narrowly on purpose: Power Rankings, Rivalries, and Teams'
+Season-By-Season table all still use the original stacking behavior,
+since only these two specific tables were flagged.
+
+**Header font swapped from Anton to Oswald.** The earlier
+color-softening pass wasn't enough because the real issue wasn't
+color — Anton only ships in one very heavy weight, so there was no
+lighter version to soften into. Oswald keeps the same condensed,
+sporty character but has real weight options; landed on 600 (semi-
+bold) via one shared `--font-display-weight` variable, applied
+consistently across all 18 header usages site-wide, rather than
+tuning each individually.
+
 ## Duration-Weighted Waiver Value, and Capping K/DEF Draft Grades
 
 **The position-relative redesign had a real flaw**: a pure per-week

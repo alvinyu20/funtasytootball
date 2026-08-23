@@ -6,12 +6,20 @@
   <title>Newsletters</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
   <nav class="site-nav">
     <a class="brand" href="index.html">FUNTASY TOOTBALL<span>.</span></a>
+    <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-drawer">
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+    </button>
+  </nav>
+  <div class="nav-backdrop"></div>
+  <nav class="nav-drawer" id="nav-drawer" aria-label="Site navigation">
     <ul class="nav-links">
       <li><a class="nav-link" href="index.html">Home</a></li>
       <li><a class="nav-link" href="history.html">History</a></li>
@@ -50,6 +58,7 @@
     New issues get added to data/newsletters.json — just ask for a draft after game day.
   </footer>
 
+  <script src="js/nav.js"></script>
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/sleeper-api.js"></script>

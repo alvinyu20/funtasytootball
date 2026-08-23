@@ -256,8 +256,8 @@ function renderPositionTable(positionTable) {
     .join("");
 
   return `
-    <div class="heatmap-table-wrap">
-      <table class="stat-table responsive-stack">
+    <div class="heatmap-table-wrap stay-scrollable">
+      <table class="stat-table compact-mobile">
         <thead><tr><th>Team</th>${header}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -1109,8 +1109,8 @@ function renderSummary(s) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <div class="heatmap-table-wrap">
-        <table class="stat-table responsive-stack">
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile">
           <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th>Overall</th><th>Luck</th>${isTotal ? "" : "<th>SOS</th>"}</tr></thead>
           <tbody>${standingsRows}</tbody>
         </table>

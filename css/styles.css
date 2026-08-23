@@ -21,7 +21,8 @@
   --pos-def: #6B4226;
   --pos-other: #5A5A52;
 
-  --font-display: "Anton", "Arial Narrow", sans-serif;
+  --font-display: "Oswald", "Arial Narrow", sans-serif;
+  --font-display-weight: 600;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "IBM Plex Mono", "SF Mono", monospace;
 
@@ -59,6 +60,11 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible {
   margin: 0 auto;
   padding: 0 20px;
 }
+.wrap-wide {
+  max-width: min(1600px, 96vw);
+  margin: 0 auto;
+  padding: 0 20px;
+}
 
 /* ==========================================================================
    TOP NAV
@@ -73,32 +79,94 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible {
   margin: 0 auto;
 }
 .site-nav .brand {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   letter-spacing: 0.02em;
   font-size: 22px;
   color: var(--chalk);
   text-decoration: none;
 }
 .site-nav .brand span { color: var(--gold); }
-.nav-links { display: flex; gap: 24px; list-style: none; margin: 0; padding: 0; }
+
+/* Hamburger toggle — replaces a horizontal link list that gets tight
+   with this many sections, at any viewport width, since the nav itself
+   shares the site's centered max-width rather than using the full
+   browser window. */
+.nav-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 1px solid var(--turf-line);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.nav-toggle-bar {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--chalk);
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+.nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(2) { opacity: 0; }
+.nav-toggle[aria-expanded="true"] .nav-toggle-bar:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.nav-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 40;
+}
+.nav-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(300px, 82vw);
+  background: var(--turf-dark);
+  border-left: 1px solid var(--turf-line);
+  padding: 84px 24px 24px;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 50;
+  overflow-y: auto;
+}
+.nav-drawer.open { transform: translateX(0); }
+
+.nav-drawer .nav-links { display: flex; flex-direction: column; gap: 2px; list-style: none; margin: 0; padding: 0; }
 .nav-link {
+  display: block;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--chalk-dim);
   text-decoration: none;
-  padding-bottom: 4px;
-  border-bottom: 2px solid transparent;
+  padding: 13px 6px;
+  border-bottom: 1px solid var(--turf-line);
 }
 .nav-link:hover, .nav-link.active {
   color: var(--gold);
-  border-bottom-color: var(--gold);
 }
 
 @media (max-width: 720px) {
-  .site-nav { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .nav-links { flex-wrap: wrap; gap: 10px 16px; }
   .site-nav .brand { font-size: 18px; }
 }
 
@@ -131,7 +199,7 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible {
   margin: 0 0 6px;
 }
 .scoreboard-title {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: clamp(32px, 6vw, 56px);
   line-height: 1;
   margin: 0;
@@ -228,7 +296,7 @@ main { padding-bottom: 80px; }
   transform: translateY(0);
 }
 .panel h2 {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   text-transform: uppercase;
   letter-spacing: 0.02em;
   font-size: 20px;
@@ -308,7 +376,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 }
 .ledger-row:last-child { border-bottom: none; }
 .ledger-row .year {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 22px;
   color: var(--gold);
 }
@@ -349,7 +417,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
   margin-bottom: 8px;
 }
 .newsletter-card h3 {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 24px;
   text-transform: uppercase;
   margin: 0 0 8px;
@@ -364,7 +432,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
   max-width: var(--max-width);
   margin: 0 auto;
 }
-.newsletter-body h1 { font-family: var(--font-display); text-transform: uppercase; font-size: 32px; color: var(--chalk-header); }
+.newsletter-body h1 { font-family: var(--font-display); font-weight: var(--font-display-weight); text-transform: uppercase; font-size: 32px; color: var(--chalk-header); }
 .newsletter-body .content { white-space: pre-wrap; line-height: 1.7; }
 .back-link { font-family: var(--font-mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
 
@@ -440,7 +508,7 @@ table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 }
 .record-card .record-value {
   display: block;
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 30px;
   color: var(--chalk);
   line-height: 1.1;
@@ -683,6 +751,19 @@ table.stat-table td.heat-cell.empty {
    with the column header injected as a label via ::before. */
 @media (max-width: 720px) {
   .heatmap-table-wrap { overflow-x: visible; }
+
+  /* Compact-mobile: the alternative to responsive-stack for tables where
+     card-per-row would cost too much vertical scrolling (Final Standings,
+     the lineup-slot heatmap) — stays a normal, compact table and scrolls
+     horizontally instead, just at a smaller size than desktop. More
+     specific than the unconditional rule above (two classes beat one), so
+     this correctly wins regardless of source order. */
+  .heatmap-table-wrap.stay-scrollable { overflow-x: auto; }
+  table.stat-table.compact-mobile { font-size: 11px; }
+  table.stat-table.compact-mobile th { font-size: 9px; padding: 5px 6px; white-space: nowrap; }
+  table.stat-table.compact-mobile td { padding: 6px 6px; white-space: nowrap; }
+  table.stat-table.compact-mobile td.team-cell { font-size: 12px; }
+
   table.stat-table.responsive-stack thead { display: none; }
   table.stat-table.responsive-stack,
   table.stat-table.responsive-stack tbody,
@@ -922,7 +1003,7 @@ details.bracket-game.championship {
   margin: 0 0 6px;
 }
 .bracket-sidebar-value {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 19px;
   color: var(--chalk);
   text-transform: uppercase;
@@ -1019,7 +1100,7 @@ details.bracket-game.championship {
   inset: 0;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 28px;
   color: var(--gold);
   background: var(--turf-mid);
@@ -1033,7 +1114,7 @@ details.bracket-game.championship {
 
 .player-rep-card { display: flex; align-items: center; gap: 20px; }
 .player-rep-name {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 24px;
   text-transform: uppercase;
   color: var(--chalk);
@@ -1071,7 +1152,7 @@ details.bracket-game.championship {
   padding: 14px 16px;
 }
 .trade-team-name {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 16px;
   text-transform: uppercase;
   color: var(--chalk);
@@ -1133,7 +1214,7 @@ details.bracket-game.championship {
 }
 .rivalry-select-group select:focus { outline: none; border-color: var(--gold); }
 .rivalry-vs {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 20px;
   color: var(--gold);
   padding-bottom: 10px;
@@ -1147,7 +1228,7 @@ details.bracket-game.championship {
   padding: 10px 0 4px;
 }
 .rivalry-series-name {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 22px;
   text-transform: uppercase;
   color: var(--chalk);
@@ -1187,7 +1268,7 @@ details.bracket-game.championship {
   margin-bottom: 4px;
 }
 .trophy-champion-name {
-  font-family: var(--font-display);
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 15px;
   text-transform: uppercase;
   color: var(--chalk);
@@ -1275,7 +1356,7 @@ details.bracket-game.championship {
   color: var(--gold);
   margin-bottom: 4px;
 }
-.recap-champ-name { font-family: var(--font-display); font-size: 28px; text-transform: uppercase; color: var(--chalk); line-height: 1.1; margin-bottom: 14px; }
+.recap-champ-name { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 28px; text-transform: uppercase; color: var(--chalk); line-height: 1.1; margin-bottom: 14px; }
 .recap-narrative { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--chalk); margin: 0 0 20px; }
 .recap-narrative strong { color: var(--gold); }
 .recap-players { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; margin-bottom: 20px; }
@@ -1289,7 +1370,7 @@ details.bracket-game.championship {
   color: var(--gold);
   margin-bottom: 4px;
 }
-.recap-player-name { font-family: var(--font-display); font-size: 15px; text-transform: uppercase; color: var(--chalk); line-height: 1.2; }
+.recap-player-name { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 15px; text-transform: uppercase; color: var(--chalk); line-height: 1.2; }
 .recap-player-sub { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); margin-top: 4px; }
 .recap-highlights { padding-top: 18px; border-top: 1px dashed var(--turf-line); }
 .recap-highlight-list { list-style: none; margin: 10px 0 0; padding: 0; font-family: var(--font-body); font-size: 14px; color: var(--chalk); }
@@ -1337,10 +1418,10 @@ details.bracket-game.championship {
   padding: 8px 0;
 }
 .featured-matchup .side { text-align: center; min-width: 140px; }
-.featured-matchup .name { font-family: var(--font-display); font-size: 22px; text-transform: uppercase; color: var(--chalk); line-height: 1.15; }
+.featured-matchup .name { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 22px; text-transform: uppercase; color: var(--chalk); line-height: 1.15; }
 .featured-matchup .record { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); margin-top: 4px; }
 .featured-matchup .pts { font-family: var(--font-mono); font-size: 28px; color: var(--gold); margin-top: 8px; font-weight: 600; }
-.featured-matchup .vs { font-family: var(--font-display); font-size: 16px; color: var(--gold); flex-shrink: 0; }
+.featured-matchup .vs { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 16px; color: var(--gold); flex-shrink: 0; }
 .featured-matchup-sub { text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); margin-top: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
 
 /* ---- Home page: Power Rankings snapshot ---- */
@@ -1503,7 +1584,7 @@ table.stat-table td.playoff-cutoff-label {
   border-left: 4px solid var(--pos-other);
   border-radius: 6px;
   padding: 6px 8px;
-  min-width: 112px;
+  min-width: 100px;
   vertical-align: top;
   position: relative;
 }

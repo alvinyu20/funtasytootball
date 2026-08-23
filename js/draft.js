@@ -157,7 +157,7 @@ function renderSelectedDraft() {
       </div>
     </div>
     ${renderDraftReplaySection(board)}
-    <div class="wrap">${renderDraftBoardTable(board)}</div>`;
+    <div class="wrap-wide">${renderDraftBoardTable(board)}</div>`;
 
   initDraftReplay(board);
 
