@@ -374,6 +374,53 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Career Records, Draft Replay Removal, Bracket Mobile Layout, Season Card Redesign
+
+**Career Records (History page)** now uses the same compact-mobile
+treatment as Final Standings and the lineup-slot heatmap from the
+previous round — stays a real, scrollable table on mobile instead of
+stacking into cards.
+
+**Draft Replay removed entirely.** The board simply shows every pick
+immediately now, which was already effectively the default state
+after the last round of fixes anyway. Removed the four replay
+functions, three state variables, the `data-pick-no` attribute nothing
+else used, and the now-dead CSS (hidden/on-clock/pop-in states, two
+keyframe animations) — kept the unrelated S-grade pulse. Verified zero
+dangling references to any of it afterward.
+
+**Playoff Bracket: matchups sit side by side on mobile instead of
+stacked.** `.bracket-round` switched from a flex column to
+`grid-template-columns: repeat(auto-fit, minmax(140px, 1fr))` — a
+2-game round (like a semifinal) naturally lands two per row, and a
+1-game round (the Championship) just as naturally expands to fill the
+row, with no special-casing needed for either case. Verified the
+actual width math across five real device widths rather than eyeballing
+it: comfortably fits two columns from 360px up, with a single-column
+fallback only on the narrowest 320px devices. The "no horizontal
+scroll" requirement turned out to already be satisfied by existing
+code — traced this down before touching anything, so the actual fix
+here is narrowly the side-by-side layout, not a rewrite of behavior
+that was already correct.
+
+**Teams page Season By Season redesigned as cards, not patched for
+mobile.** Concluded a mobile CSS tweak was the wrong tool here: each
+season is a stat summary plus two nested expandable dropdowns
+(starting lineup, draft picks) — genuinely closer to "one self-
+contained card" than to tabular data meant for cross-row comparison,
+which is what the compact-mobile treatment is built for. Replaced the
+table (and the two-`<tr>`-per-season structure it required to fit an
+expandable row) with a proper card list: a compact responsive stat
+grid up top, feeding into the same two dropdowns, functionally
+unchanged. Applies at every screen size, not just mobile, since the
+card format is a better fit for this specific data regardless of
+viewport. Tested against realistic data including edge cases —
+champion badge, no badge, empty draft/lineup states — and confirmed
+the dropdown animation logic (which targets `<details>` generically)
+needed no changes to keep working. Cleaned up the CSS that existed
+specifically to make the old two-row table structure behave on mobile,
+since none of it is needed anymore.
+
 ## Layout Round: Draft Width, Nav Drawer, Mobile-Compact Tables, Header Font
 
 **Draft board no longer needs horizontal scroll on desktop.** Added a

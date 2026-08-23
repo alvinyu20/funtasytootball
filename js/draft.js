@@ -107,9 +107,7 @@ function renderDraftCell(pick) {
   if (!pick) return `<td class="draft-cell draft-cell-empty"></td>`;
   const gradeClass = pick.grade === "S" ? " draft-cell-s-grade" : pick.grade === "A" ? " draft-cell-a-grade" : "";
   return `
-    <td class="draft-cell ${posClassFor(pick.position)}${gradeClass}" data-player-id="${escapeHtml(
-    pick.playerId || ""
-  )}" data-pick-no="${pick.pickNo}">
+    <td class="draft-cell ${posClassFor(pick.position)}${gradeClass}" data-player-id="${escapeHtml(pick.playerId || "")}">
       <div class="draft-cell-pick">${pick.round}.${pick.pickInRound}</div>
       <div class="draft-cell-player">${escapeHtml(pick.player)}</div>
       <div class="draft-cell-meta"><span class="draft-cell-pos">${escapeHtml(pick.position || "")}</span>${gradeBadgeHtml(pick.grade)}</div>
@@ -156,116 +154,9 @@ function renderSelectedDraft() {
         <span class="draft-legend-item"><span class="draft-cell-a-grade-sample"></span>A grade</span>
       </div>
     </div>
-    ${renderDraftReplaySection(board)}
     <div class="wrap-wide">${renderDraftBoardTable(board)}</div>`;
 
-  initDraftReplay(board);
-
   initScrollAnimations();
-}
-
-let DRAFT_REPLAY_TIMER = null;
-let DRAFT_REPLAY_PICKS = [];
-let DRAFT_REPLAY_INDEX = 0; // how many picks are currently revealed
-
-function renderDraftReplaySection(board) {
-  return `
-    <div class="wrap"><div class="panel">
-      <h2>Draft Replay</h2>
-      <div class="replay-controls">
-        <button class="replay-btn" id="draft-replay-play-btn" type="button">▶ Play</button>
-        <input type="range" class="replay-slider" id="draft-replay-slider" min="0" max="${board.allPicks.length}" value="${board.allPicks.length}" />
-        <button class="replay-btn" id="draft-replay-show-all-btn" type="button">Show All</button>
-        <span class="replay-week-label" id="draft-replay-label"></span>
-      </div>
-      <p class="heatmap-note">Step or play through the draft pick by pick, in the order it actually happened — or just browse the full board below.</p>
-    </div></div>`;
-}
-
-function initDraftReplay(board) {
-  stopDraftReplay();
-  DRAFT_REPLAY_PICKS = board.allPicks;
-  DRAFT_REPLAY_INDEX = DRAFT_REPLAY_PICKS.length; // start fully revealed — replay is opt-in, not the default view
-
-  const slider = document.getElementById("draft-replay-slider");
-  const playBtn = document.getElementById("draft-replay-play-btn");
-  const showAllBtn = document.getElementById("draft-replay-show-all-btn");
-  if (!slider || !playBtn || !DRAFT_REPLAY_PICKS.length) return;
-
-  renderDraftReplayState(DRAFT_REPLAY_INDEX);
-
-  slider.oninput = () => {
-    stopDraftReplay();
-    DRAFT_REPLAY_INDEX = Number(slider.value);
-    renderDraftReplayState(DRAFT_REPLAY_INDEX);
-  };
-  showAllBtn.onclick = () => {
-    stopDraftReplay();
-    DRAFT_REPLAY_INDEX = DRAFT_REPLAY_PICKS.length;
-    renderDraftReplayState(DRAFT_REPLAY_INDEX);
-  };
-  playBtn.onclick = () => {
-    if (DRAFT_REPLAY_TIMER) {
-      stopDraftReplay();
-      return;
-    }
-    if (DRAFT_REPLAY_INDEX >= DRAFT_REPLAY_PICKS.length) DRAFT_REPLAY_INDEX = 0; // restart from the beginning if replaying after reaching the end
-    playBtn.textContent = "⏸ Pause";
-    DRAFT_REPLAY_TIMER = setInterval(() => {
-      DRAFT_REPLAY_INDEX += 1;
-      if (DRAFT_REPLAY_INDEX > DRAFT_REPLAY_PICKS.length) {
-        stopDraftReplay();
-        DRAFT_REPLAY_INDEX = DRAFT_REPLAY_PICKS.length;
-        return;
-      }
-      renderDraftReplayState(DRAFT_REPLAY_INDEX);
-    }, 500);
-  };
-}
-
-function stopDraftReplay() {
-  if (DRAFT_REPLAY_TIMER) {
-    clearInterval(DRAFT_REPLAY_TIMER);
-    DRAFT_REPLAY_TIMER = null;
-  }
-  const playBtn = document.getElementById("draft-replay-play-btn");
-  if (playBtn) playBtn.textContent = "▶ Play";
-}
-
-function renderDraftReplayState(revealedCount) {
-  const slider = document.getElementById("draft-replay-slider");
-  const label = document.getElementById("draft-replay-label");
-  if (slider) slider.value = revealedCount;
-
-  const revealedPickNos = new Set(DRAFT_REPLAY_PICKS.slice(0, revealedCount).map((p) => p.pickNo));
-  document.querySelectorAll(".draft-cell[data-pick-no]").forEach((cell) => {
-    const pickNo = Number(cell.dataset.pickNo);
-    const shouldShow = revealedPickNos.has(pickNo);
-    const wasShown = cell.classList.contains("draft-cell-revealed");
-    cell.classList.toggle("draft-cell-revealed", shouldShow);
-    cell.classList.toggle("draft-cell-hidden", !shouldShow);
-    cell.classList.remove("draft-cell-on-clock");
-    if (shouldShow && !wasShown) {
-      // Restart the pop-in animation cleanly even if it's still
-      // mid-transition from a fast scrub — remove the class, force a
-      // reflow, then re-add it, same technique used for the chart
-      // draw-in and dropdown animations elsewhere on the site.
-      cell.classList.remove("draft-cell-pop-in");
-      void cell.offsetWidth;
-      cell.classList.add("draft-cell-pop-in");
-    }
-  });
-
-  if (label) {
-    if (revealedCount >= DRAFT_REPLAY_PICKS.length) {
-      label.textContent = "Draft complete";
-    } else {
-      const next = DRAFT_REPLAY_PICKS[revealedCount];
-      const nextCell = document.querySelector(`.draft-cell[data-pick-no="${next.pickNo}"]`);
-      if (nextCell) nextCell.classList.add("draft-cell-on-clock");
-      label.textContent = `On the clock: Pick ${next.round}.${next.pickInRound} (${next.teamName || next.username})`;
-    }
-  }
 }
 
 document.addEventListener("DOMContentLoaded", renderDraftPage);

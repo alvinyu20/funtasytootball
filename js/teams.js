@@ -164,28 +164,32 @@ function renderManagerDetail(m) {
         : `<div class="empty-state">No lineup data for this season.</div>`;
 
       return `
-        <tr class="season-stat-row">
-          <td class="team-cell" data-label="Year">${s.season}</td>
-          <td data-label="Rank">${s.rank}</td>
-          <td data-label="Record">${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}</td>
-          <td data-label="PF">${s.fpts.toFixed(1)}</td>
-          <td data-label="PA">${s.fptsAgainst.toFixed(1)}</td>
-          <td data-label="Overall">${s.overallWins}-${s.overallLosses}${s.overallTies ? "-" + s.overallTies : ""}</td>
-          <td data-label="Luck">${luckBadge(s.luckPct)}</td>
-          <td data-label="Result">${resultBadge}</td>
-        </tr>
-        <tr class="season-details-row">
-          <td class="season-details-cell" colspan="8" style="border-bottom: 1px solid var(--turf-line); padding-top:0;">
-            <details class="draft-details">
-              <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
-              <div class="draft-details-content">${lineupHtml}</div>
-            </details>
-            <details class="draft-details">
-              <summary>Draft picks (${s.draftPicks.length})</summary>
-              <div class="draft-details-content">${picksHtml}</div>
-            </details>
-          </td>
-        </tr>`;
+        <div class="season-card">
+          <div class="season-card-header">
+            <span class="season-card-year">${s.season}</span>
+            ${resultBadge ? `<span class="season-card-result">${resultBadge}</span>` : ""}
+          </div>
+          <div class="season-card-stats">
+            <div class="season-stat"><span class="season-stat-label">Rank</span><span class="season-stat-value">${s.rank}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Record</span><span class="season-stat-value">${s.wins}-${s.losses}${
+        s.ties ? "-" + s.ties : ""
+      }</span></div>
+            <div class="season-stat"><span class="season-stat-label">PF</span><span class="season-stat-value">${s.fpts.toFixed(1)}</span></div>
+            <div class="season-stat"><span class="season-stat-label">PA</span><span class="season-stat-value">${s.fptsAgainst.toFixed(1)}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Overall</span><span class="season-stat-value">${s.overallWins}-${
+        s.overallLosses
+      }${s.overallTies ? "-" + s.overallTies : ""}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Luck</span><span class="season-stat-value">${luckBadge(s.luckPct)}</span></div>
+          </div>
+          <details class="draft-details">
+            <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
+            <div class="draft-details-content">${lineupHtml}</div>
+          </details>
+          <details class="draft-details">
+            <summary>Draft picks (${s.draftPicks.length})</summary>
+            <div class="draft-details-content">${picksHtml}</div>
+          </details>
+        </div>`;
     })
     .join("");
 
@@ -290,10 +294,7 @@ function renderManagerDetail(m) {
     </div>
     <div class="wrap">
       <div class="panel">
-        <table class="stat-table responsive-stack">
-          <thead><tr><th>Year</th><th>Rank</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th><th>Result</th></tr></thead>
-          <tbody>${seasonRows}</tbody>
-        </table>
+        <div class="season-cards">${seasonRows}</div>
       </div>
     </div>`;
 }

@@ -549,6 +549,58 @@ details.record-card-expandable[open] summary::after { content: "▴ hide lineup"
 /* ==========================================================================
    DRAFT PICKS DISCLOSURE
    ========================================================================== */
+.season-cards { display: flex; flex-direction: column; gap: 14px; }
+.season-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--turf-line);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.season-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.season-card-year {
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
+  font-size: 20px;
+  color: var(--chalk-header);
+  text-transform: uppercase;
+}
+.season-card-result {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--gold);
+  background: rgba(232, 178, 61, 0.1);
+  border: 1px solid rgba(232, 178, 61, 0.3);
+  border-radius: 20px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+.season-card-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
+  gap: 12px 14px;
+}
+.season-stat { display: flex; flex-direction: column; gap: 3px; }
+.season-stat-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--chalk-dim);
+}
+.season-stat-value {
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--chalk);
+  font-variant-numeric: tabular-nums;
+}
+
 details.draft-details {
   margin-top: 8px;
   border-top: 1px dashed var(--turf-line);
@@ -808,28 +860,6 @@ table.stat-table td.heat-cell.empty {
   }
   table.stat-table.responsive-stack td.heat-cell.empty { background: transparent !important; }
   table.stat-table.responsive-stack tr td:last-child { border-bottom: none; }
-
-  /* Season By Season (Teams page) is two <tr> per season — a stat row and
-     an expandable details row — rather than one. Join them into a single
-     visual card instead of two separate stacked boxes, and let the
-     <details>/<summary> content render as normal blocks rather than being
-     squeezed into the usual label/value row format. */
-  table.stat-table.responsive-stack tr.season-stat-row {
-    margin-bottom: 0;
-    border-bottom: none;
-    border-radius: 8px 8px 0 0;
-  }
-  table.stat-table.responsive-stack tr.season-details-row {
-    margin-top: -1px;
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-  }
-  table.stat-table.responsive-stack td.season-details-cell {
-    display: block;
-    text-align: left;
-    padding: 10px 14px;
-  }
-  table.stat-table.responsive-stack td.season-details-cell::before { content: none; }
 }
 
 /* ==========================================================================
@@ -1027,11 +1057,23 @@ details.bracket-game.championship {
   .bracket-round {
     min-width: 0;
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
   }
+  .bracket-round-label { grid-column: 1 / -1; }
   .bracket-round:not(:first-child) {
     padding-top: 20px;
     border-top: 1px dashed var(--turf-line);
   }
+  details.bracket-game { padding: 7px 8px; min-width: 0; }
+  .bracket-team span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bracket-score { flex-shrink: 0; }
+  .bracket-game-label { font-size: 9px; }
 }
 
 /* ==========================================================================
@@ -1621,35 +1663,6 @@ table.stat-table td.playoff-cutoff-label {
   0%, 100% { box-shadow: 0 0 0 3px var(--gold) inset, 0 0 16px 2px rgba(232, 178, 61, 0.55); }
   50% { box-shadow: 0 0 0 3px var(--gold) inset, 0 0 22px 4px rgba(232, 178, 61, 0.8); }
 }
-
-.draft-cell.draft-cell-hidden { background: var(--turf-dark); }
-.draft-cell.draft-cell-hidden .draft-cell-player,
-.draft-cell.draft-cell-hidden .draft-cell-meta {
-  visibility: hidden;
-}
-/* The grade glow/star would otherwise spoil an unrevealed pick's grade
-   during replay before it's actually shown. */
-.draft-cell.draft-cell-hidden.draft-cell-s-grade,
-.draft-cell.draft-cell-hidden.draft-cell-a-grade {
-  box-shadow: none;
-  animation: none;
-}
-.draft-cell.draft-cell-hidden.draft-cell-s-grade::after { display: none; }
-.draft-cell.draft-cell-on-clock {
-  border-left-color: var(--gold) !important;
-  box-shadow: 0 0 0 2px var(--gold) inset;
-  animation: draft-pulse 1.1s ease-in-out infinite;
-}
-@keyframes draft-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.55; }
-}
-@keyframes draft-pop-in {
-  0% { transform: scale(0.85); opacity: 0.2; }
-  65% { transform: scale(1.04); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.draft-cell.draft-cell-pop-in { animation: draft-pop-in 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
 
 .draft-cell-pick { font-family: var(--font-mono); font-size: 10px; color: var(--chalk-dim); }
 .draft-cell-player {
