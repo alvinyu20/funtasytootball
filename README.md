@@ -374,6 +374,49 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Bracket Side-By-Side, Attempt Three: Verified in an Actual Browser
+
+Two rounds of fixes for this same bug had each looked correct on
+careful reading and still didn't work on the real device — reasoning
+about CSS cascade and flex mechanics by hand had reached its limit.
+This time, verified against a real Chromium engine instead of
+continuing to guess: found an available `chrome-headless-shell` binary
+in the sandbox, drove it via Puppeteer, and rendered the actual bracket
+markup at the exact 390px viewport width from the reported screenshot.
+
+That surfaced the real, definitive chain of causes:
+
+1. First measurement showed `.bracket` itself collapsing to roughly
+   half its expected width. Cause: `.bracket-wrap` has
+   `align-items: flex-start` from the desktop rule, never overridden on
+   mobile — once `flex-direction` switches to `column`, `align-items`
+   governs the *horizontal* axis, and `flex-start` means children
+   shrink-to-fit instead of stretching to fill the available width.
+   Fixed by adding `align-items: stretch` to the mobile override.
+
+2. After that, each game card still rendered at full width (100% of
+   its now-correctly-sized parent) instead of ~50%. A targeted
+   ancestor-chain measurement, then a check of literally every CSS rule
+   in the stylesheet that matches these elements (queried directly via
+   `document.styleSheets`, to rule out a rule I might be missing on a
+   read-through), showed the actual cause: the mobile `.bracket-round`
+   override sets `display: flex` and `flex-wrap: wrap`, but never
+   resets `flex-direction` — so the desktop rule's
+   `flex-direction: column` was cascading straight through. With the
+   main axis still vertical, `flex-basis` was controlling each item's
+   *height*, not width, and wrapping never triggered at all since
+   height is unbounded. Fixed with an explicit `flex-direction: row`
+   in the mobile override.
+
+Verified end to end this time, not just reasoned through: two-game
+rounds now share the same `top` and sit at different `left` positions
+(confirmed genuinely side by side, not just narrower), a single-game
+round still correctly expands to fill its row, the desktop layout
+(1024px viewport) is byte-for-byte unaffected, every real username from
+the reported screenshot — including the longest, "JoeSifBoreDough" —
+fits without needing its truncation fallback to even engage, and the
+full page has zero horizontal overflow at mobile width.
+
 ## Bracket Side-By-Side: The Real Bug
 
 The grid-based fix from the previous round looked structurally sound

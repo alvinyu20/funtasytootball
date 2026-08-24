@@ -1047,7 +1047,7 @@ details.bracket-game.championship {
 }
 
 @media (max-width: 720px) {
-  .bracket-wrap { flex-direction: column; }
+  .bracket-wrap { flex-direction: column; align-items: stretch; }
   .bracket-sidebar { width: 100%; }
   .bracket {
     flex-direction: column;
@@ -1058,6 +1058,7 @@ details.bracket-game.championship {
     min-width: 0;
     width: 100%;
     display: flex;
+    flex-direction: row;
     flex-wrap: wrap;
     gap: 10px;
   }
@@ -1082,7 +1083,7 @@ details.bracket-game.championship {
      Ellipsis truncation on the name only takes effect once the
      container is actually allowed to shrink smaller than the text. */
   details.bracket-game {
-    flex: 1 1 calc(50% - 5px);
+    flex: 1 1 calc(50% - 10px);
     min-width: 0;
     padding: 7px 8px;
   }
