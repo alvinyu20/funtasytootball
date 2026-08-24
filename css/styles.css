@@ -207,6 +207,40 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible {
   text-transform: uppercase;
   letter-spacing: 0.01em;
 }
+
+/* Standard accessible-but-invisible pattern: content stays in the DOM
+   and readable by screen readers/search engines, just removed from
+   visual layout. Used on the Home page so the mascot logo can stand in
+   visually for the page's actual <h1> (the real league name), without
+   losing that heading's semantic and accessibility value. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.home-logo { margin: 4px 0 2px; }
+.home-logo-svg { display: block; width: 100%; max-width: 520px; height: auto; }
+.home-logo-ball { fill: var(--rust); }
+.home-logo-crack { stroke: #7A331B; stroke-width: 3.5; }
+.home-logo-laces { stroke: var(--chalk); stroke-width: 2.5; }
+.home-logo-eyes { fill: var(--chalk); }
+.home-logo-pupils { fill: var(--turf-dark); }
+.home-logo-toot { stroke: #7FA98A; stroke-width: 3; opacity: 0.8; }
+.home-logo-text-1, .home-logo-text-2 {
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
+  font-size: 46px;
+  letter-spacing: 1px;
+}
+.home-logo-text-1 { fill: var(--chalk-header); }
+.home-logo-text-2 { fill: var(--gold); }
+
 .scoreboard-sub {
   font-family: var(--font-mono);
   color: var(--chalk-dim);
@@ -1552,7 +1586,7 @@ table.stat-table td.playoff-cutoff-label {
 .history-callout-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
 .history-callout-text { font-family: var(--font-body); font-size: 15px; color: var(--chalk); line-height: 1.5; }
 .history-callout-text strong { color: var(--gold); }
-.latest-newsletter-link { display: block; text-decoration: none; transition: border-color 0.15s ease; }
+.latest-newsletter-link { display: block; margin-top: 36px; text-decoration: none; transition: border-color 0.15s ease; }
 .latest-newsletter-link:hover { border-color: var(--gold-dim); }
 
 /* ==========================================================================

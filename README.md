@@ -374,6 +374,55 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Home Page Mascot Logo, Newsletter Spacing Fix
+
+**New mascot logo** replacing the plain "FUNTASY TOOTBALL" text on the
+Home page hero specifically — not the nav bar brand, which every other
+page still uses unchanged. A hand-built inline SVG: a football with a
+recognizably football-like pointed tip (laces, two bright cartoon
+eyes) whose other end becomes a cartoon butt (two rounded cheeks, a
+crack line, subtle light/dark shading for dimension), with a few small
+motion-line "toots" trailing behind it, next to a two-line wordmark
+("FUNTASY" / "TOOTBALL") in the site's own display font and color
+tokens. Wider than it is tall on purpose, per the request, so it reads
+as a proper wide banner lockup rather than a small icon.
+
+Built and refined through direct visual iteration rather than guessing
+at SVG coordinates blind: found an available headless Chromium binary
+already in the sandbox, rendered each draft, and actually looked at
+the screenshots before deciding what to change. First draft's football
+body read as a shapeless blob and had a single stray-looking eye;
+second pass fixed the silhouette with sharper pointed-tip curves and
+added a second eye; confirmed the final version holds up at both a
+full desktop size and a small mobile-realistic size before it ever
+touched the real site.
+
+Accessibility-conscious implementation: the page's actual `<h1>`
+(which `dashboard.js` already populates with the real league name from
+Sleeper) is kept in the DOM and still gets that text set exactly as
+before — just visually hidden via a standard clip-based
+`.visually-hidden` utility, with the new logo, marked
+`aria-hidden="true"`, standing in visually alongside it. Screen readers
+and search engines still see a normal, meaningful heading; sighted
+users see the mascot. Verified the final integration by screenshotting
+the actual rendered `index.html` (not just the standalone logo file) at
+both desktop and mobile widths, confirming zero horizontal overflow at
+mobile width and that the SVG's responsive sizing behaves correctly
+inside the real scoreboard panel.
+
+**Newsletter callout spacing fixed.** `.scoreboard` has zero bottom
+margin by design (`margin: 28px auto 0`), and the immediately
+following container had zero top margin either — so there was
+genuinely no gap at all between the hero and the newsletter callout
+below it, not just a visually-tight one. Added `margin-top: 36px` to
+the callout itself, matching the site's own established spacing
+convention for "the element right after the scoreboard" (the same
+36px already used by `.yard-divider` on every other page), rather than
+picking an arbitrary new number. Verified with a direct screenshot of
+the real rendered spacing, with the (sandbox-only, network-related)
+error banner hidden to match what production actually shows once
+Sleeper's API is reachable.
+
 ## Bracket Side-By-Side, Attempt Three: Verified in an Actual Browser
 
 Two rounds of fixes for this same bug had each looked correct on
