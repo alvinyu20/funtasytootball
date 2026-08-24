@@ -1057,17 +1057,39 @@ details.bracket-game.championship {
   .bracket-round {
     min-width: 0;
     width: 100%;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 10px;
   }
-  .bracket-round-label { grid-column: 1 / -1; }
+  /* Own full-width row, so the two games that follow wrap onto the next
+     line(s) beneath it rather than sharing a row with the label. */
+  .bracket-round-label { width: 100%; }
   .bracket-round:not(:first-child) {
     padding-top: 20px;
     border-top: 1px dashed var(--turf-line);
   }
-  details.bracket-game { padding: 7px 8px; min-width: 0; }
+  /* Forced 50% basis rather than relying on an implicit auto-fit column
+     count — a single game (e.g. the Championship) still grows to fill
+     the full row via flex-grow, but two games are guaranteed to sit
+     side by side regardless of their content width. min-width:0 is set
+     through the whole nested chain (details -> summary -> .bracket-team
+     -> the name span) since flex/grid items default to min-width:auto,
+     which means they refuse to shrink below their content's natural
+     size — that default, not the grid/flex math itself, is what was
+     actually forcing these onto separate rows despite look right on
+     paper: a long team name like "evangonnerman" was silently keeping
+     the whole chain wide enough that two could never fit side by side.
+     Ellipsis truncation on the name only takes effect once the
+     container is actually allowed to shrink smaller than the text. */
+  details.bracket-game {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    padding: 7px 8px;
+  }
+  details.bracket-game summary { min-width: 0; }
+  .bracket-team { min-width: 0; }
   .bracket-team span:first-child {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

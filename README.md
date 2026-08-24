@@ -374,6 +374,35 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Bracket Side-By-Side: The Real Bug
+
+The grid-based fix from the previous round looked structurally sound
+on re-inspection — correct selector, correct specificity, correctly
+ordered after the desktop rule — but didn't actually work, per a
+screenshot showing quarterfinal and semifinal matchups still stacked.
+
+Found the real cause: `.bracket-team` (and by extension its ancestors,
+`<summary>` and the game's `<details>`) is a flex container, and flex
+items default to `min-width: auto`, which means they refuse to shrink
+below their own content's natural width unless explicitly told
+otherwise. A long username like "evangonnerman" or "JoeSifBoreDough"
+(both visible in the reported screenshot) was silently keeping that
+whole nested chain wide enough that two could never actually sit side
+by side — regardless of whether the grid track math around them was
+correct, which it was. This is exactly why the ellipsis truncation
+added on the team name in the previous round never visibly did
+anything either: text-overflow can't engage until its container is
+actually permitted to shrink smaller than the text in the first place.
+
+Fixed two ways at once: switched from grid `auto-fit` to an explicit
+flex-wrap layout with a forced `flex: 1 1 calc(50% - 5px)` basis (more
+predictable than relying on `auto-fit`'s implicit column-count
+computation), and set `min-width: 0` through the *entire* nested chain
+— details, summary, `.bracket-team`, and the name span itself — not
+just at the top level. A single game (the Championship) still grows
+via `flex-grow` to fill its row when there's no sibling to share space
+with.
+
 ## Career Records, Draft Replay Removal, Bracket Mobile Layout, Season Card Redesign
 
 **Career Records (History page)** now uses the same compact-mobile
