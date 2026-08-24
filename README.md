@@ -374,6 +374,33 @@ boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
 
+## Toot Effect: Fixed Overlap With the Wordmark
+
+The redesigned toot's wavy lines ran out to x=230 in the SVG's own
+coordinate space, but the wordmark text starts at x=222 — so the tail
+end of the middle wave was rendering directly behind the "F", not just
+visually close to it. Confirmed this precisely (not just by eye) by
+temporarily overlaying a marker line at the text's actual x-position
+before making any change, then compressed the whole toot horizontally
+so it now ends around x=212, leaving genuine clear space before the
+text rather than a tight-but-technically-fine gap. Reverified at both
+full and mobile-realistic scale, then once more directly in the actual
+rendered `index.html`, same as every other pass on this logo.
+
+## Toot Effect Redesign
+
+The original toot was three plain curved lines — functional, but read
+more like generic motion/speed lines than an actual cartoon toot.
+Redesigned with the same visual-iteration workflow as the logo itself
+(render, look, adjust, rather than guess at coordinates blind): a
+small cluster of soft overlapping "puff" circles right at the exit
+point, feeding into three wavy, dissipating lines that fan out and
+lose coherence as they travel — the standard cartoon-gas visual
+language, distinct from straight speed lines. Verified at both full
+size and a small mobile-realistic scale before touching the real site,
+then re-verified once more directly in the actual rendered `index.html`
+to confirm the integrated version matches the approved design exactly.
+
 ## Home Page Mascot Logo, Newsletter Spacing Fix
 
 **New mascot logo** replacing the plain "FUNTASY TOOTBALL" text on the

@@ -232,7 +232,8 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible {
 .home-logo-laces { stroke: var(--chalk); stroke-width: 2.5; }
 .home-logo-eyes { fill: var(--chalk); }
 .home-logo-pupils { fill: var(--turf-dark); }
-.home-logo-toot { stroke: #7FA98A; stroke-width: 3; opacity: 0.8; }
+.home-logo-toot-puff { fill: #8FBF9E; opacity: 0.48; }
+.home-logo-toot-wave { stroke: #8FBF9E; stroke-width: 3; opacity: 0.78; }
 .home-logo-text-1, .home-logo-text-2 {
   font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 46px;
