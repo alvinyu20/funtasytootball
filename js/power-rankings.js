@@ -22,7 +22,7 @@ async function renderPowerRankings() {
     progressBox.style.display = "block";
     progressBox.textContent = `Loading ${currentSeasonEntry.league.season}…`;
     const deep = await DeepHistory.fetchSeasonDeep(currentSeasonEntry, (season, status) => {
-      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
+      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
     });
     progressBox.style.display = "none";
 

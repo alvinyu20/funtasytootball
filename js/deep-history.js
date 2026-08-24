@@ -113,6 +113,12 @@ const DeepHistory = {
   /*
     Fetches everything for one season. Returns:
     { leagueId, season, weeks: [{week, matchups}], transactions: [...], draft: {draftId, picks} | null }
+
+    For a completed season, tries — in order — the browser's own
+    localStorage cache, then this site's static data/sleeper-archive/
+    backup, before ever falling back to a live, multi-request fetch
+    from Sleeper's API. See scripts/backup-sleeper-data.js for how that
+    backup gets populated.
   */
   async fetchSeasonDeep(seasonEntry, onProgress) {
     const { league } = seasonEntry;
@@ -132,6 +138,38 @@ const DeepHistory = {
         }
       } catch (err) {
         // corrupt cache entry — fall through and refetch
+      }
+
+      // Next, try this site's own static backup of the season (see
+      // scripts/backup-sleeper-data.js and data/sleeper-archive/)
+      // before ever touching Sleeper's live API. A completed season's
+      // data can't change, so a same-origin static file is exactly as
+      // correct as a live fetch, but faster (no dozens of sequential
+      // Sleeper calls) and keeps working even if Sleeper's API is
+      // slow, rate-limited, or briefly unreachable. fetchJsonSafe
+      // already handles a missing file (this season hasn't been
+      // backed up yet) or any other fetch problem gracefully, falling
+      // through to the live fetch below with no special handling
+      // needed here.
+      const archived = await fetchJsonSafe(`data/sleeper-archive/${league.season}.json`, null);
+      if (archived) {
+        const scheduleWeeks = archived.weeks || [];
+        const weeks = scheduleWeeks.filter(({ matchups }) => matchups.some((m) => (m.points || 0) > 0));
+        const result = {
+          leagueId,
+          season: league.season,
+          weeks,
+          scheduleWeeks,
+          transactions: archived.transactions || [],
+          draft: archived.draft || null,
+        };
+        onProgress && onProgress(league.season, "archived");
+        // Deliberately not cached in localStorage — a same-origin
+        // static file is already fast to re-fetch, so spending
+        // localStorage quota on it has no real benefit, and leaving
+        // that quota free matters more for seasons that DO need the
+        // live-fetch fallback below.
+        return result;
       }
     }
 

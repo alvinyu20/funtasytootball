@@ -57,7 +57,22 @@ const SleeperAPI = {
     } catch (err) {
       // corrupt cache entry — fall through and refetch
     }
-    const players = await sleeperGet(`/players/nfl`);
+
+    let players;
+    try {
+      players = await sleeperGet(`/players/nfl`);
+    } catch (err) {
+      // Sleeper's live API is unreachable — fall back to this site's own
+      // backed-up copy (see scripts/backup-sleeper-data.js) rather than
+      // failing outright. It won't be as fresh as a live fetch (new
+      // players, updated teams), but a slightly-stale player directory
+      // is far better than the whole site being unable to render
+      // anything at all over one failed request.
+      const archived = await fetchJsonSafe("data/sleeper-archive/players.json", null);
+      if (!archived) throw err; // nothing to fall back to — surface the original error
+      players = archived;
+    }
+
     try {
       localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), players }));
     } catch (err) {

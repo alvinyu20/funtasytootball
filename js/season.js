@@ -91,7 +91,7 @@ async function renderSelectedSeason() {
       progressBox.style.display = "block";
 
       const deepSeasons = await DeepHistory.buildAll(SEASON_CHAIN, (season, status) => {
-        progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
+        progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
       });
 
       const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA);
@@ -124,7 +124,7 @@ async function renderSelectedSeason() {
     progressBox.textContent = `Loading ${seasonEntry.league.season}…`;
 
     const deep = await DeepHistory.fetchSeasonDeep(seasonEntry, (season, status) => {
-      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
+      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
     });
 
     let allTimeStats = null;

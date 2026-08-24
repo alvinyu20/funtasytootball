@@ -1,0 +1,8 @@
+{
+  "name": "funtasytootball",
+  "private": true,
+  "description": "No dependencies, no build step — this exists purely so `npm test` works as the standard, familiar way to run the regression suite in tests/.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

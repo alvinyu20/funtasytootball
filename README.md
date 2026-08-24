@@ -327,6 +327,91 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Automated Regression Tests, and Automating the Injuries Pipeline
+
+Two things requested together, both about making "this keeps working
+correctly" less dependent on remembering to check by hand.
+
+**A real, checked-in test suite** in `tests/`, run via `npm test`
+(plain `node --test tests/*.test.js` underneath — Node's own built-in
+test runner, so this adds zero dependencies). 31 tests across 6 files,
+covering the areas that have needed the most careful, hard-won
+debugging over the life of this project: the waiver value algorithm
+(drop detection, the pickup-week roster-snapshot timing gap, duration
+weighting vs. one hot week, position-relative scoring, injury exclusion,
+non-standard transaction types, trades correctly excluded), draft
+grading (zero-point players, the K/DEF cap, the games-played cap),
+chart rendering (label collision avoidance, leader detection in both
+directions, rank mode), the new archive-first fetch/fallback logic, and
+the injury pipeline's CSV parser.
+
+Getting the test *infrastructure* itself right surfaced a real, easy-to
+-miss JavaScript gotcha worth documenting: this site's `js/*.js` files
+are plain global `<script>`-tag files with no module system (by
+design — no build step), so testing them for real means loading the
+actual, unmodified files rather than a hand-copied duplicate of their
+logic that could quietly drift out of sync. That's done via Node's
+`vm` module, running each file's real source in a shared context —
+mirroring how a browser shares one global scope (`window`) across
+multiple `<script>` tags. First attempt at this seemed to work
+(`escapeHtml` loaded and ran fine) but `DeepHistory`, `Charts`, and
+`SleeperAPI` all came back `undefined` from outside the vm context.
+The cause: top-level `function` and `var` declarations become
+properties of the global object automatically (same as they would on
+`window` in a browser) — but top-level `const`/`let` don't. They live
+in an internal "script scope" that's invisible from outside the vm
+entirely, which is exactly how all three of those are declared. Fixed
+by explicitly promoting each file's known top-level export onto the
+global object right after loading it — confirmed the fix with a
+minimal, isolated repro before trusting it in the real harness.
+
+Didn't just assume the tests were meaningful — proved it, twice.
+Deliberately reverted the duration-weighting fix (`relativeValue =
+relativeValuePerWeek * activeWeeksCount` back to just
+`relativeValuePerWeek`) and confirmed exactly one test failed while the
+other six in that file correctly stayed green; then separately broke
+the CSV parser's quote-handling and confirmed exactly the three
+quote-related tests failed while the rest of the parser's tests stayed
+correctly isolated and unaffected. A test suite that can't fail isn't
+proof of anything — this is what actually being confident in it looks
+like.
+
+Wired to `.github/workflows/tests.yml`, running automatically on every
+push and pull request (plus on demand), so a change that breaks
+something gets caught right when it's made.
+
+**The injuries pipeline is now automated the same way the Sleeper
+backup already was** — previously a manual, easy-to-forget refresh,
+now `scripts/update-injuries.js` plus
+`.github/workflows/update-injuries.yml` (weekly, Tuesdays, timed for
+after the injury-report cycle following Monday Night Football).
+Rebuilds `data/injuries.json` from nflverse's public weekly injury
+reports and weekly roster data (for IR/PUP/NFI status via a `RES`
+roster designation), cross-referenced to Sleeper player IDs — nflverse's
+own roster data conveniently includes a `sleeper_id` mapping directly,
+used first, with the DynastyProcess ID crosswalk as a fallback only for
+whatever that doesn't cover.
+
+Unlike the Sleeper backup script, this one's data sources (nflverse and
+DynastyProcess, both distributed via GitHub) are actually reachable
+from this environment, so this wasn't verified against a mock — it was
+run for real, against real data, right here: 1,492 players resolved
+across 2015–2026, the roster file's own Sleeper ID mapping alone
+covered roughly 93% of real 2023 injury/RES rows on its own, and the
+DynastyProcess fallback resolved the specific remaining case checked by
+hand. The hand-rolled CSV parser (no dependency, so no `csv-parse`
+package) was checked against Python's own `csv` module on that same
+real data and produced an identical row count on a file where naive
+newline-splitting would have silently miscounted rows, since some
+fields contain embedded newlines inside quotes.
+
+Confirmed the new `data/injuries.json`'s shape lines up exactly with
+what `DeepHistory.extractInjuriesForSeason` already expects
+(`players[sleeperId].weeks[season][week]`) by reading that function's
+real code side by side with the pipeline's output — this needed no
+changes to the site's own consuming code at all, only to how the file
+gets produced.
+
 ## History, Teams & Draft Grade Refinements
 
 **History page — Career Records rebuilt.** "Career Record" is now
@@ -373,6 +458,140 @@ rows now visually join into one card instead of stacking as two separate
 boxes, and the `<details>`/`<summary>` content renders as normal text
 instead of being awkwardly squeezed into the usual label/value row
 format.
+
+## Wiring the Backup Into the Live Site
+
+Explicitly flagged last time as "worth a separate conversation" rather
+than bundled in — this is that conversation. In direct answer to "any
+other performance/risk considerations," the single highest-value one
+was staring right at the backup that had just been built: it was
+sitting in the repo, but the live site never actually read from it,
+so it provided zero runtime benefit and zero actual resilience.
+
+**`fetchSeasonDeep` now checks three places, in order, for a completed
+season**: the browser's own `localStorage` cache (unchanged, still
+fastest when present), then this site's own `data/sleeper-archive/`
+backup, and only then falls back to a live, many-request fetch from
+Sleeper. This one change addresses several things that were raised as
+risks together, not separately:
+
+- **Resilience** — a completed season now renders correctly even if
+  Sleeper's API is down, slow, or rate-limiting, as long as it's been
+  backed up.
+- **Performance** — a same-origin static file replaces what was
+  previously up to dozens of sequential live API calls (one per week's
+  matchups, one per week's transactions, plus the draft) for every
+  completed season, every time the cache was empty.
+- **A real, growing risk that hadn't been called out before**: every
+  completed season's full raw data was accumulating in `localStorage`
+  indefinitely, and browsers cap that at a few MB per origin. As this
+  league adds more seasons, that cap was on a real, if slow, collision
+  course with itself — eventually caching would silently start
+  failing (the existing code already catches that error gracefully,
+  but the practical effect would have been every visit quietly
+  reverting to a full live fetch again, right as the league's history
+  — and thus the live-fetch cost — kept growing). Archive-sourced
+  seasons are deliberately *not* cached in `localStorage` at all now,
+  since a fast static file doesn't need it — freeing that quota
+  entirely for whatever hasn't been backed up yet.
+
+Applied the identical pattern to `SleeperAPI.getPlayerDirectory()` —
+if the live 5MB player fetch fails, it now falls back to this site's
+own archived copy rather than taking down the whole site's ability to
+render anything at all.
+
+Both changes were resolved as a genuine question, not assumed: does
+the archive-sourced data actually match the shape every downstream
+consumer (`computeStats`, grades, VBD, everything) expects? Verified
+directly in a real browser with real `fetch()` calls against a local
+server, not just reasoned through — confirmed the archive path
+produces the identical `{leagueId, season, weeks, scheduleWeeks,
+transactions, draft}` shape the live-fetch path always has, including
+correctly re-deriving which weeks actually have a score versus which
+are just pre-generated future schedule shells; confirmed a season with
+no archive file yet correctly falls through to the live-fetch path
+rather than silently returning nothing; and confirmed the player
+directory fallback engages correctly when Sleeper is genuinely
+unreachable.
+
+The progress messages users see while a page loads now distinguish
+"loaded from cache," "loaded from backup," and "fetching" — applied
+consistently across all seven pages that show this message, not left
+inconsistent between them.
+
+## Sleeper Data Backup: Insurance Against the API Disappearing
+
+A direct question worth a direct, honest answer: yes, this site pulls
+everything live from Sleeper's public API, from every visitor's own
+browser, on every page load — confirmed by re-reading `js/sleeper-api.js`
+rather than going from memory. There is no server and no database.
+The only "storage" that exists is `localStorage`, which is per-browser
+and per-device (completed seasons get cached there so repeat visits
+don't re-fetch a decade of history, but that cache means nothing to
+anyone who clears their browser data or opens the site somewhere new)
+— and Sleeper's own servers, which are the *only* place any of this
+data actually lives in any durable sense. If Sleeper's public API ever
+goes away, changes shape, or this league becomes inaccessible on
+Sleeper's platform for any reason, every draft grade, every waiver
+pickup, every season's worth of matchup history this site has ever
+shown becomes unrecoverable, all at once. That's a real, structural
+risk, not a hypothetical one — it's just been invisible because
+nothing has gone wrong yet.
+
+Built a real answer, not just a description of the problem: a
+[`scripts/backup-sleeper-data.js`](scripts/backup-sleeper-data.js)
+script that walks this league's full season history (the exact same
+`previous_league_id` chain the live site itself walks) and saves the
+raw API responses — rosters, users, every week's matchups, every
+week's transactions, the draft and its picks, the bracket — as JSON
+files in `data/sleeper-archive/`, plus the player ID directory needed
+to make any of it readable later. Wired to a GitHub Actions workflow
+([`.github/workflows/backup-sleeper-data.yml`](.github/workflows/backup-sleeper-data.yml))
+that runs it automatically every week and commits whatever changed —
+once this is deployed, it requires no ongoing manual effort at all, and
+because it's a normal part of the git repo, the *commit history* of
+this folder is itself a running backup, not just the latest snapshot.
+
+**A limitation worth being direct about**: this sandbox's network
+access doesn't reach Sleeper's API domain, so the backup script's
+actual execution has never touched real Sleeper data — it's been
+verified end to end (season-chain walking in the correct oldest-to-
+newest order, per-season fetching, the file output structure, the
+skip-completed-seasons logic, and fail-fast behavior on an unreachable
+API or bad league ID) against a local mock server built specifically
+to mimic Sleeper's real response shapes, not against Sleeper itself.
+The mock testing gives real confidence in the script's *logic*; it
+can't substitute for the script's first real run. GitHub Actions runs
+on infrastructure with ordinary internet access, so this isn't a
+problem once it's deployed and runs for real — but that first real run
+is genuinely the first time this code will have touched live Sleeper
+data, and is worth checking once it happens (either by waiting for the
+Monday schedule, or triggering it immediately via "Run workflow" on
+the repo's Actions tab).
+
+One thing to check if the automated commit step ever fails: repos
+sometimes default their Actions permissions to read-only, which would
+block the workflow's `git push`. The workflow requests write access
+itself (`permissions: contents: write`), which is normally sufficient
+— but if commits aren't showing up, check Settings → Actions →
+General → Workflow permissions on the repo.
+
+Also caught and fixed one real bug along the way: YAML parses a bare,
+unquoted `on:` key as the boolean `true` rather than the string "on"
+under YAML 1.1 rules — a well-known trap specifically for GitHub
+Actions files. GitHub's own parser handles this correctly in practice,
+but since that can't be verified against GitHub's live infrastructure
+from here, quoted it explicitly (`"on":`) to remove the ambiguity
+entirely rather than relying on it being fine.
+
+This backup is intentionally *not* wired into the live site itself —
+the site still always talks to Sleeper directly, exactly as before.
+That's a deliberate scope decision, not an oversight: whether the site
+should also read from these backups (as a fallback if Sleeper's API is
+down, or even as the primary source for old completed seasons, which
+would also make those pages load faster) is a real product decision
+with real tradeoffs, worth a separate conversation rather than being
+bundled into "can we back this up."
 
 ## Toot Effect: Fixed Overlap With the Wordmark
 

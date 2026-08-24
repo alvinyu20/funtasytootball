@@ -19,7 +19,7 @@ async function renderRecords() {
 
     progressBox.style.display = "block";
     const deepSeasons = await DeepHistory.buildAll(seasonChain, (season, status) => {
-      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : `Fetching ${season}…`;
+      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
     });
     progressBox.style.display = "none";
 
