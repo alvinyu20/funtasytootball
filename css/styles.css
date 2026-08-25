@@ -994,6 +994,10 @@ details.bracket-game summary {
   cursor: pointer;
 }
 details.bracket-game summary::-webkit-details-marker { display: none; }
+details.bracket-game.no-lineup { cursor: default; }
+details.bracket-game.no-lineup:hover { border-color: var(--turf-line); }
+details.bracket-game.no-lineup summary { cursor: default; }
+details.bracket-game.no-lineup summary::after { display: none; }
 details.bracket-game summary::after {
   content: "▾ tap for lineups";
   display: block;

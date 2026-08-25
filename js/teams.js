@@ -7,10 +7,11 @@ async function renderTeams() {
   const progressBox = document.getElementById("progress-status");
 
   try {
-    const [seasonChain, playerDirectory, seasonAwards] = await Promise.all([
+    const [seasonChain, playerDirectory, seasonAwards, manualHistory] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }),
+      fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
     ]);
 
     if (seasonChain.length === 0) {
@@ -22,7 +23,8 @@ async function renderTeams() {
 
     const latest = seasonChain[seasonChain.length - 1].league;
     document.title = (SITE_TITLE || latest.name || "League") + " — Teams";
-    document.getElementById("sb-sub").textContent = `${seasonChain.length} season${seasonChain.length === 1 ? "" : "s"} of history`;
+    const totalSeasonCount = seasonChain.length + ((manualHistory && manualHistory.seasons) || []).length;
+    document.getElementById("sb-sub").textContent = `${totalSeasonCount} season${totalSeasonCount === 1 ? "" : "s"} of history`;
 
     progressBox.style.display = "block";
     const deepSeasons = await DeepHistory.buildAll(seasonChain, (season, status) => {
@@ -31,6 +33,23 @@ async function renderTeams() {
     progressBox.style.display = "none";
 
     LEAGUE_STATS = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
+
+    // Fold ESPN-era (pre-Sleeper) totals and season-by-season entries
+    // into any manager who's also played in the Sleeper era — same
+    // merge helper history.js uses for Career Records, so the two
+    // pages can't disagree with each other about someone's numbers.
+    // Keyed by looking each Sleeper manager's own username up in the
+    // manual data, so a name that only ever appears in the ESPN-era
+    // data (never continued into Sleeper) simply has nothing to merge
+    // onto and is naturally excluded — no separate allow-list needed.
+    const manualStatsByTeam = ManualHistory.computeManagerStats(manualHistory);
+    LEAGUE_STATS.managers.forEach((m) => {
+      if (!m.username) return;
+      const manualForThisManager = manualStatsByTeam.get(m.username);
+      if (!manualForThisManager) return;
+      ManualHistory.mergeIntoManager(m, manualForThisManager.totals);
+      m.seasons = [...m.seasons, ...manualForThisManager.seasons];
+    });
 
     renderManagerPicker();
     renderFromHash();
@@ -179,7 +198,7 @@ function renderManagerDetail(m) {
             <div class="season-stat"><span class="season-stat-label">Overall</span><span class="season-stat-value">${s.overallWins}-${
         s.overallLosses
       }${s.overallTies ? "-" + s.overallTies : ""}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Luck</span><span class="season-stat-value">${luckBadge(s.luckPct)}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Luck</span><span class="season-stat-value">${s.luckPct != null ? luckBadge(s.luckPct) : "—"}</span></div>
           </div>
           <details class="draft-details">
             <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>

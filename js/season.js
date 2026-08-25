@@ -3,6 +3,7 @@ let PLAYER_DIRECTORY = null;
 let SEASON_AWARDS = null;
 let POWER_RANK_CSV_HISTORY = null;
 let INJURIES_DATA = null;
+let MANUAL_HISTORY = null;
 let ALL_TIME_STATS_CACHE = null; // computed lazily, once per page load — see getAllTimeStats()
 
 /*
@@ -25,12 +26,13 @@ async function getAllTimeStats() {
 async function renderSeasonPage() {
   const errorBox = document.getElementById("season-error");
   try {
-    const [seasonChain, playerDirectory, seasonAwards, powerRankCsvHistory, injuriesData] = await Promise.all([
+    const [seasonChain, playerDirectory, seasonAwards, powerRankCsvHistory, injuriesData, manualHistory] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }),
       fetchJsonSafe(POWER_RANK_CSV_HISTORY_FILE, { seasons: {} }),
       fetchJsonSafe(INJURIES_FILE, { players: {} }),
+      fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
     ]);
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
@@ -41,6 +43,7 @@ async function renderSeasonPage() {
     SEASON_AWARDS = seasonAwards;
     POWER_RANK_CSV_HISTORY = powerRankCsvHistory;
     INJURIES_DATA = injuriesData;
+    MANUAL_HISTORY = manualHistory;
 
     await renderSelectedSeason();
     window.addEventListener("hashchange", renderSelectedSeason);
@@ -67,11 +70,14 @@ function getSelectedSeasonEntry() {
 function renderPicker(selectedKey) {
   const picker = document.getElementById("season-picker");
   const totalPill = `<a class="season-pill ${selectedKey === "total" ? "active" : ""}" href="#total">TOTAL</a>`;
-  const yearPills = [...SEASON_CHAIN]
-    .reverse() // newest first
-    .map((s) => {
-      const year = s.league.season;
-      const isActive = String(year) === String(selectedKey);
+
+  const sleeperYears = SEASON_CHAIN.map((s) => String(s.league.season));
+  const manualYears = ((MANUAL_HISTORY && MANUAL_HISTORY.seasons) || []).map((s) => String(s.year));
+  const allYears = [...new Set([...sleeperYears, ...manualYears])].sort((a, b) => Number(b) - Number(a)); // newest first
+
+  const yearPills = allYears
+    .map((year) => {
+      const isActive = year === String(selectedKey);
       return `<a class="season-pill ${isActive ? "active" : ""}" href="#${year}">${year}</a>`;
     })
     .join("");
@@ -112,6 +118,32 @@ async function renderSelectedSeason() {
       document.title = (SITE_TITLE || leagueName || "League") + " — All-Time";
       document.getElementById("sb-title").textContent = "All-Time";
       document.getElementById("sb-sub").textContent = `${SEASON_CHAIN.length} season${SEASON_CHAIN.length === 1 ? "" : "s"} combined`;
+      return;
+    }
+
+    // A pre-Sleeper (manual-entry) year, e.g. an ESPN-era season — checked
+    // by year not being present in the live Sleeper chain at all, so a
+    // year that happens to exist in both would always prefer the richer
+    // Sleeper data. Renders a lighter standings + bracket view instead of
+    // the full season pipeline, since no week-by-week data exists for
+    // these seasons to build that richer view from in the first place.
+    const hashYear = decodeURIComponent(location.hash.replace(/^#/, ""));
+    const isSleeperYear = SEASON_CHAIN.some((s) => String(s.league.season) === hashYear);
+    const manualSeason = !isSleeperYear ? ManualHistory.findSeason(MANUAL_HISTORY, hashYear) : null;
+    if (manualSeason) {
+      renderPicker(String(manualSeason.year));
+      errorBox.style.display = "none";
+      progressBox.style.display = "none";
+      content.style.display = "";
+      content.innerHTML = renderManualSeasonSummary(manualSeason);
+      stopReplay(); // in case a running replay timer was left over from a previously-viewed Sleeper season
+      initScrollAnimations();
+      initSectionReveal(content);
+
+      const leagueName2 = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
+      document.title = (SITE_TITLE || leagueName2 || "League") + " — " + manualSeason.year + " Season";
+      document.getElementById("sb-title").textContent = manualSeason.year + " Season";
+      document.getElementById("sb-sub").textContent = "Pre-Sleeper season (ESPN) · limited historical data available";
       return;
     }
 
@@ -441,7 +473,7 @@ function renderBracket(bracketData) {
               ])}</div>`
             : "";
           return `
-          <details class="bracket-game${g.isChampionship ? " championship" : ""}">
+          <details class="bracket-game${g.isChampionship ? " championship" : ""}${hasLineups ? "" : " no-lineup"}">
             <summary>${label}${teamRow(g.team1)}${teamRow(g.team2)}</summary>
             ${lineupSection}
           </details>`;
@@ -477,6 +509,61 @@ function renderBracket(bracketData) {
     : "";
 
   return `<div class="bracket-wrap"><div class="bracket">${columns}</div>${championSidebar}</div>`;
+}
+
+/*
+  The pre-Sleeper (ESPN-era) equivalent of renderSummary() — deliberately
+  much lighter, since only final standings and a partial playoff bracket
+  exist for these seasons, not week-by-week matchup, waiver, or draft
+  data to build the richer view from. Reuses renderBracket() as-is
+  rather than a second bracket implementation.
+*/
+function renderManualSeasonSummary(season) {
+  const standingsRows = [...season.standings]
+    .sort((a, b) => a.standing - b.standing)
+    .map((row) => {
+      const medalEmoji = row.medal === "gold" ? "🏆" : row.medal === "silver" ? "🥈" : row.medal === "bronze" ? "🥉" : "";
+      const playoffCell = row.playoffAppearance ? `${row.playoffWins}-${row.playoffLosses}${row.playoffBye ? ` <span class="muted-inline">(bye)</span>` : ""}` : "—";
+      return `
+        <tr>
+          <td data-label="#">${row.standing}</td>
+          <td class="team-cell" data-label="Team">${escapeHtml(row.team)}</td>
+          <td data-label="Record">${row.wins}-${row.losses}${row.ties ? "-" + row.ties : ""}</td>
+          <td data-label="PF">${row.pointsFor.toFixed(1)}</td>
+          <td data-label="PA">${row.pointsAgainst.toFixed(1)}</td>
+          <td data-label="Playoffs">${playoffCell}</td>
+          <td data-label="">${medalEmoji}</td>
+        </tr>`;
+    })
+    .join("");
+
+  const bracketData = ManualHistory.buildBracketData(season);
+
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Final Standings</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile">
+          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Playoffs</th><th></th></tr></thead>
+          <tbody>${standingsRows}</tbody>
+        </table>
+      </div>
+      <p class="heatmap-note">From this league's ESPN era (before the move to Sleeper) — full weekly matchup, waiver, and draft data isn't available for this season, only final standings and the playoff bracket below.</p>
+    </div></div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Playoff Bracket</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      ${renderBracket(bracketData)}
+      <p class="heatmap-note">Scores for the Quarterfinals and Semifinals aren't on record for this season — only the Finals score and MVP are known.</p>
+    </div></div>`;
 }
 
 let REPLAY_TIMER = null;

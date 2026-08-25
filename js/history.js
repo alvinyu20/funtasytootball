@@ -72,9 +72,7 @@ async function renderHistory() {
             ${userAvatarHtml(row.championAvatarUrl, displayName, "player-photo-lg")}
             <div class="trophy-year">${escapeHtml(String(row.year))}</div>
             <div class="trophy-champion-name">${escapeHtml(displayName)}</div>`;
-            return row.sourceBadge === "Sleeper"
-              ? `<a class="trophy-card" href="season.html#${row.year}">${card}</a>`
-              : `<div class="trophy-card">${card}</div>`;
+            return `<a class="trophy-card" href="season.html#${row.year}">${card}</a>`;
           })
           .join("")
       : `<div class="empty-state">No champions crowned yet.</div>`;
@@ -88,9 +86,7 @@ async function renderHistory() {
           ${row.notes ? `<div class="champ-sub">${escapeHtml(row.notes)}</div>` : ""}
         </div>
         <span class="badge">${row.sourceBadge}</span>`;
-        return row.sourceBadge === "Sleeper"
-          ? `<a class="ledger-row" href="season.html#${row.year}" style="text-decoration:none; color:inherit; cursor:pointer;">${inner}</a>`
-          : `<div class="ledger-row">${inner}</div>`;
+        return `<a class="ledger-row" href="season.html#${row.year}" style="text-decoration:none; color:inherit; cursor:pointer;">${inner}</a>`;
       })
       .join("");
 
@@ -124,7 +120,7 @@ async function renderHistory() {
     //      correctly separate genuine playoff games from regular season
     //      and consolation-bracket games. Kicked off after the fast stuff
     //      above is already on screen. ----
-    renderCareerRecords(seasons, playerDirectory);
+    renderCareerRecords(seasons, playerDirectory, manual);
   } catch (err) {
     console.error(err);
     errorBox.textContent = "Couldn't load league history — " + err.message;
@@ -132,10 +128,22 @@ async function renderHistory() {
   }
 }
 
-async function renderCareerRecords(seasons, playerDirectory) {
+async function renderCareerRecords(seasons, playerDirectory, manual) {
   try {
     const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
     const stats = DeepHistory.computeStats(seasons, deepSeasons, playerDirectory);
+
+    // Fold in ESPN-era (pre-Sleeper) totals for any manager who's also
+    // played in the Sleeper era. Deliberately keyed by looking each
+    // Sleeper manager's own username up in the manual data, not the
+    // other way around — a name that only ever appears in the manual
+    // data (never continued into the Sleeper era) has no Sleeper
+    // manager object to merge onto in the first place, so it's
+    // naturally excluded here without needing an explicit allow-list.
+    const manualStatsByTeam = ManualHistory.computeManagerStats(manual);
+    stats.managers.forEach((m) => {
+      if (m.username) ManualHistory.mergeIntoManager(m, manualStatsByTeam.get(m.username)?.totals);
+    });
 
     const careerRows = stats.managers
       .map((m) => {

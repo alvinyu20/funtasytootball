@@ -327,6 +327,97 @@ undocumented and not every player has a photo (team defenses, for one),
 any image that fails to load falls back to a simple initial-letter tile
 instead of a broken-image icon.
 
+## Bringing In the ESPN Era (2015–2019)
+
+Added the league's pre-Sleeper history from a supplied CSV, plus
+hand-entered playoff bracket results, across History, Teams, and
+Season.
+
+**A real data problem, caught before it corrupted anything.** The
+CSV's column labeled "Gold(1), Silver(2), or Bronze (3)" doesn't
+actually hold the medal — cross-checking every value against the
+bracket results in the request showed that column is really a
+"reached the finals" flag (both finalists show 1, regardless of who
+won), and the true medal sits in a separate, unlabeled trailing
+column the header row doesn't name at all. Verified this conclusion
+directly against three independent known results before trusting it,
+then confirmed all 5 seasons' medal winners match the given bracket
+text exactly once corrected. Also resolved an apparent inconsistency
+between the CSV's playoff win/loss columns and the bracket text before
+writing any data: those columns only count championship-bracket games
+(quarterfinal/semifinal/final), never the 3rd-place consolation game —
+confirmed this against three separate cases (tduchow 2015, sofarrsogood
+2016, hmart92 2016) where a team's bracket result only makes sense
+under that reading.
+
+**New shared engine**, `js/manual-history.js` — turns
+`data/manual-history.json` into the exact shapes the site's existing
+rendering code already expects (`renderBracket`'s input shape, and the
+same per-season card shape `teams.js` already renders), so no second,
+parallel UI needed to be built. The "only Sleeper-era users" rule
+requested for Career Records and the Teams page falls out naturally
+from *how* the merge is keyed — every Sleeper manager's own username is
+looked up in the manual data, not the other way around, so a name that
+only ever appears in the ESPN-era data (never continued into Sleeper)
+has nothing to merge onto and is automatically excluded, with no
+separate allow-list to maintain.
+
+**History page** — Trophy Room and the Champions Ledger now link every
+year, including the ESPN ones, to a real season page (previously
+manual entries rendered as inert, unlinked cards, since no page existed
+yet for them to link to). Career Records now folds in ESPN-era
+totals for anyone who also played in the Sleeper era.
+
+**Teams page** — Team Profile's career ticker and the Season-by-Season
+card list both incorporate ESPN-era data for Sleeper-era managers,
+interleaved in the same newest-first order as their Sleeper seasons.
+Manual season cards correctly show empty (not broken) draft-pick and
+starting-lineup sections, since no per-player data exists for these
+years, and a fixed, honest "—" for the Luck stat rather than crashing
+on it or showing a misleading 0.0% — there's no week-by-week data to
+compute luck from for these seasons at all.
+
+**Season page** — 2015–2019 now appear in the season picker,
+interleaved with the live Sleeper years. Selecting one of them renders
+a deliberately lighter view (final standings, then the playoff
+bracket) instead of the full season pipeline, since no week-by-week
+matchup, waiver, or draft data exists for these years to build that
+richer view from. The bracket reuses `renderBracket()` completely
+rather than a second implementation — quarterfinal and semifinal games
+correctly show no score (not available in the source data), while the
+3rd-place game and Finals (with its MVP) show full detail.
+
+Caught and fixed a real UX bug surfaced by this reuse: every bracket
+game shows a static "▾ tap for lineups" hint via CSS, regardless of
+whether there's actually anything to expand — harmless for Sleeper
+seasons where most games have lineup data, but every single game on
+every ESPN-era season would have shown this misleading hint with
+nothing behind it. Fixed by marking lineup-less games with a `.no-lineup`
+class and suppressing the hint (and the pointer cursor) for them
+specifically.
+
+**Testing.** Two real vm-testing gotchas surfaced and got documented in
+the test harness itself for whoever writes the next test here: reading
+a `let`-declared page-controller variable (like `season.js`'s own
+`SEASON_CHAIN`) from outside the vm context doesn't work the same way
+reading a file's `const` export does — needed a second harness helper,
+`runInLoadedContext`, to set it correctly, by running an assignment as
+code inside the same context rather than as a property write from
+outside. And `assert.deepStrictEqual` on a whole object built by code
+running inside the vm will report a false failure ("same structure but
+not reference-equal") against a plain object literal in the test file,
+since they belong to different JS realms with different `Object`/`Array`
+prototypes — fixed by asserting on individual primitive fields instead.
+
+46 tests total now. Beyond the new engine and season-view tests, this
+work was checked well beyond unit tests: rendered the actual Teams and
+History pages in a real browser with real, hand-verified merged data
+(a fake Sleeper season merged with yulovesyou's real 5 years of ESPN
+history) and confirmed every displayed number — 63-27 overall, 70.0%
+win rate, 10-2 playoff record, 8,534.8 career points, 4 championships —
+against independent hand arithmetic, not just that the page rendered
+without error.
+
 ## Automated Regression Tests, and Automating the Injuries Pipeline
 
 Two things requested together, both about making "this keeps working

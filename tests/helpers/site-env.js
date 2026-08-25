@@ -16,6 +16,20 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
+/*
+  A note for anyone adding tests against this harness: objects and
+  arrays created BY CODE RUNNING INSIDE the vm context belong to a
+  different JS realm than the host test file, with their own separate
+  Object/Array prototypes. assert.deepStrictEqual is realm-aware and
+  correctly refuses to treat these as equal to a plain {} or []
+  literal written in the test file itself, even when every property
+  matches — it'll report "same structure but not reference-equal"
+  rather than passing. This isn't a bug in the site code or the
+  harness; it's a real consequence of testing real vm-loaded code.
+  Assert on individual primitive fields/lengths instead of the whole
+  object/array when a function under test returns something built
+  inside the vm context.
+*/
 const JS_DIR = path.join(__dirname, "..", "..", "js");
 
 // Top-level declarations in each file that a test might need to reach
@@ -30,6 +44,7 @@ const KNOWN_EXPORTS = {
   "charts.js": ["Charts", "MULTI_LINE_COLORS"],
   "deep-history.js": ["DeepHistory"],
   "sleeper-api.js": ["SleeperAPI"],
+  "manual-history.js": ["ManualHistory"],
 };
 
 /*
@@ -49,6 +64,22 @@ function loadSiteModules(filenames) {
     // computation functions under test to run; nothing here should ever
     // need to behave like a real browser beyond that.
     window: undefined,
+    document: (function () {
+      const elementsById = new Map();
+      function fakeElement() {
+        return { innerHTML: "", textContent: "", style: {}, className: "" };
+      }
+      return {
+        addEventListener: () => {},
+        getElementById(id) {
+          if (!elementsById.has(id)) elementsById.set(id, fakeElement());
+          return elementsById.get(id);
+        },
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      };
+    })(),
+    location: { hash: "" },
     localStorage: {
       _data: {},
       getItem(k) {
@@ -83,4 +114,20 @@ function loadSiteModules(filenames) {
   return context;
 }
 
-module.exports = { loadSiteModules };
+/*
+  Runs arbitrary code inside an already-loaded context — needed to set a
+  page-controller file's own top-level `let` state (SEASON_CHAIN,
+  MANUAL_HISTORY, LEAGUE_STATS, etc.) from a test. Directly assigning
+  `context.SEASON_CHAIN = ...` from outside does NOT work for this, for
+  the same underlying reason reading a const export needs the promotion
+  trick above: these variables live in the vm's internal script scope,
+  not as properties of the context object itself. Running an assignment
+  AS CODE inside that same context, though, resolves correctly against
+  the existing binding, since it's executing in the same scope the
+  original `let`/`const` declaration created.
+*/
+function runInLoadedContext(context, code) {
+  return vm.runInContext(code, context);
+}
+
+module.exports = { loadSiteModules, runInLoadedContext };

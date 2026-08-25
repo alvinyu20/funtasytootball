@@ -1,5 +1,1024 @@
 {
-  "_instructions": "Fill in one object per pre-Sleeper season and delete this note. 'standings' is optional — include it if you want that year's full table on the History page, or leave it as an empty array if you only know the champion. Delete this whole file's contents down to just { \"seasons\": [] } if you don't need this.",
-
-  "seasons": []
+  "seasons": [
+    {
+      "year": 2015,
+      "champion": "yulovesyou",
+      "notes": "Finals MVP: Tim Hightower (RB) — 28.9 pts",
+      "standings": [
+        {
+          "team": "tduchow",
+          "standing": 1,
+          "draftPick": 2,
+          "wins": 10,
+          "losses": 2,
+          "ties": 1,
+          "pointsFor": 1397,
+          "pointsAgainst": 1060,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 100,
+          "medal": "bronze"
+        },
+        {
+          "team": "hmart92",
+          "standing": 2,
+          "draftPick": 9,
+          "wins": 9,
+          "losses": 4,
+          "ties": 0,
+          "pointsFor": 1211,
+          "pointsAgainst": 981,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 83,
+          "medal": null
+        },
+        {
+          "team": "yulovesyou",
+          "standing": 3,
+          "draftPick": 10,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1222,
+          "pointsAgainst": 1157,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 3,
+          "playoffLosses": 0,
+          "playoffPoints": 363,
+          "medal": "gold"
+        },
+        {
+          "team": "Macklin",
+          "standing": 4,
+          "draftPick": 8,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1121,
+          "pointsAgainst": 1134,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 79,
+          "medal": null
+        },
+        {
+          "team": "Chris",
+          "standing": 5,
+          "draftPick": 6,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1189,
+          "pointsAgainst": 1108,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 2,
+          "playoffLosses": 1,
+          "playoffPoints": 292,
+          "medal": "silver"
+        },
+        {
+          "team": "Liam",
+          "standing": 6,
+          "draftPick": 5,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1162,
+          "pointsAgainst": 1232,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 73,
+          "medal": null
+        },
+        {
+          "team": "Ian",
+          "standing": 7,
+          "draftPick": 4,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1034,
+          "pointsAgainst": 1146,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "evangonnerman",
+          "standing": 8,
+          "draftPick": 7,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 883,
+          "pointsAgainst": 1095,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Kai",
+          "standing": 9,
+          "draftPick": 1,
+          "wins": 3,
+          "losses": 10,
+          "ties": 0,
+          "pointsFor": 1043,
+          "pointsAgainst": 1123,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Gareth",
+          "standing": 10,
+          "draftPick": 3,
+          "wins": 2,
+          "losses": 10,
+          "ties": 1,
+          "pointsFor": 859,
+          "pointsAgainst": 1085,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        }
+      ],
+      "bracket": {
+        "quarterfinals": [
+          {
+            "winner": "yulovesyou",
+            "loser": "Liam"
+          },
+          {
+            "winner": "Chris",
+            "loser": "Macklin"
+          }
+        ],
+        "semifinals": [
+          {
+            "winner": "yulovesyou",
+            "loser": "hmart92"
+          },
+          {
+            "winner": "Chris",
+            "loser": "tduchow"
+          }
+        ],
+        "thirdPlace": {
+          "winner": "tduchow",
+          "loser": "hmart92"
+        },
+        "finals": {
+          "winner": "yulovesyou",
+          "loser": "Chris",
+          "winnerScore": 112,
+          "loserScore": 88
+        },
+        "finalsMvp": {
+          "player": "Tim Hightower",
+          "position": "RB",
+          "points": 28.9
+        }
+      }
+    },
+    {
+      "year": 2016,
+      "champion": "hmart92",
+      "notes": "Finals MVP: Aaron Rodgers (QB) — 29.8 pts",
+      "standings": [
+        {
+          "team": "sofarrsogood",
+          "standing": 1,
+          "draftPick": 8,
+          "wins": 11,
+          "losses": 2,
+          "ties": 0,
+          "pointsFor": 1378,
+          "pointsAgainst": 985,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 83,
+          "medal": "bronze"
+        },
+        {
+          "team": "hmart92",
+          "standing": 2,
+          "draftPick": 6,
+          "wins": 9,
+          "losses": 4,
+          "ties": 0,
+          "pointsFor": 1180,
+          "pointsAgainst": 1148,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 2,
+          "playoffLosses": 0,
+          "playoffPoints": 187,
+          "medal": "gold"
+        },
+        {
+          "team": "Chris",
+          "standing": 3,
+          "draftPick": 1,
+          "wins": 9,
+          "losses": 4,
+          "ties": 0,
+          "pointsFor": 1213,
+          "pointsAgainst": 1158,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 1,
+          "playoffLosses": 1,
+          "playoffPoints": 192,
+          "medal": null
+        },
+        {
+          "team": "yulovesyou",
+          "standing": 4,
+          "draftPick": 9,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1291,
+          "pointsAgainst": 1166,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 60,
+          "medal": null
+        },
+        {
+          "team": "evangonnerman",
+          "standing": 5,
+          "draftPick": 5,
+          "wins": 7,
+          "losses": 6,
+          "ties": 0,
+          "pointsFor": 1323,
+          "pointsAgainst": 1204,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 2,
+          "playoffLosses": 1,
+          "playoffPoints": 249,
+          "medal": "silver"
+        },
+        {
+          "team": "Macklin",
+          "standing": 6,
+          "draftPick": 3,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1130,
+          "pointsAgainst": 1076,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 99,
+          "medal": null
+        },
+        {
+          "team": "Liam",
+          "standing": 7,
+          "draftPick": 10,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1085,
+          "pointsAgainst": 1099,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "tduchow",
+          "standing": 8,
+          "draftPick": 7,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1121,
+          "pointsAgainst": 1232,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Ian",
+          "standing": 9,
+          "draftPick": 2,
+          "wins": 3,
+          "losses": 10,
+          "ties": 0,
+          "pointsFor": 919,
+          "pointsAgainst": 1160,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Zach",
+          "standing": 10,
+          "draftPick": 4,
+          "wins": 1,
+          "losses": 12,
+          "ties": 0,
+          "pointsFor": 784,
+          "pointsAgainst": 1196,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        }
+      ],
+      "bracket": {
+        "quarterfinals": [
+          {
+            "winner": "Chris",
+            "loser": "Macklin"
+          },
+          {
+            "winner": "evangonnerman",
+            "loser": "yulovesyou"
+          }
+        ],
+        "semifinals": [
+          {
+            "winner": "evangonnerman",
+            "loser": "sofarrsogood"
+          },
+          {
+            "winner": "hmart92",
+            "loser": "Chris"
+          }
+        ],
+        "thirdPlace": {
+          "winner": "sofarrsogood",
+          "loser": "Chris"
+        },
+        "finals": {
+          "winner": "hmart92",
+          "loser": "evangonnerman",
+          "winnerScore": 85,
+          "loserScore": 60
+        },
+        "finalsMvp": {
+          "player": "Aaron Rodgers",
+          "position": "QB",
+          "points": 29.8
+        }
+      }
+    },
+    {
+      "year": 2017,
+      "champion": "yulovesyou",
+      "notes": "Finals MVP: Todd Gurley (RB) — 39.6 pts",
+      "standings": [
+        {
+          "team": "yulovesyou",
+          "standing": 1,
+          "draftPick": 5,
+          "wins": 9,
+          "losses": 4,
+          "ties": 0,
+          "pointsFor": 1378.6,
+          "pointsAgainst": 1119.9,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 2,
+          "playoffLosses": 0,
+          "playoffPoints": 238.9,
+          "medal": "gold"
+        },
+        {
+          "team": "evangonnerman",
+          "standing": 2,
+          "draftPick": 2,
+          "wins": 9,
+          "losses": 4,
+          "ties": 0,
+          "pointsFor": 1377.1,
+          "pointsAgainst": 1129.4,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 1,
+          "playoffLosses": 1,
+          "playoffPoints": 234.1,
+          "medal": "silver"
+        },
+        {
+          "team": "tduchow",
+          "standing": 3,
+          "draftPick": 3,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1199.4,
+          "pointsAgainst": 1084,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 1,
+          "playoffLosses": 1,
+          "playoffPoints": 187.1,
+          "medal": null
+        },
+        {
+          "team": "Chris",
+          "standing": 4,
+          "draftPick": 7,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1359,
+          "pointsAgainst": 1210.4,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 99.7,
+          "medal": null
+        },
+        {
+          "team": "hmart92",
+          "standing": 5,
+          "draftPick": 6,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1176.1,
+          "pointsAgainst": 1092,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 95.9,
+          "medal": null
+        },
+        {
+          "team": "artmane",
+          "standing": 6,
+          "draftPick": 1,
+          "wins": 7,
+          "losses": 6,
+          "ties": 0,
+          "pointsFor": 1149.1,
+          "pointsAgainst": 1104.6,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 1,
+          "playoffLosses": 1,
+          "playoffPoints": 174.5,
+          "medal": "bronze"
+        },
+        {
+          "team": "sofarrsogood",
+          "standing": 7,
+          "draftPick": 10,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1045.6,
+          "pointsAgainst": 1262.5,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "jerbear3",
+          "standing": 8,
+          "draftPick": 8,
+          "wins": 4,
+          "losses": 9,
+          "ties": 0,
+          "pointsFor": 1115.9,
+          "pointsAgainst": 1258.1,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Macklin",
+          "standing": 9,
+          "draftPick": 4,
+          "wins": 4,
+          "losses": 9,
+          "ties": 0,
+          "pointsFor": 919,
+          "pointsAgainst": 1185.1,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Hayden #2",
+          "standing": 10,
+          "draftPick": 9,
+          "wins": 3,
+          "losses": 10,
+          "ties": 0,
+          "pointsFor": 888.4,
+          "pointsAgainst": 1162.2,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        }
+      ],
+      "bracket": {
+        "quarterfinals": [
+          {
+            "winner": "tduchow",
+            "loser": "hmart92"
+          },
+          {
+            "winner": "artmane",
+            "loser": "Chris"
+          }
+        ],
+        "semifinals": [
+          {
+            "winner": "yulovesyou",
+            "loser": "artmane"
+          },
+          {
+            "winner": "evangonnerman",
+            "loser": "tduchow"
+          }
+        ],
+        "thirdPlace": {
+          "winner": "artmane",
+          "loser": "tduchow"
+        },
+        "finals": {
+          "winner": "yulovesyou",
+          "loser": "evangonnerman",
+          "winnerScore": 121.1,
+          "loserScore": 99.6
+        },
+        "finalsMvp": {
+          "player": "Todd Gurley",
+          "position": "RB",
+          "points": 39.6
+        }
+      }
+    },
+    {
+      "year": 2018,
+      "champion": "yulovesyou",
+      "notes": "Finals MVP: Antonio Brown (WR) — 30.5 pts",
+      "standings": [
+        {
+          "team": "yulovesyou",
+          "standing": 1,
+          "draftPick": 8,
+          "wins": 10,
+          "losses": 3,
+          "ties": 0,
+          "pointsFor": 1346.1,
+          "pointsAgainst": 1134.9,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 2,
+          "playoffLosses": 0,
+          "playoffPoints": 251.3,
+          "medal": "gold"
+        },
+        {
+          "team": "hmart92",
+          "standing": 2,
+          "draftPick": 10,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1463.7,
+          "pointsAgainst": 1327.7,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 60.2,
+          "medal": "bronze"
+        },
+        {
+          "team": "tduchow",
+          "standing": 3,
+          "draftPick": 6,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1458.4,
+          "pointsAgainst": 1237.1,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 72.2,
+          "medal": null
+        },
+        {
+          "team": "sofarrsogood",
+          "standing": 4,
+          "draftPick": 4,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1328.2,
+          "pointsAgainst": 1382,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 1,
+          "playoffLosses": 1,
+          "playoffPoints": 194.6,
+          "medal": null
+        },
+        {
+          "team": "Alex",
+          "standing": 5,
+          "draftPick": 1,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1303.5,
+          "pointsAgainst": 1360.3,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 72.1,
+          "medal": null
+        },
+        {
+          "team": "mayshisha",
+          "standing": 6,
+          "draftPick": 2,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1386.3,
+          "pointsAgainst": 1395.1,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 2,
+          "playoffLosses": 1,
+          "playoffPoints": 256.7,
+          "medal": "silver"
+        },
+        {
+          "team": "evangonnerman",
+          "standing": 7,
+          "draftPick": 7,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1268.3,
+          "pointsAgainst": 1460.8,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Trevor",
+          "standing": 8,
+          "draftPick": 5,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1231.7,
+          "pointsAgainst": 1284.6,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Chris",
+          "standing": 9,
+          "draftPick": 3,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1226.4,
+          "pointsAgainst": 1265.1,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "artmane",
+          "standing": 10,
+          "draftPick": 9,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1205.4,
+          "pointsAgainst": 1370.2,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        }
+      ],
+      "bracket": {
+        "quarterfinals": [
+          {
+            "winner": "mayshisha",
+            "loser": "tduchow"
+          },
+          {
+            "winner": "sofarrsogood",
+            "loser": "Alex"
+          }
+        ],
+        "semifinals": [
+          {
+            "winner": "yulovesyou",
+            "loser": "sofarrsogood"
+          },
+          {
+            "winner": "mayshisha",
+            "loser": "hmart92"
+          }
+        ],
+        "thirdPlace": {
+          "winner": "hmart92",
+          "loser": "sofarrsogood"
+        },
+        "finals": {
+          "winner": "yulovesyou",
+          "loser": "mayshisha",
+          "winnerScore": 118.9,
+          "loserScore": 99
+        },
+        "finalsMvp": {
+          "player": "Antonio Brown",
+          "position": "WR",
+          "points": 30.5
+        }
+      }
+    },
+    {
+      "year": 2019,
+      "champion": "evangonnerman",
+      "notes": "Finals MVP: Saquon Barkley (RB) — 41.9 pts",
+      "standings": [
+        {
+          "team": "evangonnerman",
+          "standing": 1,
+          "draftPick": 2,
+          "wins": 11,
+          "losses": 2,
+          "ties": 0,
+          "pointsFor": 1489.9,
+          "pointsAgainst": 1341.6,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 2,
+          "playoffLosses": 0,
+          "playoffPoints": 272.6,
+          "medal": "gold"
+        },
+        {
+          "team": "sofarrsogood",
+          "standing": 2,
+          "draftPick": 10,
+          "wins": 9,
+          "losses": 4,
+          "ties": 0,
+          "pointsFor": 1598.5,
+          "pointsAgainst": 1381.4,
+          "playoffAppearance": true,
+          "playoffBye": true,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 89.9,
+          "medal": null
+        },
+        {
+          "team": "tduchow",
+          "standing": 3,
+          "draftPick": 1,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1528.7,
+          "pointsAgainst": 1340.2,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 121.8,
+          "medal": null
+        },
+        {
+          "team": "yulovesyou",
+          "standing": 4,
+          "draftPick": 6,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1496.6,
+          "pointsAgainst": 1337.5,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 1,
+          "playoffLosses": 1,
+          "playoffPoints": 222.6,
+          "medal": "bronze"
+        },
+        {
+          "team": "Trevor",
+          "standing": 5,
+          "draftPick": 4,
+          "wins": 8,
+          "losses": 5,
+          "ties": 0,
+          "pointsFor": 1409.8,
+          "pointsAgainst": 1398.7,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 1,
+          "playoffPoints": 74.3,
+          "medal": null
+        },
+        {
+          "team": "hmart92",
+          "standing": 6,
+          "draftPick": 8,
+          "wins": 6,
+          "losses": 7,
+          "ties": 0,
+          "pointsFor": 1376.7,
+          "pointsAgainst": 1395.5,
+          "playoffAppearance": true,
+          "playoffBye": false,
+          "playoffWins": 2,
+          "playoffLosses": 1,
+          "playoffPoints": 359.9,
+          "medal": "silver"
+        },
+        {
+          "team": "artmane",
+          "standing": 7,
+          "draftPick": 3,
+          "wins": 5,
+          "losses": 8,
+          "ties": 0,
+          "pointsFor": 1224.2,
+          "pointsAgainst": 1263.3,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "jerbear3",
+          "standing": 8,
+          "draftPick": 7,
+          "wins": 4,
+          "losses": 9,
+          "ties": 0,
+          "pointsFor": 1410,
+          "pointsAgainst": 1384.3,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "mayshisha",
+          "standing": 9,
+          "draftPick": 9,
+          "wins": 3,
+          "losses": 10,
+          "ties": 0,
+          "pointsFor": 1204,
+          "pointsAgainst": 1513.7,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        },
+        {
+          "team": "Alex",
+          "standing": 10,
+          "draftPick": 5,
+          "wins": 3,
+          "losses": 10,
+          "ties": 0,
+          "pointsFor": 1015.7,
+          "pointsAgainst": 1397.9,
+          "playoffAppearance": false,
+          "playoffBye": false,
+          "playoffWins": 0,
+          "playoffLosses": 0,
+          "playoffPoints": 0,
+          "medal": null
+        }
+      ],
+      "bracket": {
+        "quarterfinals": [
+          {
+            "winner": "hmart92",
+            "loser": "tduchow"
+          },
+          {
+            "winner": "yulovesyou",
+            "loser": "Trevor"
+          }
+        ],
+        "semifinals": [
+          {
+            "winner": "evangonnerman",
+            "loser": "yulovesyou"
+          },
+          {
+            "winner": "hmart92",
+            "loser": "sofarrsogood"
+          }
+        ],
+        "thirdPlace": {
+          "winner": "yulovesyou",
+          "loser": "sofarrsogood"
+        },
+        "finals": {
+          "winner": "evangonnerman",
+          "loser": "hmart92",
+          "winnerScore": 141.5,
+          "loserScore": 101.7
+        },
+        "finalsMvp": {
+          "player": "Saquon Barkley",
+          "position": "RB",
+          "points": 41.9
+        }
+      }
+    }
+  ]
 }
