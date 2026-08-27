@@ -29,9 +29,19 @@ const ManualHistory = {
     fpts/fptsAgainst, overallWins/Losses/Ties, isChampion/isRunnerUp/
     isThirdPlace, luckPct, draftPicks, startingLineup) — draftPicks is
     always [] and startingLineup always null, since no per-player data
-    exists for these seasons; luckPct is always null (there's no
-    week-by-week data to compute it from), which callers should render
-    as "—" rather than passing straight into luckBadge().
+    exists for these seasons.
+
+    `overallWins`/`overallLosses`/`overallTies` and `luckPct` use a
+    genuine all-play "Overall Record" (see a standings row's
+    `overallRecord` field in data/manual-history.json) for any season
+    that has one on file — the same all-play concept, and the same
+    Luck formula (DeepHistory.luckPercent), that Sleeper-era seasons
+    already use. For a season without that data, `overallWins`/
+    `overallLosses`/`overallTies` fall back to a regular+playoff
+    combined record instead (a DIFFERENT, looser number — NOT all-play)
+    just so the "Overall" column always has something to show, and
+    `luckPct` stays null, which callers should render as "—" rather
+    than passing straight into luckBadge().
 
     `totals` matches the career-total field names deep-history.js's own
     computeStats() already uses on a Sleeper manager object, so merging
@@ -74,6 +84,12 @@ const ManualHistory = {
         const isRunnerUp = row.medal === "silver";
         const isThirdPlace = row.medal === "bronze";
 
+        const hasAllPlayRecord = !!row.overallRecord;
+        const overallWins = hasAllPlayRecord ? row.overallRecord.wins : row.wins + row.playoffWins;
+        const overallLosses = hasAllPlayRecord ? row.overallRecord.losses : row.losses + row.playoffLosses;
+        const overallTies = hasAllPlayRecord ? row.overallRecord.ties || 0 : row.ties || 0;
+        const luckPct = hasAllPlayRecord ? DeepHistory.luckPercent(row.wins, row.losses, row.ties || 0, overallWins, overallLosses, overallTies) : null;
+
         entry.seasons.push({
           season: season.year,
           rank: row.standing,
@@ -82,13 +98,13 @@ const ManualHistory = {
           ties: row.ties || 0,
           fpts: row.pointsFor,
           fptsAgainst: row.pointsAgainst,
-          overallWins: row.wins + row.playoffWins,
-          overallLosses: row.losses + row.playoffLosses,
-          overallTies: row.ties || 0,
+          overallWins,
+          overallLosses,
+          overallTies,
           isChampion,
           isRunnerUp,
           isThirdPlace,
-          luckPct: null,
+          luckPct,
           draftPicks: [],
           startingLineup: null,
         });
@@ -112,6 +128,38 @@ const ManualHistory = {
     }
 
     return byTeam;
+  },
+
+  /*
+    Flat list of every (team, season) that has a genuine all-play
+    "Overall Record" on file — i.e. every season/team pair Luck can
+    actually be computed for — in the exact shape season.js's Total
+    page already uses for its Luckiest/Unluckiest Seasons lists (see
+    deep-history.js's computeTotalSummary), so the two lists can be
+    concatenated and re-ranked together directly. A season without
+    all-play data (luckPct null) is naturally excluded, the same way
+    it's excluded from the per-season Luck display elsewhere.
+  */
+  computeAllSeasonLuck(manualData) {
+    const byTeam = ManualHistory.computeManagerStats(manualData);
+    const out = [];
+    byTeam.forEach((entry, teamName) => {
+      entry.seasons.forEach((s) => {
+        if (s.luckPct == null) return;
+        out.push({
+          teamName,
+          season: s.season,
+          luckPct: s.luckPct,
+          wins: s.wins,
+          losses: s.losses,
+          ties: s.ties,
+          overallWins: s.overallWins,
+          overallLosses: s.overallLosses,
+          overallTies: s.overallTies,
+        });
+      });
+    });
+    return out;
   },
 
   /*

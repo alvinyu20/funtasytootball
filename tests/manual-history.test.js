@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { loadSiteModules } = require("./helpers/site-env.js");
 
-const ctx = loadSiteModules(["manual-history.js"]);
+const ctx = loadSiteModules(["sleeper-api.js", "deep-history.js", "manual-history.js"]);
 const { ManualHistory } = ctx;
 
 const REAL_DATA = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "manual-history.json"), "utf8"));
@@ -38,6 +38,58 @@ test("computeManagerStats: byes and first picks are counted correctly", () => {
   // tduchow: 2015 standing #1 with a bye (verified against the CSV directly).
   const tduchow = stats.get("tduchow");
   assert.ok(tduchow.totals.byes >= 1, "tduchow had at least one bye (2015, #1 seed)");
+});
+
+test("computeManagerStats: a season with a genuine all-play Overall Record on file uses it for overallWins/Losses and computes a real Luck value", () => {
+  const stats = ManualHistory.computeManagerStats(REAL_DATA);
+  const yulo2017 = stats.get("yulovesyou").seasons.find((s) => s.season === 2017);
+  assert.ok(yulo2017, "yulovesyou should have a 2017 season entry");
+  assert.strictEqual(yulo2017.overallWins, 83, "should use the real all-play record (83-34), not wins+playoffWins");
+  assert.strictEqual(yulo2017.overallLosses, 34);
+  assert.strictEqual(yulo2017.overallTies, 0);
+  assert.ok(yulo2017.luckPct != null, "luckPct should be computed, not null, now that all-play data exists");
+  assert.ok(Math.abs(yulo2017.luckPct - -1.7094017094017144) < 1e-9, `expected ~-1.71, got ${yulo2017.luckPct}`);
+});
+
+test("computeManagerStats: a season without an Overall Record on file still falls back to the old regular+playoff combined number, with luckPct null", () => {
+  const stats = ManualHistory.computeManagerStats(REAL_DATA);
+  const yulo2015 = stats.get("yulovesyou").seasons.find((s) => s.season === 2015);
+  assert.ok(yulo2015, "yulovesyou should have a 2015 season entry");
+  assert.strictEqual(yulo2015.luckPct, null, "2015 has no Overall Record on file, so Luck can't be computed");
+  // 2015: 8 regular-season wins + however many playoff wins (yulovesyou won it all that year)
+  assert.strictEqual(yulo2015.overallWins, yulo2015.wins + 3, "falls back to wins + playoffWins when there's no all-play record");
+});
+
+test("computeManagerStats: a manager who never continued into the Sleeper era still gets a real Luck value for a season with Overall Record data (Hayden #2, 2017)", () => {
+  const stats = ManualHistory.computeManagerStats(REAL_DATA);
+  const hayden2017 = stats.get("Hayden #2").seasons.find((s) => s.season === 2017);
+  assert.ok(hayden2017);
+  assert.strictEqual(hayden2017.overallWins, 26);
+  assert.strictEqual(hayden2017.overallLosses, 91);
+  assert.ok(Math.abs(hayden2017.luckPct - 0.8547008547008572) < 1e-9, `expected ~0.85, got ${hayden2017.luckPct}`);
+});
+
+test("computeAllSeasonLuck: only includes (team, season) pairs that have a genuine Overall Record on file", () => {
+  const all = ManualHistory.computeAllSeasonLuck(REAL_DATA);
+  // 3 years (2017-2019) x 10 teams = 30 entries with luck data; 2015/2016 excluded entirely.
+  assert.strictEqual(all.length, 30, "should have exactly 30 luck-computable team-seasons (2017-2019, 10 teams each)");
+  assert.ok(!all.some((e) => e.season === 2015), "2015 has no Overall Record data, so no entries for it");
+  assert.ok(!all.some((e) => e.season === 2016), "2016 has no Overall Record data, so no entries for it");
+  assert.ok(
+    all.every((e) => e.season === 2017 || e.season === 2018 || e.season === 2019),
+    "every entry should be from one of the 3 years with data"
+  );
+});
+
+test("computeAllSeasonLuck: evangonnerman's 2019 entry matches the expected Luck value and shape season.js's Total page expects", () => {
+  const all = ManualHistory.computeAllSeasonLuck(REAL_DATA);
+  const evan2019 = all.find((e) => e.teamName === "evangonnerman" && e.season === 2019);
+  assert.ok(evan2019);
+  assert.strictEqual(evan2019.wins, 11);
+  assert.strictEqual(evan2019.losses, 2);
+  assert.strictEqual(evan2019.overallWins, 78);
+  assert.strictEqual(evan2019.overallLosses, 39);
+  assert.ok(Math.abs(evan2019.luckPct - 17.948717948717952) < 1e-9, `expected ~17.95, got ${evan2019.luckPct}`);
 });
 
 test("mergeIntoManager: adds manual totals onto an existing Sleeper-side manager object without clobbering its own numbers", () => {

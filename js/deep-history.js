@@ -2666,8 +2666,20 @@ const DeepHistory = {
     this is exact for top-5 lists and single-best records (a record that
     isn't in its own season's top 5 can't possibly be in the all-time top
     5 either), and a true weighted average for career scoring rates.
+
+    `extraSeasonLuck` is an optional array of already-computed
+    {teamName, season, luckPct, wins, losses, ties, overallWins,
+    overallLosses, overallTies} entries from OUTSIDE the Sleeper season
+    chain — e.g. ESPN-era seasons with a genuine all-play "Overall
+    Record" on file (see ManualHistory.computeAllSeasonLuck) — folded
+    into the Luckiest/Unluckiest Seasons ranking alongside the Sleeper
+    seasons computed below. Deliberately passed in rather than this
+    file reaching for MANUAL_HISTORY/ManualHistory itself, matching the
+    rest of the codebase's separation: ESPN-era-specific logic stays in
+    manual-history.js and the page controllers, not the core Sleeper
+    stats engine.
   */
-  computeTotalSummary(seasonChain, deepSeasons, playerDirectory, injuriesData) {
+  computeTotalSummary(seasonChain, deepSeasons, playerDirectory, injuriesData, extraSeasonLuck) {
     const perSeason = seasonChain.map((entry, idx) =>
       DeepHistory.computeSeasonSummary(entry, deepSeasons[idx], playerDirectory, null, null, DeepHistory.extractInjuriesForSeason(injuriesData, entry.league.season))
     );
@@ -2771,7 +2783,9 @@ const DeepHistory = {
     });
 
     // Every team-season's luck value, for the luckiest/unluckiest lists —
-    // pulled straight from computeStats' per-manager season records.
+    // pulled straight from computeStats' per-manager season records,
+    // plus any pre-computed extra (e.g. ESPN-era) entries the caller
+    // supplied — see this function's own doc comment.
     const allSeasonLuck = [];
     managers.forEach((m) => {
       m.seasons.forEach((s) => {
@@ -2788,8 +2802,9 @@ const DeepHistory = {
         });
       });
     });
-    const top5Luckiest = [...allSeasonLuck].sort((a, b) => b.luckPct - a.luckPct).slice(0, 5);
-    const top5Unluckiest = [...allSeasonLuck].sort((a, b) => a.luckPct - b.luckPct).slice(0, 5);
+    (extraSeasonLuck || []).forEach((entry) => allSeasonLuck.push(entry));
+    const top5Luckiest = [...allSeasonLuck].sort((a, b) => b.luckPct - a.luckPct).slice(0, 10);
+    const top5Unluckiest = [...allSeasonLuck].sort((a, b) => a.luckPct - b.luckPct).slice(0, 10);
 
     return {
       season: "All-Time",

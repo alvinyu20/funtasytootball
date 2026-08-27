@@ -141,3 +141,24 @@ test("renderManualSeasonSummary: omits the Power Rank History section entirely f
 
   assert.ok(!html.includes("Power Rank History"), "no Power Rank History section should render when there's no data for that year");
 });
+
+test("renderManualSeasonSummary: Final Standings has a Luck column, computed from the all-play Overall Record, for a season that has one on file (2019)", () => {
+  const ctx = setup();
+  const season2019 = ctx.ManualHistory.findSeason(REAL_MANUAL_HISTORY, 2019);
+  const html = ctx.renderManualSeasonSummary(season2019);
+
+  assert.ok(/<th>Luck<\/th>/.test(html), "a Luck column header should be present");
+  // evangonnerman 2019: 11-2 actual vs. 78-39 all-play -> +17.9%
+  assert.ok(html.includes("+17.9%"), "evangonnerman's Luck badge should reflect their real vs. all-play win %");
+});
+
+test("renderManualSeasonSummary: Luck column shows an em dash for a season with no Overall Record on file (2015)", () => {
+  const ctx = setup();
+  const season2015 = ctx.ManualHistory.findSeason(REAL_MANUAL_HISTORY, 2015);
+  const html = ctx.renderManualSeasonSummary(season2015);
+
+  assert.ok(/<th>Luck<\/th>/.test(html), "the Luck column header should still appear, even without data for this year");
+  const luckCells = [...html.matchAll(/data-label="Luck">([^<]*)</g)].map((m) => m[1]);
+  assert.strictEqual(luckCells.length, 10, "every one of the 10 teams should have a Luck cell");
+  assert.ok(luckCells.every((c) => c === "—"), "every Luck cell should be an em dash when there's no Overall Record data for the season");
+});

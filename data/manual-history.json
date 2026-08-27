@@ -427,7 +427,12 @@
           "playoffWins": 2,
           "playoffLosses": 0,
           "playoffPoints": 238.9,
-          "medal": "gold"
+          "medal": "gold",
+          "overallRecord": {
+            "wins": 83,
+            "losses": 34,
+            "ties": 0
+          }
         },
         {
           "team": "evangonnerman",
@@ -443,7 +448,12 @@
           "playoffWins": 1,
           "playoffLosses": 1,
           "playoffPoints": 234.1,
-          "medal": "silver"
+          "medal": "silver",
+          "overallRecord": {
+            "wins": 85,
+            "losses": 32,
+            "ties": 0
+          }
         },
         {
           "team": "tduchow",
@@ -459,7 +469,12 @@
           "playoffWins": 1,
           "playoffLosses": 1,
           "playoffPoints": 187.1,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 64,
+            "losses": 53,
+            "ties": 0
+          }
         },
         {
           "team": "Chris",
@@ -475,7 +490,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 99.7,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 79,
+            "losses": 38,
+            "ties": 0
+          }
         },
         {
           "team": "hmart92",
@@ -491,7 +511,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 95.9,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 66,
+            "losses": 51,
+            "ties": 0
+          }
         },
         {
           "team": "artmane",
@@ -507,7 +532,12 @@
           "playoffWins": 1,
           "playoffLosses": 1,
           "playoffPoints": 174.5,
-          "medal": "bronze"
+          "medal": "bronze",
+          "overallRecord": {
+            "wins": 52,
+            "losses": 65,
+            "ties": 0
+          }
         },
         {
           "team": "sofarrsogood",
@@ -523,7 +553,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 46,
+            "losses": 71,
+            "ties": 0
+          }
         },
         {
           "team": "jerbear3",
@@ -539,7 +574,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 56,
+            "losses": 61,
+            "ties": 0
+          }
         },
         {
           "team": "Macklin",
@@ -555,7 +595,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 28,
+            "losses": 89,
+            "ties": 0
+          }
         },
         {
           "team": "Hayden #2",
@@ -571,7 +616,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 26,
+            "losses": 91,
+            "ties": 0
+          }
         }
       ],
       "bracket": {
@@ -631,7 +681,12 @@
           "playoffWins": 2,
           "playoffLosses": 0,
           "playoffPoints": 251.3,
-          "medal": "gold"
+          "medal": "gold",
+          "overallRecord": {
+            "wins": 68,
+            "losses": 49,
+            "ties": 0
+          }
         },
         {
           "team": "hmart92",
@@ -647,7 +702,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 60.2,
-          "medal": "bronze"
+          "medal": "bronze",
+          "overallRecord": {
+            "wins": 78,
+            "losses": 39,
+            "ties": 0
+          }
         },
         {
           "team": "tduchow",
@@ -663,7 +723,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 72.2,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 75,
+            "losses": 42,
+            "ties": 0
+          }
         },
         {
           "team": "sofarrsogood",
@@ -679,7 +744,12 @@
           "playoffWins": 1,
           "playoffLosses": 1,
           "playoffPoints": 194.6,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 60,
+            "losses": 57,
+            "ties": 0
+          }
         },
         {
           "team": "Alex",
@@ -695,7 +765,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 72.1,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 49,
+            "losses": 68,
+            "ties": 0
+          }
         },
         {
           "team": "mayshisha",
@@ -711,7 +786,12 @@
           "playoffWins": 2,
           "playoffLosses": 1,
           "playoffPoints": 256.7,
-          "medal": "silver"
+          "medal": "silver",
+          "overallRecord": {
+            "wins": 69,
+            "losses": 48,
+            "ties": 0
+          }
         },
         {
           "team": "evangonnerman",
@@ -727,7 +807,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 50,
+            "losses": 67,
+            "ties": 0
+          }
         },
         {
           "team": "Trevor",
@@ -743,7 +828,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 44,
+            "losses": 73,
+            "ties": 0
+          }
         },
         {
           "team": "Chris",
@@ -759,7 +849,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 49,
+            "losses": 68,
+            "ties": 0
+          }
         },
         {
           "team": "artmane",
@@ -775,7 +870,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 42,
+            "losses": 75,
+            "ties": 0
+          }
         }
       ],
       "bracket": {
@@ -835,7 +935,12 @@
           "playoffWins": 2,
           "playoffLosses": 0,
           "playoffPoints": 272.6,
-          "medal": "gold"
+          "medal": "gold",
+          "overallRecord": {
+            "wins": 78,
+            "losses": 39,
+            "ties": 0
+          }
         },
         {
           "team": "sofarrsogood",
@@ -851,7 +956,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 89.9,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 83,
+            "losses": 34,
+            "ties": 0
+          }
         },
         {
           "team": "tduchow",
@@ -867,7 +977,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 121.8,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 75,
+            "losses": 42,
+            "ties": 0
+          }
         },
         {
           "team": "yulovesyou",
@@ -883,7 +998,12 @@
           "playoffWins": 1,
           "playoffLosses": 1,
           "playoffPoints": 222.6,
-          "medal": "bronze"
+          "medal": "bronze",
+          "overallRecord": {
+            "wins": 77,
+            "losses": 40,
+            "ties": 0
+          }
         },
         {
           "team": "Trevor",
@@ -899,7 +1019,12 @@
           "playoffWins": 0,
           "playoffLosses": 1,
           "playoffPoints": 74.3,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 65,
+            "losses": 52,
+            "ties": 0
+          }
         },
         {
           "team": "hmart92",
@@ -915,7 +1040,12 @@
           "playoffWins": 2,
           "playoffLosses": 1,
           "playoffPoints": 359.9,
-          "medal": "silver"
+          "medal": "silver",
+          "overallRecord": {
+            "wins": 59,
+            "losses": 58,
+            "ties": 0
+          }
         },
         {
           "team": "artmane",
@@ -931,7 +1061,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 36,
+            "losses": 81,
+            "ties": 0
+          }
         },
         {
           "team": "jerbear3",
@@ -947,7 +1082,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 58,
+            "losses": 59,
+            "ties": 0
+          }
         },
         {
           "team": "mayshisha",
@@ -963,7 +1103,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 37,
+            "losses": 80,
+            "ties": 0
+          }
         },
         {
           "team": "Alex",
@@ -979,7 +1124,12 @@
           "playoffWins": 0,
           "playoffLosses": 0,
           "playoffPoints": 0,
-          "medal": null
+          "medal": null,
+          "overallRecord": {
+            "wins": 16,
+            "losses": 101,
+            "ties": 0
+          }
         }
       ],
       "bracket": {

@@ -100,7 +100,7 @@ async function renderSelectedSeason() {
         progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
       });
 
-      const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA);
+      const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA, ManualHistory.computeAllSeasonLuck(MANUAL_HISTORY));
       const allTimeStats = await getAllTimeStats();
       summary.allTimeTopInjuries = allTimeStats.allTimeTopInjuries;
       summary.allTimeTeamSeasonInjuryLuck = allTimeStats.allTimeTeamSeasonInjuryLuck;
@@ -527,6 +527,13 @@ function renderManualSeasonSummary(season) {
       const medalEmoji = row.medal === "gold" ? "🏆" : row.medal === "silver" ? "🥈" : row.medal === "bronze" ? "🥉" : "";
       const games = row.wins + row.losses + (row.ties || 0);
       const avgPerWeek = games > 0 ? row.pointsFor / games : null;
+      // Luck (actual win % vs. all-play "Overall Record" win %) is only
+      // computable for a season that has that all-play record on file
+      // (see row.overallRecord in data/manual-history.json) — same
+      // formula the Sleeper-era seasons already use.
+      const luckPct = row.overallRecord
+        ? DeepHistory.luckPercent(row.wins, row.losses, row.ties || 0, row.overallRecord.wins, row.overallRecord.losses, row.overallRecord.ties || 0)
+        : null;
       return `
         <tr>
           <td data-label="#">${row.standing}</td>
@@ -535,6 +542,7 @@ function renderManualSeasonSummary(season) {
           <td data-label="PF">${row.pointsFor.toFixed(1)}</td>
           <td data-label="PA">${row.pointsAgainst.toFixed(1)}</td>
           <td data-label="Avg/Wk">${avgPerWeek != null ? avgPerWeek.toFixed(1) : "—"}</td>
+          <td data-label="Luck">${luckPct != null ? luckBadge(luckPct) : "—"}</td>
           <td data-label="">${medalEmoji}</td>
         </tr>`;
     })
@@ -548,6 +556,8 @@ function renderManualSeasonSummary(season) {
   if (bracketData.champion && bracketData.champion.mvp && !bracketData.champion.mvp.playerId) {
     bracketData.champion.mvp.playerId = findPlayerIdByName(bracketData.champion.mvp.player, getPlayerNameIndex());
   }
+
+  const hasLuckData = season.standings.some((row) => row.overallRecord);
 
   return `
     <div class="yard-divider">
@@ -568,11 +578,15 @@ function renderManualSeasonSummary(season) {
     <div class="wrap"><div class="panel">
       <div class="heatmap-table-wrap stay-scrollable">
         <table class="stat-table compact-mobile">
-          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th>Luck</th><th></th></tr></thead>
           <tbody>${standingsRows}</tbody>
         </table>
       </div>
-      <p class="heatmap-note">From this league's ESPN era (before the move to Sleeper) — full weekly matchup, waiver, and draft data isn't available for this season, only final standings and the playoff bracket above.</p>
+      <p class="heatmap-note">From this league's ESPN era (before the move to Sleeper) — full weekly matchup, waiver, and draft data isn't available for this season, only final standings and the playoff bracket above.${
+        hasLuckData
+          ? ' "Luck" is the gap between a team\'s real win % and their all-play "Overall Record" win % (if every team played every other team, every week).'
+          : ""
+      }</p>
     </div></div>
 
     ${renderPowerRankHistorySection(season.year)}`;
@@ -1279,11 +1293,11 @@ function renderSummary(s) {
     <div class="wrap">
       <div class="section-grid">
         <div class="panel">
-          <h2>Top 5 Luckiest Seasons</h2>
+          <h2>Top 10 Luckiest Seasons</h2>
           ${luckiestListHtml}
         </div>
         <div class="panel">
-          <h2>Top 5 Unluckiest Seasons</h2>
+          <h2>Top 10 Unluckiest Seasons</h2>
           ${unluckiestListHtml}
         </div>
       </div>
