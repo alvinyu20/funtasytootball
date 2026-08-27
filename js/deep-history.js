@@ -964,6 +964,8 @@ const DeepHistory = {
       };
     });
     const championRosterId = SleeperAPI.findChampionRosterId(bracket);
+    const runnerUpRosterId = SleeperAPI.findRunnerUpRosterId(bracket);
+    const thirdPlaceRosterId = SleeperAPI.findThirdPlaceRosterId(bracket);
 
     const EXCLUDE_SLOTS = new Set(["BN", "IR", "TAXI"]);
     const slotTypes = (league.roster_positions || []).filter((p) => !EXCLUDE_SLOTS.has(p));
@@ -1392,6 +1394,8 @@ const DeepHistory = {
       status: league.status,
       standings,
       championRosterId,
+      runnerUpRosterId,
+      thirdPlaceRosterId,
       weeksPlayed: deep ? deep.weeks.length : 0,
       weeklyLeagueAvg,
       teamAverages,
@@ -2792,6 +2796,8 @@ const DeepHistory = {
       status: "complete",
       standings,
       championRosterId: null,
+      runnerUpRosterId: null,
+      thirdPlaceRosterId: null,
       weeksPlayed: seasonChain.length,
       weeklyLeagueAvg,
       teamAverages,

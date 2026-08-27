@@ -43,12 +43,19 @@ async function renderTeams() {
     // data (never continued into Sleeper) simply has nothing to merge
     // onto and is naturally excluded — no separate allow-list needed.
     const manualStatsByTeam = ManualHistory.computeManagerStats(manualHistory);
+    // Same idea for playoff head-to-head — ESPN-era playoff games,
+    // keyed by team name (see computeHeadToHeadPlayoffs' own comment for
+    // why name rather than user_id), merged into each Sleeper manager's
+    // existing headToHeadPlayoffs list by matching opponent name.
+    const manualH2HPlayoffs = ManualHistory.computeHeadToHeadPlayoffs(manualHistory);
     LEAGUE_STATS.managers.forEach((m) => {
       if (!m.username) return;
       const manualForThisManager = manualStatsByTeam.get(m.username);
-      if (!manualForThisManager) return;
-      ManualHistory.mergeIntoManager(m, manualForThisManager.totals);
-      m.seasons = [...m.seasons, ...manualForThisManager.seasons];
+      if (manualForThisManager) {
+        ManualHistory.mergeIntoManager(m, manualForThisManager.totals);
+        m.seasons = [...m.seasons, ...manualForThisManager.seasons];
+      }
+      ManualHistory.mergeHeadToHeadPlayoffs(m, manualH2HPlayoffs.get(m.username));
     });
 
     renderManagerPicker();

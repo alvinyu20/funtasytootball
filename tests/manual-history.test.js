@@ -117,6 +117,65 @@ test("buildBracketData: returns an empty bracket gracefully for a season with no
   assert.strictEqual(bracket.champion, null);
 });
 
+test("computeHeadToHeadPlayoffs: evangonnerman vs yulovesyou is 2-1 across their 3 playoff meetings (2016 QF, 2017 Finals, 2019 SF)", () => {
+  const map = ManualHistory.computeHeadToHeadPlayoffs(REAL_DATA);
+  const evanVsYulo = map.get("evangonnerman").get("yulovesyou");
+  assert.strictEqual(evanVsYulo.wins, 2);
+  assert.strictEqual(evanVsYulo.losses, 1);
+  assert.strictEqual(evanVsYulo.ties, 0);
+
+  const yuloVsEvan = map.get("yulovesyou").get("evangonnerman");
+  assert.strictEqual(yuloVsEvan.wins, 1, "the reverse record should be the mirror image");
+  assert.strictEqual(yuloVsEvan.losses, 2);
+  assert.strictEqual(yuloVsEvan.ties, 0);
+});
+
+test("computeHeadToHeadPlayoffs: a manager who never continued into the Sleeper era (e.g. Chris) is still a valid opponent key", () => {
+  const map = ManualHistory.computeHeadToHeadPlayoffs(REAL_DATA);
+  const yuloVsChris = map.get("yulovesyou").get("Chris");
+  assert.strictEqual(yuloVsChris.wins, 1, "yulovesyou beat Chris in the 2015 Finals");
+  assert.strictEqual(yuloVsChris.losses, 0);
+  assert.strictEqual(yuloVsChris.ties, 0);
+});
+
+test("computeHeadToHeadPlayoffs: only records games that actually happened — no entry for a pair that never met in the playoffs", () => {
+  const map = ManualHistory.computeHeadToHeadPlayoffs(REAL_DATA);
+  assert.strictEqual(map.get("Chris").has("evangonnerman"), false, "Chris and evangonnerman never played each other in a manual-era playoff game");
+});
+
+test("mergeHeadToHeadPlayoffs: combines ESPN-era and Sleeper-era meetings against the same opponent into one row, rather than two separate rows", () => {
+  const manager = {
+    username: "evangonnerman",
+    headToHeadPlayoffs: [{ opponentUserId: "123", opponentName: "yulovesyou", wins: 1, losses: 0, ties: 0 }], // 1 Sleeper-era playoff win already on record
+  };
+  const manualOpponents = ManualHistory.computeHeadToHeadPlayoffs(REAL_DATA).get("evangonnerman"); // 2-1 vs yulovesyou in the ESPN era
+  ManualHistory.mergeHeadToHeadPlayoffs(manager, manualOpponents);
+
+  const row = manager.headToHeadPlayoffs.find((h) => h.opponentName === "yulovesyou");
+  assert.ok(row, "should still be a single row for yulovesyou, not two");
+  assert.strictEqual(row.wins, 3, "1 Sleeper-era + 2 ESPN-era wins");
+  assert.strictEqual(row.losses, 1, "0 Sleeper-era + 1 ESPN-era loss");
+  assert.strictEqual(manager.headToHeadPlayoffs.length, Array.from(manualOpponents.keys()).length, "no duplicate rows created for opponents merged into the existing one");
+});
+
+test("mergeHeadToHeadPlayoffs: adds a brand-new opponent row for an ESPN-era-only opponent the Sleeper-era manager had no prior record against", () => {
+  const manager = { username: "yulovesyou", headToHeadPlayoffs: [] };
+  const manualOpponents = ManualHistory.computeHeadToHeadPlayoffs(REAL_DATA).get("yulovesyou");
+  ManualHistory.mergeHeadToHeadPlayoffs(manager, manualOpponents);
+
+  const chrisRow = manager.headToHeadPlayoffs.find((h) => h.opponentName === "Chris");
+  assert.ok(chrisRow, "Chris (who never played in the Sleeper era) should still appear as an opponent");
+  assert.strictEqual(chrisRow.wins, 1);
+  assert.strictEqual(chrisRow.opponentUserId, null, "no Sleeper user_id exists for an ESPN-era-only opponent");
+});
+
+test("mergeHeadToHeadPlayoffs: does nothing (and doesn't throw) when the manager has no manual-era playoff opponents", () => {
+  const manager = { username: "someone-who-only-ever-played-on-sleeper", headToHeadPlayoffs: [{ opponentUserId: "1", opponentName: "rival", wins: 2, losses: 1, ties: 0 }] };
+  const before = JSON.parse(JSON.stringify(manager));
+  assert.doesNotThrow(() => ManualHistory.mergeHeadToHeadPlayoffs(manager, undefined));
+  assert.deepStrictEqual(manager, before);
+});
+
 test("all 5 real seasons: the medal-derived champion always matches the bracket's own finals winner", () => {
   for (const season of REAL_DATA.seasons) {
     const champFromStandings = season.standings.find((s) => s.medal === "gold").team;

@@ -55,8 +55,8 @@ async function renderHistory() {
     const manualLedger = (manual.seasons || []).map((s) => ({
       year: s.year,
       champion: s.champion || "Unknown",
-      sourceBadge: "Manual entry",
-      notes: s.notes || "",
+      sourceBadge: "ESPN",
+      notes: "",
     }));
 
     const fullLedger = [...sleeperLedger, ...manualLedger].sort((a, b) => b.year - a.year);
@@ -89,31 +89,6 @@ async function renderHistory() {
         return `<a class="ledger-row" href="season.html#${row.year}" style="text-decoration:none; color:inherit; cursor:pointer;">${inner}</a>`;
       })
       .join("");
-
-    // ---- Pre-Sleeper season standings (only if manual data provided) ----
-    const preSection = document.getElementById("pre-sleeper-section");
-    if (manual.seasons && manual.seasons.some((s) => s.standings && s.standings.length)) {
-      preSection.style.display = "";
-      const rows = [];
-      manual.seasons
-        .filter((s) => s.standings && s.standings.length)
-        .sort((a, b) => b.year - a.year)
-        .forEach((s) => {
-          rows.push(`<tr><td colspan="4" class="team-cell" style="padding-top:16px;"><strong>${s.year}</strong></td></tr>`);
-          s.standings.forEach((row) => {
-            rows.push(`
-              <tr>
-                <td class="team-cell">${escapeHtml(row.team)}</td>
-                <td>${row.wins}-${row.losses}</td>
-                <td>${(row.pointsFor ?? 0).toFixed ? row.pointsFor.toFixed(1) : row.pointsFor}</td>
-                <td>${row.team === s.champion ? "🏆" : ""}</td>
-              </tr>`);
-          });
-        });
-      document.getElementById("pre-sleeper-body").innerHTML = rows.join("");
-    } else {
-      preSection.style.display = "none";
-    }
 
     // ---- All-time career records — deferred, since this needs full deep
     //      history (not just the fast season-chain data used above) to

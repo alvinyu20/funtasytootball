@@ -152,6 +152,80 @@ const ManualHistory = {
   },
 
   /*
+    Returns a Map<team name, Map<opponent name, {wins, losses, ties}>>
+    built from every playoff game (quarterfinals, semifinals, 3rd-place,
+    and finals) across every manual season — the ESPN-era equivalent of
+    deep-history.js's headToHeadPlayoffs computation.
+
+    Keyed by team NAME rather than a Sleeper user_id, since these games
+    predate Sleeper and several participants (e.g. someone who never
+    continued into the Sleeper era) have no user_id to key by in the
+    first place. teams.js merges this in by matching a Sleeper manager's
+    own username against these names directly.
+
+    Manual brackets never record ties (there's no data for that), so
+    `ties` is always 0 here — included only so the merged shape matches
+    what deep-history.js already produces.
+  */
+  computeHeadToHeadPlayoffs(manualData) {
+    const byTeam = new Map();
+    const seasons = (manualData && manualData.seasons) || [];
+
+    function record(winner, loser) {
+      if (!winner || !loser) return;
+      if (!byTeam.has(winner)) byTeam.set(winner, new Map());
+      if (!byTeam.has(loser)) byTeam.set(loser, new Map());
+      const winnerRow = byTeam.get(winner);
+      const loserRow = byTeam.get(loser);
+      if (!winnerRow.has(loser)) winnerRow.set(loser, { wins: 0, losses: 0, ties: 0 });
+      if (!loserRow.has(winner)) loserRow.set(winner, { wins: 0, losses: 0, ties: 0 });
+      winnerRow.get(loser).wins += 1;
+      loserRow.get(winner).losses += 1;
+    }
+
+    seasons.forEach((season) => {
+      const b = season.bracket;
+      if (!b) return;
+      (b.quarterfinals || []).forEach((g) => record(g.winner, g.loser));
+      (b.semifinals || []).forEach((g) => record(g.winner, g.loser));
+      if (b.thirdPlace) record(b.thirdPlace.winner, b.thirdPlace.loser);
+      if (b.finals) record(b.finals.winner, b.finals.loser);
+    });
+
+    return byTeam;
+  },
+
+  /*
+    Merges one manager's manual-era playoff opponents (a Map<opponent
+    name, {wins, losses, ties}> — one row of computeHeadToHeadPlayoffs'
+    return value) into a Sleeper-computed manager object's existing
+    `headToHeadPlayoffs` array IN PLACE, the same "merge onto what
+    computeStats already built" pattern mergeIntoManager uses above.
+
+    Matched by opponent NAME rather than user_id (manual opponents have
+    none), which also naturally combines the two eras' records for any
+    opponent who played in both — e.g. two Sleeper-era playoff meetings
+    plus one ESPN-era meeting becomes a single 3-game row, not two rows
+    that quietly disagree with each other. Re-sorts afterward so the
+    merged-in opponents take their correct place by total games played,
+    matching computeStats' own ordering.
+  */
+  mergeHeadToHeadPlayoffs(manager, manualOpponents) {
+    if (!manualOpponents) return;
+    manualOpponents.forEach((rec, opponentName) => {
+      const existing = manager.headToHeadPlayoffs.find((h) => h.opponentName === opponentName);
+      if (existing) {
+        existing.wins += rec.wins;
+        existing.losses += rec.losses;
+        existing.ties += rec.ties;
+      } else {
+        manager.headToHeadPlayoffs.push({ opponentUserId: null, opponentName, wins: rec.wins, losses: rec.losses, ties: rec.ties });
+      }
+    });
+    manager.headToHeadPlayoffs.sort((a, b) => b.wins + b.losses + b.ties - (a.wins + a.losses + a.ties));
+  },
+
+  /*
     Transforms one manual season's `bracket` field into the exact shape
     season.js's existing renderBracket() already expects — reusing that
     function completely rather than building a second bracket renderer.

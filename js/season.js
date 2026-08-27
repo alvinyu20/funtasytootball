@@ -137,7 +137,9 @@ async function renderSelectedSeason() {
       content.style.display = "";
       content.innerHTML = renderManualSeasonSummary(manualSeason);
       stopReplay(); // in case a running replay timer was left over from a previously-viewed Sleeper season
+      initPowerRankTabs(); // no-op unless this ESPN-era year also has Power Rank History data (see data/power-rank-csv-history.json)
       initScrollAnimations();
+      initChartHoverLinking();
       initSectionReveal(content);
 
       const leagueName2 = SEASON_CHAIN[SEASON_CHAIN.length - 1].league.name;
@@ -523,7 +525,8 @@ function renderManualSeasonSummary(season) {
     .sort((a, b) => a.standing - b.standing)
     .map((row) => {
       const medalEmoji = row.medal === "gold" ? "🏆" : row.medal === "silver" ? "🥈" : row.medal === "bronze" ? "🥉" : "";
-      const playoffCell = row.playoffAppearance ? `${row.playoffWins}-${row.playoffLosses}${row.playoffBye ? ` <span class="muted-inline">(bye)</span>` : ""}` : "—";
+      const games = row.wins + row.losses + (row.ties || 0);
+      const avgPerWeek = games > 0 ? row.pointsFor / games : null;
       return `
         <tr>
           <td data-label="#">${row.standing}</td>
@@ -531,30 +534,22 @@ function renderManualSeasonSummary(season) {
           <td data-label="Record">${row.wins}-${row.losses}${row.ties ? "-" + row.ties : ""}</td>
           <td data-label="PF">${row.pointsFor.toFixed(1)}</td>
           <td data-label="PA">${row.pointsAgainst.toFixed(1)}</td>
-          <td data-label="Playoffs">${playoffCell}</td>
+          <td data-label="Avg/Wk">${avgPerWeek != null ? avgPerWeek.toFixed(1) : "—"}</td>
           <td data-label="">${medalEmoji}</td>
         </tr>`;
     })
     .join("");
 
   const bracketData = ManualHistory.buildBracketData(season);
+  // The manual data only stores the Finals MVP's name/position, not a
+  // Sleeper player_id (there's no per-player data for these seasons) —
+  // so resolve a photo the same way the Season Awards cards do: match
+  // the free-text name against the full player directory.
+  if (bracketData.champion && bracketData.champion.mvp && !bracketData.champion.mvp.playerId) {
+    bracketData.champion.mvp.playerId = findPlayerIdByName(bracketData.champion.mvp.player, getPlayerNameIndex());
+  }
 
   return `
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Final Standings</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap"><div class="panel">
-      <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile">
-          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Playoffs</th><th></th></tr></thead>
-          <tbody>${standingsRows}</tbody>
-        </table>
-      </div>
-      <p class="heatmap-note">From this league's ESPN era (before the move to Sleeper) — full weekly matchup, waiver, and draft data isn't available for this season, only final standings and the playoff bracket below.</p>
-    </div></div>
-
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
       <span class="label">Playoff Bracket</span>
@@ -563,7 +558,24 @@ function renderManualSeasonSummary(season) {
     <div class="wrap"><div class="panel">
       ${renderBracket(bracketData)}
       <p class="heatmap-note">Scores for the Quarterfinals and Semifinals aren't on record for this season — only the Finals score and MVP are known.</p>
-    </div></div>`;
+    </div></div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Final Standings</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile">
+          <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th></th></tr></thead>
+          <tbody>${standingsRows}</tbody>
+        </table>
+      </div>
+      <p class="heatmap-note">From this league's ESPN era (before the move to Sleeper) — full weekly matchup, waiver, and draft data isn't available for this season, only final standings and the playoff bracket above.</p>
+    </div></div>
+
+    ${renderPowerRankHistorySection(season.year)}`;
 }
 
 let REPLAY_TIMER = null;
@@ -1056,7 +1068,7 @@ function renderSummary(s) {
       (t, i) => `
     <tr>
       <td class="rank" data-label="#">${i + 1}</td>
-      <td class="team-cell">${escapeHtml(t.teamName)}${t.rosterId === s.championRosterId ? " 🏆" : ""}${isTotal && t.championships ? ` ${"🏆".repeat(Math.min(t.championships, 5))}` : ""}</td>
+      <td class="team-cell">${escapeHtml(t.teamName)}${t.rosterId === s.championRosterId ? " 🏆" : t.rosterId === s.runnerUpRosterId ? " 🥈" : t.rosterId === s.thirdPlaceRosterId ? " 🥉" : ""}${isTotal && t.championships ? ` ${"🏆".repeat(Math.min(t.championships, 5))}` : ""}</td>
       <td data-label="Record">${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
       <td data-label="PF">${t.fpts.toFixed(1)}</td>
       <td data-label="PA">${t.fptsAgainst.toFixed(1)}</td>
