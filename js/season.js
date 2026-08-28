@@ -137,7 +137,7 @@ async function renderSelectedSeason() {
       content.style.display = "";
       content.innerHTML = renderManualSeasonSummary(manualSeason);
       stopReplay(); // in case a running replay timer was left over from a previously-viewed Sleeper season
-      initPowerRankTabs(); // no-op unless this ESPN-era year also has Power Rank History data (see data/power-rank-csv-history.json)
+      initChartTabs(); // no-op unless this ESPN-era year also has Power Rank History data (see data/power-rank-csv-history.json)
       initScrollAnimations();
       initChartHoverLinking();
       initSectionReveal(content);
@@ -183,7 +183,7 @@ async function renderSelectedSeason() {
     content.style.display = "";
     content.innerHTML = renderSummary(summary);
     initStandingsReplay(summary.standingsHistory, summary.playoffTeams);
-    initPowerRankTabs();
+    initChartTabs();
     initAnimatedDropdowns();
     initScrollAnimations();
     initChartHoverLinking();
@@ -808,8 +808,39 @@ function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
     </div></div>`;
 }
 
+// Turns computeStandingsHistory()'s week-by-week snapshots (each one a
+// full sorted standings list) into the {name, color, points} series
+// shape Charts.multiLineChart expects for a bump chart — one line per
+// team, y = that week's rank (its position in the sorted snapshot + 1).
+// This is the static, all-at-once counterpart to the animated replay:
+// the same data, shaped for scanning the whole season's story in one
+// look instead of pressing play.
+function standingsHistoryToRankSeries(standingsHistory) {
+  const rosterOrder = standingsHistory[0].standings.map((s) => s.rosterId);
+  return rosterOrder.map((rosterId, i) => {
+    const first = standingsHistory[0].standings.find((s) => s.rosterId === rosterId);
+    const points = standingsHistory.map((snap) => {
+      const rank = snap.standings.findIndex((s) => s.rosterId === rosterId) + 1;
+      return { x: `W${snap.week}`, y: rank || null };
+    });
+    return {
+      name: (first && (first.username || first.teamName)) || "Unknown",
+      color: MULTI_LINE_COLORS[i % MULTI_LINE_COLORS.length],
+      points,
+    };
+  });
+}
+
 function renderStandingsReplaySection(standingsHistory, playoffTeams) {
   if (!standingsHistory || standingsHistory.length < 2) return "";
+
+  const bumpChart = Charts.multiLineChart(standingsHistoryToRankSeries(standingsHistory), {
+    invertY: true,
+    rankMode: true,
+    formatter: (v) => v.toFixed(0),
+    playoffCutoff: playoffTeams || null,
+  });
+
   return `
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
@@ -817,13 +848,23 @@ function renderStandingsReplaySection(standingsHistory, playoffTeams) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <div class="replay-controls">
-        <button class="replay-btn" id="replay-play-btn" type="button">▶ Play</button>
-        <input type="range" class="replay-slider" id="replay-slider" min="1" max="${standingsHistory.length}" value="1" />
-        <span class="replay-week-label" id="replay-week-label">Week ${standingsHistory[0].week}</span>
+      <div class="chart-tabs">
+        <button type="button" class="chart-tab active" data-chart-tab="replay">Replay</button>
+        <button type="button" class="chart-tab" data-chart-tab="chart">Rank Chart</button>
       </div>
-      <div class="replay-bars" id="replay-bars" data-playoff-teams="${playoffTeams || ""}"></div>
-      <p class="heatmap-note">Rank through each regular-season week, sorted by wins (PF breaks ties).${playoffTeams ? ` The dashed line marks the top ${playoffTeams} — this season's playoff cutoff.` : ""}</p>
+      <div class="chart-tab-panel" data-chart-panel="replay">
+        <div class="replay-controls">
+          <button class="replay-btn" id="replay-play-btn" type="button">▶ Play</button>
+          <input type="range" class="replay-slider" id="replay-slider" min="1" max="${standingsHistory.length}" value="1" />
+          <span class="replay-week-label" id="replay-week-label">Week ${standingsHistory[0].week}</span>
+        </div>
+        <div class="replay-bars" id="replay-bars" data-playoff-teams="${playoffTeams || ""}"></div>
+        <p class="heatmap-note">Rank through each regular-season week, sorted by wins (PF breaks ties).${playoffTeams ? ` The dashed line marks the top ${playoffTeams} — this season's playoff cutoff.` : ""}</p>
+      </div>
+      <div class="chart-tab-panel" data-chart-panel="chart" style="display:none;">
+        ${bumpChart}
+        <p class="heatmap-note">Every team's rank each week, all at once.${playoffTeams ? ` The gold band marks the top ${playoffTeams} — this season's playoff cutoff.` : ""}</p>
+      </div>
     </div></div>`;
 }
 
@@ -914,6 +955,59 @@ function renderReplayWeek(index) {
   if (slider) slider.value = index + 1;
 }
 
+// Finds the single earliest "clinched" week (odds reach ~100% and never
+// drop back below that for the rest of the season) and the single
+// earliest "eliminated" week (odds reach ~0% and never rise back above
+// that) across every team in a season's Playoff Odds dataset — marking
+// only the highest-priority moment of each kind, rather than every
+// team's own clinch/elimination, since a chart already carrying up to
+// 10 lines doesn't need 20 labels competing for space. Returns [] if
+// neither has happened yet in the data on hand (e.g. an in-progress
+// season), which Charts.multiLineChart already handles gracefully.
+function findPlayoffOddsAnnotations(playoffOddsDataset) {
+  let earliestClinch = null;
+  let earliestElimination = null;
+
+  Object.entries(playoffOddsDataset || {}).forEach(([team, weekly]) => {
+    for (let i = 0; i < weekly.length; i++) {
+      if (weekly[i] != null && weekly[i] >= 99.5 && weekly.slice(i).every((v) => v != null && v >= 99.5)) {
+        if (!earliestClinch || i < earliestClinch.pointIndex) earliestClinch = { seriesName: team, pointIndex: i };
+        break;
+      }
+    }
+    for (let i = 0; i < weekly.length; i++) {
+      if (weekly[i] != null && weekly[i] <= 0.5 && weekly.slice(i).every((v) => v != null && v <= 0.5)) {
+        if (!earliestElimination || i < earliestElimination.pointIndex) earliestElimination = { seriesName: team, pointIndex: i };
+        break;
+      }
+    }
+  });
+
+  const annotations = [];
+  // "down" for the clinch (its point sits near the top of the chart, so
+  // the label needs room below it) and "up" for the elimination (its
+  // point sits near the bottom, so the label needs room above it).
+  if (earliestClinch) {
+    annotations.push({
+      seriesName: earliestClinch.seriesName,
+      pointIndex: earliestClinch.pointIndex,
+      label: `Clinched — Wk ${earliestClinch.pointIndex + 1}`,
+      color: "var(--gold)",
+      direction: "down",
+    });
+  }
+  if (earliestElimination) {
+    annotations.push({
+      seriesName: earliestElimination.seriesName,
+      pointIndex: earliestElimination.pointIndex,
+      label: `Eliminated — Wk ${earliestElimination.pointIndex + 1}`,
+      color: "var(--rust)",
+      direction: "up",
+    });
+  }
+  return annotations;
+}
+
 function renderPowerRankHistorySection(season) {
   if (!POWER_RANK_CSV_HISTORY || !POWER_RANK_CSV_HISTORY.seasons) return "";
   const yearData = POWER_RANK_CSV_HISTORY.seasons[String(season)];
@@ -960,7 +1054,10 @@ function renderPowerRankHistorySection(season) {
     yearData.playoffOdds && {
       key: "odds",
       label: "Playoff Odds History",
-      chart: Charts.multiLineChart(toFlatSeries(yearData.playoffOdds), { formatter: (v) => v.toFixed(1) + "%" }),
+      chart: Charts.multiLineChart(toFlatSeries(yearData.playoffOdds), {
+        formatter: (v) => v.toFixed(1) + "%",
+        annotations: findPlayoffOddsAnnotations(yearData.playoffOdds),
+      }),
       note: "Simulated chance of making the playoffs each week — higher is better, unlike the other two charts.",
     },
   ].filter(Boolean);
@@ -990,7 +1087,11 @@ function renderPowerRankHistorySection(season) {
     </div></div>`;
 }
 
-function initPowerRankTabs() {
+function initChartTabs() {
+  // Generic over every ".chart-tabs" group on the page — both Power Rank
+  // History (rank/score/odds) and Standings Over Time (replay/rank chart)
+  // reuse this same tab markup, so wiring them up is one function rather
+  // than one per feature.
   document.querySelectorAll(".chart-tabs").forEach((tabRow) => {
     tabRow.querySelectorAll(".chart-tab").forEach((btn) => {
       btn.onclick = () => {

@@ -124,7 +124,18 @@ const Charts = {
   // as bump-chart "nodes". Every line, dot, and end label carries a
   // data-series attribute so hover highlighting (see
   // initChartHoverLinking in animations.js) can tie them together.
-  multiLineChart(series, { width = 720, height = 360, formatter = (v) => v.toFixed(1), invertY = false, rankMode = false } = {}) {
+  //
+  // playoffCutoff (rankMode only): shades ranks 1..N as a "still in the
+  // playoff picture" band with a dashed boundary line, the same cutoff
+  // the Standings Over Time replay already marks.
+  //
+  // annotations: [{ seriesName, pointIndex, label, color, direction }]
+  // — marks one specific point directly on the chart with a short
+  // connector and a label, instead of leaving the reader to spot it
+  // (e.g. "Clinched — Wk 12"). direction is "up" or "down" (default
+  // "up") for which way the label extends from the point; the caller
+  // picks whichever avoids colliding with the line's own shape.
+  multiLineChart(series, { width = 720, height = 360, formatter = (v) => v.toFixed(1), invertY = false, rankMode = false, playoffCutoff = null, annotations = [] } = {}) {
     const validSeries = series.filter((s) => s.points && s.points.length);
     if (!validSeries.length) return `<div class="empty-state">Not enough data yet.</div>`;
 
@@ -157,6 +168,20 @@ const Charts = {
     function xFor(i) {
       return padL + i * xStep;
     }
+
+    // Playoff cutoff band — drawn first (and so behind everything else in
+    // SVG's paint order) so gridlines, lines, and dots all sit on top of
+    // the shaded region rather than under it.
+    const playoffBandHtml =
+      rankMode && playoffCutoff && playoffCutoff < rankCount
+        ? (() => {
+            const bandBottom = yFor(playoffCutoff + 0.5);
+            return `
+      <rect class="lc-playoff-band" x="${padL}" y="${padT}" width="${innerW}" height="${(bandBottom - padT).toFixed(1)}"></rect>
+      <line class="lc-playoff-line" x1="${padL}" y1="${bandBottom.toFixed(1)}" x2="${width - padR}" y2="${bandBottom.toFixed(1)}"></line>
+      <text class="lc-playoff-label" x="${(width - padR).toFixed(1)}" y="${(bandBottom - 5).toFixed(1)}" text-anchor="end">Playoff line</text>`;
+          })()
+        : "";
 
     // Rank mode gets a gridline + rank-number label at every integer
     // rank (the classic bump-chart look); everything else keeps the
@@ -282,14 +307,43 @@ const Charts = {
       )
       .join("");
 
+    // Marks one specific point directly on the chart with a short dashed
+    // connector and a label — e.g. "Clinched — Wk 12" — rather than
+    // leaving the reader to find the moment themselves. Silently skips
+    // an annotation whose series/point doesn't exist or has no value
+    // there, so a caller can pass a "maybe" annotation without checking
+    // first.
+    const annotationsHtml = (annotations || [])
+      .map((ann) => {
+        const s = validSeries.find((vs) => vs.name === ann.seriesName);
+        const pt = s && s.points[ann.pointIndex];
+        if (!pt || pt.y == null) return "";
+        const x = xFor(ann.pointIndex);
+        const y = yFor(pt.y);
+        const dir = ann.direction === "down" ? 1 : -1;
+        const labelY = y + dir * 34;
+        const color = ann.color || "#E8B23D";
+        return `
+      <line class="lc-annotation-connector" x1="${x.toFixed(1)}" y1="${(y + dir * 6).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(labelY - dir * 12).toFixed(
+          1
+        )}" style="stroke:${color}"></line>
+      <circle class="lc-annotation-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" style="fill:${color}"></circle>
+      <text class="lc-annotation-label" x="${x.toFixed(1)}" y="${(labelY + (dir === -1 ? -4 : 12)).toFixed(1)}" text-anchor="middle" style="fill:${color}">${escapeHtml(
+          ann.label
+        )}</text>`;
+      })
+      .join("");
+
     return `
       <div class="line-chart-wrap">
         <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" preserveAspectRatio="xMinYMin meet">
+          ${playoffBandHtml}
           ${gridLines}
           ${yLabels}
           ${pathsHtml}
           ${xLabels}
           ${endLabels}
+          ${annotationsHtml}
         </svg>
       </div>`;
   },

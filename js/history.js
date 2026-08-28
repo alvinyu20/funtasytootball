@@ -103,21 +103,49 @@ async function renderHistory() {
   }
 }
 
+// A minimal inline sparkline — no axes, no labels, just the shape of a
+// short numeric series. Used for the Career Records small-multiples
+// grid, where the whole point is a scannable shape per manager rather
+// than a chart anyone reads precise values off of (that's what the
+// table right below it is for).
+function sparklinePoints(values, width, height, pad) {
+  if (!values.length) return "";
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+  const stepX = values.length > 1 ? (width - pad * 2) / (values.length - 1) : 0;
+  return values
+    .map((v, i) => {
+      const x = pad + i * stepX;
+      const y = pad + (height - pad * 2) * (1 - (v - minV) / range);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
+
 async function renderCareerRecords(seasons, playerDirectory, manual) {
   try {
     const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
     const stats = DeepHistory.computeStats(seasons, deepSeasons, playerDirectory);
 
-    // Fold in ESPN-era (pre-Sleeper) totals for any manager who's also
-    // played in the Sleeper era. Deliberately keyed by looking each
-    // Sleeper manager's own username up in the manual data, not the
-    // other way around — a name that only ever appears in the manual
-    // data (never continued into the Sleeper era) has no Sleeper
-    // manager object to merge onto in the first place, so it's
-    // naturally excluded here without needing an explicit allow-list.
+    // Fold in ESPN-era (pre-Sleeper) totals AND season-by-season entries
+    // for any manager who's also played in the Sleeper era. Deliberately
+    // keyed by looking each Sleeper manager's own username up in the
+    // manual data, not the other way around — a name that only ever
+    // appears in the manual data (never continued into the Sleeper era)
+    // has no Sleeper manager object to merge onto in the first place, so
+    // it's naturally excluded here without needing an explicit allow-list.
     const manualStatsByTeam = ManualHistory.computeManagerStats(manual);
     stats.managers.forEach((m) => {
-      if (m.username) ManualHistory.mergeIntoManager(m, manualStatsByTeam.get(m.username)?.totals);
+      if (!m.username) return;
+      const manualForThisManager = manualStatsByTeam.get(m.username);
+      if (!manualForThisManager) return;
+      ManualHistory.mergeIntoManager(m, manualForThisManager.totals);
+      // The per-season array (not just the totals) is what the career
+      // trend grid below draws its sparklines from, so a manager who
+      // played both eras shows their whole career's shape, not just
+      // the Sleeper-tracked half of it.
+      m.seasons = [...m.seasons, ...manualForThisManager.seasons];
     });
 
     const careerRows = stats.managers
@@ -129,6 +157,26 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
         return { ...m, winPct };
       })
       .sort((a, b) => b.winPct - a.winPct || b.careerPF - a.careerPF);
+
+    // Career trend grid — one small card per manager, each with a tiny
+    // sparkline of wins-per-season (their whole career, oldest to
+    // newest) so the shape of every career is scannable at once before
+    // the detailed table below spells out the exact numbers.
+    document.getElementById("career-grid").innerHTML = careerRows.length
+      ? careerRows
+          .map((m) => {
+            const bySeasonAsc = [...(m.seasons || [])].sort((a, b) => a.season - b.season);
+            const wins = bySeasonAsc.map((s) => s.wins);
+            const points = sparklinePoints(wins, 100, 28, 3);
+            return `
+      <div class="career-card">
+        <div class="career-card-name">${escapeHtml(m.username || m.teamName || "Unknown")}</div>
+        ${points ? `<svg class="career-spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points="${points}" /></svg>` : ""}
+        <div class="career-card-stat">${m.winPct.toFixed(1)}% win rate</div>
+      </div>`;
+          })
+          .join("")
+      : `<div class="empty-state">No completed seasons yet.</div>`;
 
     document.getElementById("career-body").innerHTML = careerRows.length
       ? careerRows
@@ -148,6 +196,7 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
       : `<tr><td colspan="7" class="empty-state">No completed seasons yet.</td></tr>`;
   } catch (err) {
     console.error(err);
+    document.getElementById("career-grid").innerHTML = `<div class="empty-state">Couldn't load career trends.</div>`;
     document.getElementById("career-body").innerHTML = `<tr><td colspan="7" class="empty-state">Couldn't load career records.</td></tr>`;
   }
 }

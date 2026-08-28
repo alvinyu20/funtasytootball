@@ -65,3 +65,63 @@ test("barChart: uses a CSS custom property for width (enables the scroll-trigger
   assert.ok(html.includes("--bar-w:"), "should set the --bar-w custom property");
   assert.ok(!/style="width:\d/.test(html), "should not set a literal inline width — that would prevent the CSS-driven draw-in animation");
 });
+
+test("multiLineChart playoffCutoff: draws a shaded band and dashed line only in rankMode, spanning ranks 1 through the cutoff", () => {
+  const series = [
+    { name: "teamAlpha", color: "#E7B040", points: [{ x: "W1", y: 1 }, { x: "W2", y: 2 }] },
+    { name: "teamBeta", color: "#7FED6E", points: [{ x: "W1", y: 4 }, { x: "W2", y: 6 }] },
+  ];
+  const html = Charts.multiLineChart(series, { invertY: true, rankMode: true, playoffCutoff: 4 });
+  assert.ok(html.includes('class="lc-playoff-band"'), "should render the shaded playoff band");
+  assert.ok(html.includes('class="lc-playoff-line"'), "should render the dashed cutoff line");
+  assert.ok(html.includes("Playoff line"), "should label the cutoff line");
+});
+
+test("multiLineChart playoffCutoff: omitted (no band) when not in rankMode, even if a cutoff value is passed", () => {
+  const series = [{ name: "teamAlpha", color: "#E7B040", points: [{ x: "W1", y: 50 }, { x: "W2", y: 80 }] }];
+  const html = Charts.multiLineChart(series, { invertY: false, rankMode: false, playoffCutoff: 4 });
+  assert.ok(!html.includes("lc-playoff-band"), "rankMode is required for the playoff band to make sense (ranks, not raw values)");
+});
+
+test("multiLineChart playoffCutoff: omitted when the cutoff is at or beyond the total number of ranks (nothing to shade)", () => {
+  const series = [
+    { name: "teamAlpha", color: "#E7B040", points: [{ x: "W1", y: 1 }, { x: "W2", y: 2 }] },
+    { name: "teamBeta", color: "#7FED6E", points: [{ x: "W1", y: 2 }, { x: "W2", y: 1 }] },
+  ];
+  const html = Charts.multiLineChart(series, { invertY: true, rankMode: true, playoffCutoff: 2 });
+  assert.ok(!html.includes("lc-playoff-band"), "a cutoff equal to the full field means everyone's in — nothing meaningful to shade");
+});
+
+test("multiLineChart annotations: renders a marker, connector, and label at the requested point", () => {
+  const series = [{ name: "yulovesyou", color: "#E7B040", points: [{ x: "W1", y: 50 }, { x: "W2", y: 100 }, { x: "W3", y: 100 }] }];
+  const html = Charts.multiLineChart(series, {
+    annotations: [{ seriesName: "yulovesyou", pointIndex: 1, label: "Clinched — Wk 2", color: "var(--gold)", direction: "down" }],
+  });
+  assert.ok(html.includes("lc-annotation-dot"), "should render the annotation marker");
+  assert.ok(html.includes("lc-annotation-connector"), "should render the connector line");
+  assert.ok(html.includes("Clinched — Wk 2"), "should render the label text");
+});
+
+test("multiLineChart annotations: silently skips an annotation whose series or point doesn't exist, rather than throwing", () => {
+  const series = [{ name: "yulovesyou", color: "#E7B040", points: [{ x: "W1", y: 50 }] }];
+  assert.doesNotThrow(() => {
+    Charts.multiLineChart(series, {
+      annotations: [
+        { seriesName: "doesNotExist", pointIndex: 0, label: "Ghost annotation" },
+        { seriesName: "yulovesyou", pointIndex: 99, label: "Out of range" },
+      ],
+    });
+  });
+  const html = Charts.multiLineChart(series, {
+    annotations: [{ seriesName: "doesNotExist", pointIndex: 0, label: "Ghost annotation" }],
+  });
+  assert.ok(!html.includes("Ghost annotation"), "an annotation for a nonexistent series should not render");
+});
+
+test("multiLineChart annotations: skips an annotation pointing at a gap (null y-value) in the series", () => {
+  const series = [{ name: "yulovesyou", color: "#E7B040", points: [{ x: "W1", y: 50 }, { x: "W2", y: null }] }];
+  const html = Charts.multiLineChart(series, {
+    annotations: [{ seriesName: "yulovesyou", pointIndex: 1, label: "Should not appear" }],
+  });
+  assert.ok(!html.includes("Should not appear"));
+});

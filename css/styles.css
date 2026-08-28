@@ -630,7 +630,7 @@ details.record-card-expandable[open] summary::after { content: "▴ hide lineup"
   color: var(--chalk-dim);
 }
 .season-stat-value {
-  font-family: var(--font-body);
+  font-family: var(--font-mono);
   font-size: 15px;
   color: var(--chalk);
   font-variant-numeric: tabular-nums;
@@ -809,6 +809,12 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .line-chart-wrap.has-hover .lc-end-label:not(.hovered) { opacity: 0.3; }
 .line-chart-wrap .lc-line.hovered { stroke-width: 4; }
 .line-chart-wrap .lc-end-label.hovered { font-weight: 700; }
+.line-chart-wrap .lc-playoff-band { fill: var(--gold); opacity: 0.07; }
+.line-chart-wrap .lc-playoff-line { stroke: var(--gold); stroke-width: 1; stroke-dasharray: 4,3; opacity: 0.5; }
+.line-chart-wrap .lc-playoff-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em; fill: var(--gold); opacity: 0.7; }
+.line-chart-wrap .lc-annotation-connector { stroke-width: 1; stroke-dasharray: 2,2; opacity: 0.7; }
+.line-chart-wrap .lc-annotation-dot { stroke: var(--turf-dark); stroke-width: 2; }
+.line-chart-wrap .lc-annotation-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
 
 /* ==========================================================================
    HEATMAP TABLE (scoring by position, per season)
@@ -1379,6 +1385,48 @@ details.bracket-game.championship {
   line-height: 1.2;
 }
 
+.career-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.career-card {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 12px;
+  transition: border-color 0.15s;
+}
+.career-card:hover, .career-card.hovered { border-color: var(--gold); }
+.career-card-name {
+  font-family: var(--font-display); font-weight: var(--font-display-weight);
+  font-size: 13px;
+  color: var(--chalk);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+.career-spark {
+  width: 100%;
+  height: 26px;
+  display: block;
+  margin-bottom: 6px;
+  overflow: visible;
+}
+.career-spark polyline {
+  fill: none;
+  stroke: var(--gold);
+  stroke-width: 1.75;
+  vector-effect: non-scaling-stroke;
+}
+.career-card-stat {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--chalk-dim);
+}
+
 .replay-controls { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
 .replay-btn {
   background: var(--gold);
@@ -1593,6 +1641,15 @@ table.stat-table td.playoff-cutoff-label {
 .history-callout-text strong { color: var(--gold); }
 .latest-newsletter-link { display: block; margin-top: 36px; text-decoration: none; transition: border-color 0.15s ease; }
 .latest-newsletter-link:hover { border-color: var(--gold-dim); }
+
+/* ---- Home page: hero thesis — the one big story of the week ---- */
+.hero-thesis { border-bottom: 2px solid var(--gold); padding-bottom: 20px; margin-bottom: 4px; }
+.hero-thesis-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+.hero-thesis-headline { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 30px; text-transform: uppercase; color: var(--chalk); line-height: 1.2; }
+.hero-thesis-sub { font-family: var(--font-body); font-size: 14px; color: var(--chalk-dim); margin-top: 8px; }
+@media (max-width: 640px) {
+  .hero-thesis-headline { font-size: 22px; }
+}
 
 /* ==========================================================================
    MOBILE TEXT SIZE — several of the large "scoreboard" display-font

@@ -58,19 +58,20 @@ async function renderDashboard() {
     if (week) {
       rawMatchups = await SleeperAPI.getMatchups(LEAGUE_ID, week).catch(() => []);
     }
-    renderMatchupsAndFeatured(rawMatchups, standings, week);
+    const { topScore } = renderMatchupsAndFeatured(rawMatchups, standings, week);
     initScrollAnimations();
 
     fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
 
     // ---- Phase 2: heavier data (full-season fetch), doesn't block the above ----
     if (league.status !== "pre_draft" && week) {
-      renderStreaksAndPowerRankings(league, rosters, users, playerDirectory, teamStrength);
+      renderStreaksAndPowerRankings(league, rosters, users, playerDirectory, teamStrength, topScore);
       renderRecentActivity(LEAGUE_ID, week, rosters, users, playerDirectory);
     } else {
       document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Check back once the season starts.</div>`;
       document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">Check back once the season starts.</div>`;
       document.getElementById("recent-activity-panel").innerHTML = `<div class="empty-state">No activity yet.</div>`;
+      renderHeroThesis(null);
     }
   } catch (err) {
     console.error(err);
@@ -117,12 +118,12 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
   if (!week) {
     matchupsEl.innerHTML = `<div class="empty-state">No matchups to show right now.</div>`;
     featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
-    return;
+    return { topScore: null, closest: null };
   }
   if (!rawMatchups || rawMatchups.length === 0) {
     matchupsEl.innerHTML = `<div class="empty-state">Matchups for week ${week} aren't posted yet.</div>`;
     featuredEl.innerHTML = `<div class="empty-state">Matchups for week ${week} aren't posted yet.</div>`;
-    return;
+    return { topScore: null, closest: null };
   }
 
   const nameByRoster = new Map(standings.map((t) => [t.rosterId, t.teamName]));
@@ -207,6 +208,87 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
   } else {
     featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
   }
+
+  return { topScore: topScore.pts > -Infinity ? topScore : null, closest: closest.diff < Infinity ? closest : null };
+}
+
+// Picks the single biggest storyline of the week from whatever's already
+// been computed elsewhere on the dashboard — a waterfall of priorities,
+// most dramatic first, so the page always leads with its single best
+// fact instead of giving every fact equal weight. Returns null when
+// nothing qualifies (e.g. week 1, before any streak or clinch is
+// possible), in which case the hero section simply doesn't render.
+function pickHeroStory({ streaks, prRows, topScore, week, playoffTeams }) {
+  if (!week) return null;
+
+  // 1. Clinched or eliminated — the biggest possible story. Checked
+  // first since making or missing the playoffs outweighs anything else
+  // that could happen in a given week.
+  if (prRows && prRows.length) {
+    const clinched = prRows.find((r) => r.playoffPct >= 99.5);
+    if (clinched) {
+      return {
+        eyebrow: `Playoff Watch · Week ${week}`,
+        headline: `${clinched.teamName} clinches a playoff spot`,
+        sub: playoffTeams ? `First team to lock up one of the ${playoffTeams} playoff spots.` : "First team to lock up a playoff spot.",
+      };
+    }
+    const eliminated = prRows.find((r) => r.playoffPct <= 0.5);
+    if (eliminated) {
+      return {
+        eyebrow: `Playoff Watch · Week ${week}`,
+        headline: `${eliminated.teamName} has been eliminated`,
+        sub: "Their playoff odds have dropped to zero.",
+      };
+    }
+  }
+
+  // 2/3. A win or lose streak of 4+ games — long enough to be a real
+  // storyline rather than a routine couple of good or bad weeks.
+  const hottest = (streaks || []).filter((s) => s.result === "W").sort((a, b) => b.length - a.length)[0];
+  if (hottest && hottest.length >= 4) {
+    return {
+      eyebrow: `Hot Streak · Week ${week}`,
+      headline: `${hottest.teamName} is riding a ${hottest.length}-game win streak`,
+      sub: "Nobody else in the league is hotter right now.",
+    };
+  }
+  const coldest = (streaks || []).filter((s) => s.result === "L").sort((a, b) => b.length - a.length)[0];
+  if (coldest && coldest.length >= 4) {
+    return {
+      eyebrow: `Cold Streak · Week ${week}`,
+      headline: `${coldest.teamName} has dropped ${coldest.length} straight`,
+      sub: "Their longest losing skid of the season.",
+    };
+  }
+
+  // 4. Fallback: last week's high score — always available once at
+  // least one week has been played, so the section still has something
+  // to say even in a quiet week without a streak or clinch.
+  if (topScore) {
+    return {
+      eyebrow: `Week ${week}`,
+      headline: `${topScore.name} posted the week's high score`,
+      sub: `${topScore.pts.toFixed(1)} points led all teams.`,
+    };
+  }
+
+  return null;
+}
+
+function renderHeroThesis(story) {
+  const el = document.getElementById("hero-thesis");
+  if (!el) return;
+  if (!story) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `
+    <div class="hero-thesis">
+      <div class="hero-thesis-eyebrow">${escapeHtml(story.eyebrow)}</div>
+      <div class="hero-thesis-headline">${escapeHtml(story.headline)}</div>
+      ${story.sub ? `<div class="hero-thesis-sub">${escapeHtml(story.sub)}</div>` : ""}
+    </div>`;
 }
 
 function renderHistoryCallout(seasonAwards) {
@@ -330,7 +412,7 @@ function renderPowerRankingsSnapshot(pr, lastWeekRanks) {
   el.innerHTML = rows + `<a class="dash-more-link" href="power-rankings.html">See Full Power Rankings →</a>`;
 }
 
-async function renderStreaksAndPowerRankings(league, rosters, users, playerDirectory, teamStrength) {
+async function renderStreaksAndPowerRankings(league, rosters, users, playerDirectory, teamStrength, topScore) {
   try {
     const seasonEntry = { league, rosters, users, bracket: [] };
     const deep = await DeepHistory.fetchSeasonDeep(seasonEntry, () => {});
@@ -338,6 +420,7 @@ async function renderStreaksAndPowerRankings(league, rosters, users, playerDirec
     if (!deep.weeks.length) {
       document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">No games played yet.</div>`;
       document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">No games played yet.</div>`;
+      renderHeroThesis(null);
       return;
     }
 
@@ -347,7 +430,8 @@ async function renderStreaksAndPowerRankings(league, rosters, users, playerDirec
       const user = usersById.get(r.owner_id);
       rosterInfo.set(r.roster_id, { teamName: SleeperAPI.teamName(user, r.roster_id), username: user ? user.display_name : null });
     });
-    renderStreaksPanel(computeCurrentStreaks(deep.weeks, rosterInfo));
+    const streaks = computeCurrentStreaks(deep.weeks, rosterInfo);
+    renderStreaksPanel(streaks);
 
     const teamStrengthTeams = (teamStrength && teamStrength.teams) || {};
     const pr = DeepHistory.computePowerRankings(seasonEntry, deep, playerDirectory, teamStrengthTeams, 1000);
@@ -355,10 +439,13 @@ async function renderStreaksAndPowerRankings(league, rosters, users, playerDirec
     const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(pr.season)]) || {};
     const lastWeekRanks = seasonHistory[String(pr.week - 1)] || null;
     renderPowerRankingsSnapshot(pr, lastWeekRanks);
+
+    renderHeroThesis(pickHeroStory({ streaks, prRows: pr.rows, topScore, week: pr.week, playoffTeams: pr.playoffTeams }));
   } catch (err) {
     console.error(err);
     document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Couldn't load streak data.</div>`;
     document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">Couldn't load power rankings.</div>`;
+    renderHeroThesis(null);
   }
 }
 
