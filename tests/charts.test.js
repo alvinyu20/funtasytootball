@@ -125,3 +125,28 @@ test("multiLineChart annotations: skips an annotation pointing at a gap (null y-
   });
   assert.ok(!html.includes("Should not appear"));
 });
+
+test("multiLineChart annotations: each annotation carries its own series' data-series attribute, so per-team hover linking (initChartHoverLinking) can show only the hovered team's annotation", () => {
+  const series = [
+    { name: "teamA", color: "#E7B040", points: [{ x: "W1", y: 90 }, { x: "W2", y: 100 }] },
+    { name: "teamB", color: "#4F8F6B", points: [{ x: "W1", y: 20 }, { x: "W2", y: 0 }] },
+  ];
+  const html = Charts.multiLineChart(series, {
+    annotations: [
+      { seriesName: "teamA", pointIndex: 1, label: "Clinched — Wk 2", color: "var(--gold)", direction: "down" },
+      { seriesName: "teamB", pointIndex: 1, label: "Eliminated — Wk 2", color: "var(--rust)", direction: "up" },
+    ],
+  });
+  assert.match(html, /class="lc-annotation-dot" data-series="teamA"/, "teamA's annotation dot should be tagged with teamA's own series name");
+  assert.match(html, /class="lc-annotation-connector" data-series="teamA"/);
+  assert.match(html, /class="lc-annotation-label" data-series="teamA"/);
+  assert.match(html, /class="lc-annotation-dot" data-series="teamB"/, "teamB's annotation dot should be tagged with teamB's own series name, independently of teamA's");
+});
+
+test("multiLineChart annotations: a chart with one annotation per series (e.g. every team's own playoff clinch/elimination) renders all of them, not just one", () => {
+  const series = ["teamA", "teamB", "teamC"].map((name, i) => ({ name, color: "#E7B040", points: [{ x: "W1", y: 100 - i * 10 }] }));
+  const html = Charts.multiLineChart(series, {
+    annotations: series.map((s) => ({ seriesName: s.name, pointIndex: 0, label: `${s.name} moment`, color: "var(--gold)" })),
+  });
+  ["teamA moment", "teamB moment", "teamC moment"].forEach((label) => assert.ok(html.includes(label), `should render ${label}`));
+});

@@ -103,24 +103,65 @@ async function renderHistory() {
   }
 }
 
-// A minimal inline sparkline — no axes, no labels, just the shape of a
-// short numeric series. Used for the Career Records small-multiples
-// grid, where the whole point is a scannable shape per manager rather
-// than a chart anyone reads precise values off of (that's what the
-// table right below it is for).
-function sparklinePoints(values, width, height, pad) {
-  if (!values.length) return "";
-  const minV = Math.min(...values);
-  const maxV = Math.max(...values);
-  const range = maxV - minV || 1;
-  const stepX = values.length > 1 ? (width - pad * 2) / (values.length - 1) : 0;
-  return values
-    .map((v, i) => {
-      const x = pad + i * stepX;
-      const y = pad + (height - pad * 2) * (1 - (v - minV) / range);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+let CAREER_ROWS = [];
+let CAREER_SORT = { key: "gold", dir: "desc" };
+// Numeric stat columns default to descending (biggest first, the way a
+// sports leaderboard reads) on their first click; Owner is the one
+// exception, since a name reads naturally sorted A-Z rather than Z-A.
+const CAREER_SORT_ASC_DEFAULT = new Set(["name"]);
+
+function sortCareerRows(rows, key, dir) {
+  return [...rows].sort((a, b) => {
+    const av = a[key];
+    const bv = b[key];
+    if (typeof av === "string") return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+    return dir === "asc" ? av - bv : bv - av;
+  });
+}
+
+function renderCareerTable() {
+  const sorted = sortCareerRows(CAREER_ROWS, CAREER_SORT.key, CAREER_SORT.dir);
+  document.getElementById("career-body").innerHTML = sorted.length
+    ? sorted
+        .map(
+          (m, i) => `
+      <tr>
+        <td class="rank" data-label="#">${i + 1}</td>
+        <td class="team-cell" data-label="Owner">${escapeHtml(m.name)}</td>
+        <td data-label="Gold">${m.gold || "—"}</td>
+        <td data-label="Silver">${m.silver || "—"}</td>
+        <td data-label="Bronze">${m.bronze || "—"}</td>
+        <td data-label="App">${m.playoffApp}</td>
+        <td data-label="Pct">${m.playoffPct.toFixed(0)}%</td>
+        <td data-label="Years">${m.years}</td>
+        <td data-label="Playoff Record">${m.playoffWins}-${m.playoffLosses}${m.playoffTies ? "-" + m.playoffTies : ""}</td>
+        <td data-label="Playoff Win %">${m.playoffWinPct.toFixed(1)}%</td>
+        <td data-label="Reg Season Record">${m.regWins}-${m.regLosses}${m.regTies ? "-" + m.regTies : ""}</td>
+        <td data-label="Reg Season Win %">${m.regWinPct.toFixed(1)}%</td>
+      </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="12" class="empty-state">No completed seasons yet.</td></tr>`;
+
+  document.querySelectorAll("#career-table th.sortable").forEach((th) => {
+    th.classList.remove("sort-active", "sort-asc", "sort-desc");
+    if (th.dataset.sortKey === CAREER_SORT.key) th.classList.add("sort-active", CAREER_SORT.dir === "asc" ? "sort-asc" : "sort-desc");
+  });
+}
+
+function initCareerTableSorting() {
+  document.querySelectorAll("#career-table th.sortable").forEach((th) => {
+    th.onclick = () => {
+      const key = th.dataset.sortKey;
+      if (CAREER_SORT.key === key) {
+        CAREER_SORT.dir = CAREER_SORT.dir === "asc" ? "desc" : "asc";
+      } else {
+        CAREER_SORT.key = key;
+        CAREER_SORT.dir = CAREER_SORT_ASC_DEFAULT.has(key) ? "asc" : "desc";
+      }
+      renderCareerTable();
+    };
+  });
 }
 
 async function renderCareerRecords(seasons, playerDirectory, manual) {
@@ -148,22 +189,20 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
       m.seasons = [...m.seasons, ...manualForThisManager.seasons];
     });
 
-    const careerRows = stats.managers
-      .map((m) => {
-        const totalGames =
-          m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies + m.careerPlayoffWins + m.careerPlayoffLosses + m.careerPlayoffTies;
-        const totalWins = m.careerRegularSeasonWins + m.careerPlayoffWins;
-        const winPct = totalGames > 0 ? (totalWins / totalGames) * 100 : 0;
-        return { ...m, winPct };
-      })
-      .sort((a, b) => b.winPct - a.winPct || b.careerPF - a.careerPF);
+    const gridRows = stats.managers.map((m) => {
+      const totalGames =
+        m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies + m.careerPlayoffWins + m.careerPlayoffLosses + m.careerPlayoffTies;
+      const totalWins = m.careerRegularSeasonWins + m.careerPlayoffWins;
+      const overallWinPct = totalGames > 0 ? (totalWins / totalGames) * 100 : 0;
+      return { ...m, overallWinPct };
+    });
 
     // Career trend grid — one small card per manager, each with a tiny
     // sparkline of wins-per-season (their whole career, oldest to
     // newest) so the shape of every career is scannable at once before
     // the detailed table below spells out the exact numbers.
-    document.getElementById("career-grid").innerHTML = careerRows.length
-      ? careerRows
+    document.getElementById("career-grid").innerHTML = gridRows.length
+      ? gridRows
           .map((m) => {
             const bySeasonAsc = [...(m.seasons || [])].sort((a, b) => a.season - b.season);
             const wins = bySeasonAsc.map((s) => s.wins);
@@ -172,32 +211,47 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
       <div class="career-card">
         <div class="career-card-name">${escapeHtml(m.username || m.teamName || "Unknown")}</div>
         ${points ? `<svg class="career-spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points="${points}" /></svg>` : ""}
-        <div class="career-card-stat">${m.winPct.toFixed(1)}% win rate</div>
+        <div class="career-card-stat">${m.overallWinPct.toFixed(1)}% win rate</div>
       </div>`;
           })
           .join("")
       : `<div class="empty-state">No completed seasons yet.</div>`;
 
-    document.getElementById("career-body").innerHTML = careerRows.length
-      ? careerRows
-          .map(
-            (m, i) => `
-      <tr>
-        <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell" data-label="Manager">${escapeHtml(m.username || m.teamName || "Unknown")}</td>
-        <td data-label="Regular Season">${m.careerRegularSeasonWins}-${m.careerRegularSeasonLosses}${m.careerRegularSeasonTies ? "-" + m.careerRegularSeasonTies : ""}</td>
-        <td data-label="Playoffs">${m.careerPlayoffWins}-${m.careerPlayoffLosses}${m.careerPlayoffTies ? "-" + m.careerPlayoffTies : ""}</td>
-        <td data-label="Win %">${m.winPct.toFixed(1)}%</td>
-        <td data-label="Career PF">${m.careerPF.toFixed(1)}</td>
-        <td data-label="🏆">${m.championships || 0}</td>
-      </tr>`
-          )
-          .join("")
-      : `<tr><td colspan="7" class="empty-state">No completed seasons yet.</td></tr>`;
+    // Career Records table — Titles (gold/silver/bronze), Playoffs
+    // (appearances/rate/years played), and separate Playoff and Regular
+    // Season records, each independently sortable by clicking its header
+    // (see initCareerTableSorting).
+    CAREER_ROWS = stats.managers.map((m) => {
+      const years = (m.seasons || []).length;
+      const playoffPct = years > 0 ? (m.playoffAppearances / years) * 100 : 0;
+      const playoffGames = m.careerPlayoffWins + m.careerPlayoffLosses + m.careerPlayoffTies;
+      const playoffWinPct = playoffGames > 0 ? (m.careerPlayoffWins / playoffGames) * 100 : 0;
+      const regGames = m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies;
+      const regWinPct = regGames > 0 ? (m.careerRegularSeasonWins / regGames) * 100 : 0;
+      return {
+        name: m.username || m.teamName || "Unknown",
+        gold: m.championships || 0,
+        silver: m.runnerUps || 0,
+        bronze: m.thirdPlaceFinishes || 0,
+        playoffApp: m.playoffAppearances || 0,
+        playoffPct,
+        years,
+        playoffWins: m.careerPlayoffWins,
+        playoffLosses: m.careerPlayoffLosses,
+        playoffTies: m.careerPlayoffTies,
+        playoffWinPct,
+        regWins: m.careerRegularSeasonWins,
+        regLosses: m.careerRegularSeasonLosses,
+        regTies: m.careerRegularSeasonTies,
+        regWinPct,
+      };
+    });
+    renderCareerTable();
+    initCareerTableSorting();
   } catch (err) {
     console.error(err);
     document.getElementById("career-grid").innerHTML = `<div class="empty-state">Couldn't load career trends.</div>`;
-    document.getElementById("career-body").innerHTML = `<tr><td colspan="7" class="empty-state">Couldn't load career records.</td></tr>`;
+    document.getElementById("career-body").innerHTML = `<tr><td colspan="12" class="empty-state">Couldn't load career records.</td></tr>`;
   }
 }
 

@@ -74,3 +74,66 @@ test("renderSummary: the All-Time view doesn't attach a single-season medal (it 
   assert.match(html, /Team Gold 🏆🏆/, "All-Time view should still repeat the trophy per career championship");
   assert.ok(!html.includes("🥈") && !html.includes("🥉"), "All-Time view shouldn't show single-season runner-up/3rd-place medals");
 });
+
+test("renderSummary: Closest Matchups reports the margin to hundredths (2 decimals), not tenths", () => {
+  const ctx = setup();
+  const closeMatch = {
+    winner: "evangonnerman",
+    loser: "yulovesyou",
+    winnerPts: 120.37,
+    loserPts: 120.34,
+    margin: 0.03,
+    week: 8,
+    season: 2024,
+    winnerLineup: [],
+    loserLineup: [],
+  };
+  const html = ctx.renderSummary(fakeSummary({ top5Closest: [closeMatch] }));
+  assert.ok(html.includes("0.03 pt"), "a 0.03-point margin should be visible at 2 decimals, not rounded away to 0.0");
+  assert.ok(!html.includes("0.0 pt"), "should not show the old 1-decimal rounding");
+});
+
+test("renderSummary: Closest Matchups hundredths precision applies the same way on the All-Time (Total) view, since it's the same rendering path", () => {
+  const ctx = setup();
+  const closeMatch = {
+    winner: "evangonnerman",
+    loser: "yulovesyou",
+    winnerPts: 120.37,
+    loserPts: 120.34,
+    margin: 0.03,
+    week: 8,
+    season: 2021,
+    winnerLineup: [],
+    loserLineup: [],
+  };
+  const html = ctx.renderSummary(
+    fakeSummary({
+      season: "All-Time",
+      championRosterId: null,
+      runnerUpRosterId: null,
+      thirdPlaceRosterId: null,
+      top5Closest: [closeMatch],
+      top5Luckiest: [],
+      top5Unluckiest: [],
+    })
+  );
+  assert.ok(html.includes("0.03 pt"), "the Total view's Closest Matchups list should also show hundredths precision");
+});
+
+test("renderSummary: Blowouts (a different list) is NOT affected — it still reports margin to tenths, since only Closest Matchups was asked for more precision", () => {
+  const ctx = setup();
+  const blowout = {
+    winner: "evangonnerman",
+    loser: "yulovesyou",
+    winnerPts: 180.456,
+    loserPts: 90.123,
+    margin: 90.333,
+    week: 3,
+    season: 2024,
+    winnerLineup: [],
+    loserLineup: [],
+  };
+  const html = ctx.renderSummary(fakeSummary({ top5Blowouts: [blowout] }));
+  assert.ok(html.includes("90.3 pt"), "Blowouts should stay at 1-decimal precision");
+  assert.ok(!html.includes("90.33 pt"), "Blowouts should NOT have picked up the 2-decimal Closest Matchups change");
+});

@@ -134,7 +134,12 @@ const Charts = {
   // connector and a label, instead of leaving the reader to spot it
   // (e.g. "Clinched — Wk 12"). direction is "up" or "down" (default
   // "up") for which way the label extends from the point; the caller
-  // picks whichever avoids colliding with the line's own shape.
+  // picks whichever avoids colliding with the line's own shape. Each
+  // annotation is tagged with its own series and, like the lines/dots/
+  // end-labels above, is hidden until that series is hovered (CSS in
+  // styles.css) — so a chart with one annotation per series (10 teams,
+  // 10 different clinch/elimination weeks) only ever shows the one the
+  // reader is currently pointing at, not all of them stacked at once.
   multiLineChart(series, { width = 720, height = 360, formatter = (v) => v.toFixed(1), invertY = false, rankMode = false, playoffCutoff = null, annotations = [] } = {}) {
     const validSeries = series.filter((s) => s.points && s.points.length);
     if (!validSeries.length) return `<div class="empty-state">Not enough data yet.</div>`;
@@ -309,8 +314,14 @@ const Charts = {
 
     // Marks one specific point directly on the chart with a short dashed
     // connector and a label — e.g. "Clinched — Wk 12" — rather than
-    // leaving the reader to find the moment themselves. Silently skips
-    // an annotation whose series/point doesn't exist or has no value
+    // leaving the reader to find the moment themselves. Tagged with the
+    // same data-series attribute as its line/dot/end-label, so when a
+    // chart carries one annotation per series (e.g. every team's own
+    // playoff clinch/elimination week), only the currently-hovered
+    // team's annotation is visible at a time — see the lc-annotation-*
+    // opacity rules in styles.css — instead of up to 2 annotations per
+    // series all competing for space at once. Silently skips an
+    // annotation whose series/point doesn't exist or has no value
     // there, so a caller can pass a "maybe" annotation without checking
     // first.
     const annotationsHtml = (annotations || [])
@@ -323,14 +334,15 @@ const Charts = {
         const dir = ann.direction === "down" ? 1 : -1;
         const labelY = y + dir * 34;
         const color = ann.color || "#E8B23D";
+        const seriesAttr = escapeHtml(ann.seriesName);
         return `
-      <line class="lc-annotation-connector" x1="${x.toFixed(1)}" y1="${(y + dir * 6).toFixed(1)}" x2="${x.toFixed(1)}" y2="${(labelY - dir * 12).toFixed(
+      <line class="lc-annotation-connector" data-series="${seriesAttr}" x1="${x.toFixed(1)}" y1="${(y + dir * 6).toFixed(1)}" x2="${x.toFixed(
           1
-        )}" style="stroke:${color}"></line>
-      <circle class="lc-annotation-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" style="fill:${color}"></circle>
-      <text class="lc-annotation-label" x="${x.toFixed(1)}" y="${(labelY + (dir === -1 ? -4 : 12)).toFixed(1)}" text-anchor="middle" style="fill:${color}">${escapeHtml(
-          ann.label
-        )}</text>`;
+        )}" y2="${(labelY - dir * 12).toFixed(1)}" style="stroke:${color}"></line>
+      <circle class="lc-annotation-dot" data-series="${seriesAttr}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" style="fill:${color}"></circle>
+      <text class="lc-annotation-label" data-series="${seriesAttr}" x="${x.toFixed(1)}" y="${(labelY + (dir === -1 ? -4 : 12)).toFixed(
+          1
+        )}" text-anchor="middle" style="fill:${color}">${escapeHtml(ann.label)}</text>`;
       })
       .join("");
 

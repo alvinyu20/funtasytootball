@@ -375,6 +375,15 @@ table.stat-table td.team-cell {
 }
 table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 
+/* Two-tier sortable header (e.g. Career Records: Titles / Playoffs /
+   Playoff / Reg Season groups, each with its own sortable sub-columns). */
+table.stat-table th.group-header { text-align: center; border-bottom: 1px solid rgba(255,255,255,0.06); }
+table.stat-table th.sortable { cursor: pointer; user-select: none; transition: color 0.15s; }
+table.stat-table th.sortable:hover { color: var(--chalk); }
+table.stat-table th.sortable.sort-active { color: var(--gold); }
+table.stat-table th.sortable.sort-active.sort-asc::after { content: " \25B2"; font-size: 9px; }
+table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; font-size: 9px; }
+
 /* ==========================================================================
    MATCHUP CARDS
    ========================================================================== */
@@ -580,6 +589,10 @@ details.record-card-expandable summary::after {
   opacity: 0.75;
 }
 details.record-card-expandable[open] summary::after { content: "▴ hide lineup"; }
+details.record-card-expandable.top5 summary::after { content: "▾ view top 5"; }
+details.record-card-expandable.top5[open] summary::after { content: "▴ hide top 5"; }
+.record-top5 { margin-top: 14px; }
+.record-top5 table.stat-table th, .record-top5 table.stat-table td { padding: 6px 8px; }
 
 /* ==========================================================================
    DRAFT PICKS DISCLOSURE
@@ -812,9 +825,18 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .line-chart-wrap .lc-playoff-band { fill: var(--gold); opacity: 0.07; }
 .line-chart-wrap .lc-playoff-line { stroke: var(--gold); stroke-width: 1; stroke-dasharray: 4,3; opacity: 0.5; }
 .line-chart-wrap .lc-playoff-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.04em; fill: var(--gold); opacity: 0.7; }
-.line-chart-wrap .lc-annotation-connector { stroke-width: 1; stroke-dasharray: 2,2; opacity: 0.7; }
-.line-chart-wrap .lc-annotation-dot { stroke: var(--turf-dark); stroke-width: 2; }
-.line-chart-wrap .lc-annotation-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; }
+/* Annotations (e.g. a team's own playoff clinch/elimination week) stay
+   hidden until that team's line, dot, or end label is hovered — see
+   initChartHoverLinking in animations.js, which toggles .hovered on
+   every element sharing a data-series. This is what lets a 10-team
+   chart carry 10 different annotations without ever showing more than
+   one at a time. */
+.line-chart-wrap .lc-annotation-connector { stroke-width: 1; stroke-dasharray: 2,2; opacity: 0; transition: opacity 0.15s ease; }
+.line-chart-wrap .lc-annotation-connector.hovered { opacity: 0.7; }
+.line-chart-wrap .lc-annotation-dot { stroke: var(--turf-dark); stroke-width: 2; opacity: 0; transition: opacity 0.15s ease; }
+.line-chart-wrap .lc-annotation-dot.hovered { opacity: 1; }
+.line-chart-wrap .lc-annotation-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; opacity: 0; transition: opacity 0.15s ease; }
+.line-chart-wrap .lc-annotation-label.hovered { opacity: 1; }
 
 /* ==========================================================================
    HEATMAP TABLE (scoring by position, per season)
@@ -1392,13 +1414,19 @@ details.bracket-game.championship {
   margin-bottom: 20px;
 }
 .career-card {
+  display: block;
   background: var(--turf-mid);
   border: 1px solid var(--turf-line);
   border-radius: var(--radius);
   padding: 12px;
-  transition: border-color 0.15s;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, background 0.15s;
 }
 .career-card:hover, .career-card.hovered { border-color: var(--gold); }
+.career-card.active { background: var(--gold); border-color: var(--gold); }
+.career-card.active .career-card-name, .career-card.active .career-card-stat { color: var(--turf-dark); }
+.career-card.active .career-spark polyline { stroke: var(--turf-dark); }
 .career-card-name {
   font-family: var(--font-display); font-weight: var(--font-display-weight);
   font-size: 13px;

@@ -849,10 +849,10 @@ function renderStandingsReplaySection(standingsHistory, playoffTeams) {
     </div>
     <div class="wrap"><div class="panel">
       <div class="chart-tabs">
-        <button type="button" class="chart-tab active" data-chart-tab="replay">Replay</button>
-        <button type="button" class="chart-tab" data-chart-tab="chart">Rank Chart</button>
+        <button type="button" class="chart-tab" data-chart-tab="replay">Replay</button>
+        <button type="button" class="chart-tab active" data-chart-tab="chart">Rank Chart</button>
       </div>
-      <div class="chart-tab-panel" data-chart-panel="replay">
+      <div class="chart-tab-panel" data-chart-panel="replay" style="display:none;">
         <div class="replay-controls">
           <button class="replay-btn" id="replay-play-btn" type="button">▶ Play</button>
           <input type="range" class="replay-slider" id="replay-slider" min="1" max="${standingsHistory.length}" value="1" />
@@ -861,7 +861,7 @@ function renderStandingsReplaySection(standingsHistory, playoffTeams) {
         <div class="replay-bars" id="replay-bars" data-playoff-teams="${playoffTeams || ""}"></div>
         <p class="heatmap-note">Rank through each regular-season week, sorted by wins (PF breaks ties).${playoffTeams ? ` The dashed line marks the top ${playoffTeams} — this season's playoff cutoff.` : ""}</p>
       </div>
-      <div class="chart-tab-panel" data-chart-panel="chart" style="display:none;">
+      <div class="chart-tab-panel" data-chart-panel="chart">
         ${bumpChart}
         <p class="heatmap-note">Every team's rank each week, all at once.${playoffTeams ? ` The gold band marks the top ${playoffTeams} — this season's playoff cutoff.` : ""}</p>
       </div>
@@ -955,56 +955,37 @@ function renderReplayWeek(index) {
   if (slider) slider.value = index + 1;
 }
 
-// Finds the single earliest "clinched" week (odds reach ~100% and never
-// drop back below that for the rest of the season) and the single
-// earliest "eliminated" week (odds reach ~0% and never rise back above
-// that) across every team in a season's Playoff Odds dataset — marking
-// only the highest-priority moment of each kind, rather than every
-// team's own clinch/elimination, since a chart already carrying up to
-// 10 lines doesn't need 20 labels competing for space. Returns [] if
-// neither has happened yet in the data on hand (e.g. an in-progress
-// season), which Charts.multiLineChart already handles gracefully.
+// Finds each team's own "clinched" week (odds reach ~100% and never drop
+// back below that for the rest of the season) or "eliminated" week (odds
+// reach ~0% and never rise back above that) in a season's Playoff Odds
+// dataset — one entry per team that has reached either state, so every
+// team's own moment can be shown when hovering their own line (see the
+// annotations' data-series wiring in Charts.multiLineChart), rather than
+// only ever showing the single earliest clinch/elimination in the whole
+// league. A team still undecided in the data on hand (e.g. an
+// in-progress wild-card race) simply has no entry.
 function findPlayoffOddsAnnotations(playoffOddsDataset) {
-  let earliestClinch = null;
-  let earliestElimination = null;
+  const annotations = [];
 
   Object.entries(playoffOddsDataset || {}).forEach(([team, weekly]) => {
     for (let i = 0; i < weekly.length; i++) {
       if (weekly[i] != null && weekly[i] >= 99.5 && weekly.slice(i).every((v) => v != null && v >= 99.5)) {
-        if (!earliestClinch || i < earliestClinch.pointIndex) earliestClinch = { seriesName: team, pointIndex: i };
+        // "down": this point sits near the top of the chart (99.5%+), so
+        // the label needs room below it.
+        annotations.push({ seriesName: team, pointIndex: i, label: `Clinched — Wk ${i + 1}`, color: "var(--gold)", direction: "down" });
         break;
       }
     }
     for (let i = 0; i < weekly.length; i++) {
       if (weekly[i] != null && weekly[i] <= 0.5 && weekly.slice(i).every((v) => v != null && v <= 0.5)) {
-        if (!earliestElimination || i < earliestElimination.pointIndex) earliestElimination = { seriesName: team, pointIndex: i };
+        // "up": this point sits near the bottom of the chart (0.5% or
+        // less), so the label needs room above it.
+        annotations.push({ seriesName: team, pointIndex: i, label: `Eliminated — Wk ${i + 1}`, color: "var(--rust)", direction: "up" });
         break;
       }
     }
   });
 
-  const annotations = [];
-  // "down" for the clinch (its point sits near the top of the chart, so
-  // the label needs room below it) and "up" for the elimination (its
-  // point sits near the bottom, so the label needs room above it).
-  if (earliestClinch) {
-    annotations.push({
-      seriesName: earliestClinch.seriesName,
-      pointIndex: earliestClinch.pointIndex,
-      label: `Clinched — Wk ${earliestClinch.pointIndex + 1}`,
-      color: "var(--gold)",
-      direction: "down",
-    });
-  }
-  if (earliestElimination) {
-    annotations.push({
-      seriesName: earliestElimination.seriesName,
-      pointIndex: earliestElimination.pointIndex,
-      label: `Eliminated — Wk ${earliestElimination.pointIndex + 1}`,
-      color: "var(--rust)",
-      direction: "up",
-    });
-  }
   return annotations;
 }
 
@@ -1230,7 +1211,7 @@ function renderSummary(s) {
     (m) => ({
       main: `${escapeHtml(m.winner)} def. ${escapeHtml(m.loser)}`,
       sub: `Week ${m.week}${yearTag(m)} · ${m.winnerPts.toFixed(1)} - ${m.loserPts.toFixed(1)}`,
-      value: `${m.margin.toFixed(1)} pt`,
+      value: `${m.margin.toFixed(2)} pt`,
     }),
     matchupLineupSections
   );

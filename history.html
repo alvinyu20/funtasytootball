@@ -85,12 +85,31 @@
     </div>
     <div class="panel">
       <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile">
+        <table class="stat-table compact-mobile" id="career-table">
           <thead>
-            <tr><th>#</th><th>Manager</th><th>Regular Season</th><th>Playoffs</th><th>Win %</th><th>Career PF</th><th>🏆</th></tr>
+            <tr>
+              <th rowspan="2">#</th>
+              <th rowspan="2" class="sortable" data-sort-key="name">Owner</th>
+              <th colspan="3" class="group-header">Titles</th>
+              <th colspan="3" class="group-header">Playoffs</th>
+              <th colspan="2" class="group-header">Playoff</th>
+              <th colspan="2" class="group-header">Reg Season</th>
+            </tr>
+            <tr>
+              <th class="sortable" data-sort-key="gold">🏆</th>
+              <th class="sortable" data-sort-key="silver">🥈</th>
+              <th class="sortable" data-sort-key="bronze">🥉</th>
+              <th class="sortable" data-sort-key="playoffApp">App</th>
+              <th class="sortable" data-sort-key="playoffPct">Pct</th>
+              <th class="sortable" data-sort-key="years">Years</th>
+              <th class="sortable" data-sort-key="playoffWins">Record</th>
+              <th class="sortable" data-sort-key="playoffWinPct">Win %</th>
+              <th class="sortable" data-sort-key="regWins">Record</th>
+              <th class="sortable" data-sort-key="regWinPct">Win %</th>
+            </tr>
           </thead>
           <tbody id="career-body">
-            <tr><td colspan="7" class="loading">Loading career records…</td></tr>
+            <tr><td colspan="12" class="loading">Loading career records…</td></tr>
           </tbody>
         </table>
       </div>

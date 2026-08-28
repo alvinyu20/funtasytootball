@@ -63,6 +63,27 @@ test("standingsHistoryToRankSeries: falls back to teamName when a team has no us
   assert.ok(teamC, "should fall back to teamName when username is missing");
 });
 
+test("renderStandingsReplaySection: the Rank Chart tab is active and visible by default, with Replay hidden until clicked", () => {
+  const ctx = setup();
+  const html = ctx.renderStandingsReplaySection(fakeStandingsHistory(), 2);
+
+  assert.match(html, /class="chart-tab active" data-chart-tab="chart"/, "the Rank Chart tab button should start active");
+  assert.match(html, /class="chart-tab" data-chart-tab="replay"/, "the Replay tab button should NOT start active");
+  assert.ok(!/class="chart-tab active" data-chart-tab="replay"/.test(html), "Replay should not carry the active class");
+
+  const replayPanel = html.match(/<div class="chart-tab-panel" data-chart-panel="replay"[^>]*>/)[0];
+  const chartPanel = html.match(/<div class="chart-tab-panel" data-chart-panel="chart"[^>]*>/)[0];
+  assert.match(replayPanel, /style="display:none;"/, "the Replay panel should start hidden");
+  assert.ok(!chartPanel.includes("display:none"), "the Rank Chart panel should start visible");
+});
+
+test("renderStandingsReplaySection: the Rank Chart panel (visible by default) still contains a real bump chart, not an empty placeholder", () => {
+  const ctx = setup();
+  const html = ctx.renderStandingsReplaySection(fakeStandingsHistory(), 2);
+  assert.ok(html.includes("lc-playoff-band"), "the visible-by-default chart should render with the playoff cutoff band");
+  assert.ok(html.includes("teamA"), "the visible-by-default chart should include the real series data");
+});
+
 test("findPlayoffOddsAnnotations: finds the earliest week a team's odds lock in at 100% and stay there", () => {
   const ctx = setup();
   const dataset = {
@@ -98,7 +119,7 @@ test("findPlayoffOddsAnnotations: a temporary dip to 100% that later drops back 
   assert.strictEqual(clinch.pointIndex, 3, "should skip the false-start spike at week 2 and mark the real, lasting clinch at week 4");
 });
 
-test("findPlayoffOddsAnnotations: only returns the single earliest clinch and elimination across the whole league, not one per team", () => {
+test("findPlayoffOddsAnnotations: returns EVERY team's own clinch/elimination, not just the single earliest of each — so each team's line can show its own moment on hover", () => {
   const ctx = setup();
   const dataset = {
     teamA: [90, 100, 100],
@@ -107,9 +128,32 @@ test("findPlayoffOddsAnnotations: only returns the single earliest clinch and el
     teamD: [30, 10, 0], // eliminated later than teamC
   };
   const annotations = ctx.findPlayoffOddsAnnotations(dataset);
-  assert.strictEqual(annotations.length, 2, "exactly one clinch annotation and one elimination annotation, not four");
-  assert.strictEqual(annotations.find((a) => a.color === "var(--gold)").seriesName, "teamA");
-  assert.strictEqual(annotations.find((a) => a.color === "var(--rust)").seriesName, "teamC");
+  assert.strictEqual(annotations.length, 4, "one annotation per team that reached an extreme — 2 clinches + 2 eliminations");
+
+  const teamA = annotations.find((a) => a.seriesName === "teamA");
+  const teamB = annotations.find((a) => a.seriesName === "teamB");
+  assert.strictEqual(teamA.pointIndex, 1, "teamA clinches at week index 1");
+  assert.strictEqual(teamB.pointIndex, 2, "teamB clinches later, at week index 2 — its own moment, not teamA's");
+  assert.strictEqual(teamA.color, "var(--gold)");
+  assert.strictEqual(teamB.color, "var(--gold)");
+
+  const teamC = annotations.find((a) => a.seriesName === "teamC");
+  const teamD = annotations.find((a) => a.seriesName === "teamD");
+  assert.strictEqual(teamC.pointIndex, 2, "teamC is eliminated at week index 2");
+  assert.strictEqual(teamD.pointIndex, 2, "teamD is also eliminated at week index 2, its own separate annotation");
+  assert.strictEqual(teamC.color, "var(--rust)");
+  assert.strictEqual(teamD.color, "var(--rust)");
+});
+
+test("findPlayoffOddsAnnotations: a team still undecided (never reaches either extreme) gets no annotation at all", () => {
+  const ctx = setup();
+  const dataset = {
+    teamA: [90, 100, 100],
+    teamMiddle: [55, 48, 52], // never clinches or gets eliminated in this data
+  };
+  const annotations = ctx.findPlayoffOddsAnnotations(dataset);
+  assert.strictEqual(annotations.length, 1, "only teamA gets an annotation");
+  assert.ok(!annotations.some((a) => a.seriesName === "teamMiddle"));
 });
 
 test("findPlayoffOddsAnnotations: returns an empty array when nobody has clinched or been eliminated yet", () => {

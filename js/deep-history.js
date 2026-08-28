@@ -347,9 +347,22 @@ const DeepHistory = {
       fewestRegularSeasonPoints: null,
     };
 
+    // Every consider() call below also keeps a running top-5 list per
+    // category for free — same candidates, same "better" comparator,
+    // just kept instead of discarded once they're no longer #1. Powers
+    // the Fun Stats & Records page's click-to-expand panels (records.js)
+    // without needing a second pass over the data or a second call site
+    // next to every existing consider().
+    const top5Lists = {};
+
     function consider(recordKey, candidate, better) {
       const current = records[recordKey];
       if (!current || better(candidate, current)) records[recordKey] = candidate;
+
+      const list = top5Lists[recordKey] || (top5Lists[recordKey] = []);
+      list.push(candidate);
+      list.sort((a, b) => (better(a, b) ? -1 : better(b, a) ? 1 : 0));
+      if (list.length > 5) list.length = 5;
     }
 
     const allDraftPickEntries = []; // every draft pick with a valid VBD, across every season — used to fit the league-wide draft grade curve
@@ -919,6 +932,7 @@ const DeepHistory = {
     return {
       managers: managerList,
       records,
+      top5Records: top5Lists,
       pairGameLog: Object.fromEntries(pairGameLog),
       draftGradeModel,
       expectedPPGModel,

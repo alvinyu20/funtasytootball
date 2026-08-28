@@ -78,7 +78,24 @@ function renderManagerPicker() {
   picker.innerHTML = LEAGUE_STATS.managers
     .map((m) => {
       const isActive = m.userId === selectedUserId;
-      return `<a class="season-pill ${isActive ? "active" : ""}" href="#${encodeURIComponent(m.userId)}">${escapeHtml(m.username || m.teamName)}</a>`;
+      const overallWins = m.careerRegularSeasonWins + m.careerPlayoffWins;
+      const overallLosses = m.careerRegularSeasonLosses + m.careerPlayoffLosses;
+      const overallTies = m.careerRegularSeasonTies + m.careerPlayoffTies;
+      const totalGames = overallWins + overallLosses + overallTies;
+      const winPct = totalGames > 0 ? (overallWins / totalGames) * 100 : 0;
+      const bySeasonAsc = [...(m.seasons || [])].sort((a, b) => a.season - b.season);
+      const points = sparklinePoints(
+        bySeasonAsc.map((s) => s.wins),
+        100,
+        28,
+        3
+      );
+      return `
+      <a class="career-card${isActive ? " active" : ""}" href="#${encodeURIComponent(m.userId)}">
+        <div class="career-card-name">${escapeHtml(m.username || m.teamName || "Unknown")}</div>
+        ${points ? `<svg class="career-spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points="${points}" /></svg>` : ""}
+        <div class="career-card-stat">${winPct.toFixed(1)}% win rate</div>
+      </a>`;
     })
     .join("");
 }

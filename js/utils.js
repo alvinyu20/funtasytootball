@@ -153,3 +153,22 @@ function gradeBadgeHtml(grade) {
   const hue = 120 - (idx / (GRADE_ORDER.length - 1)) * 120; // 120 = green, 60 = yellow, 0 = red
   return `<span class="grade-badge" style="background:hsl(${hue.toFixed(0)}, 68%, 45%);">${escapeHtml(grade)}</span>`;
 }
+
+// A minimal inline sparkline — no axes, no labels, just the shape of a
+// short numeric series. Shared by the Career Records grid (history.js)
+// and the Teams page manager picker (teams.js), which both show the
+// same kind of small-multiples "shape of a career" card.
+function sparklinePoints(values, width, height, pad) {
+  if (!values.length) return "";
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const range = maxV - minV || 1;
+  const stepX = values.length > 1 ? (width - pad * 2) / (values.length - 1) : 0;
+  return values
+    .map((v, i) => {
+      const x = pad + i * stepX;
+      const y = pad + (height - pad * 2) * (1 - (v - minV) / range);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+}
