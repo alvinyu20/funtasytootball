@@ -324,3 +324,36 @@ function initAnimatedDropdowns() {
     };
   });
 }
+
+// Generic over every ".chart-tabs" group on the page — Power Rank
+// History (rank/score/odds), Standings Over Time (replay/rank chart),
+// and the NFL Player page's Career Arc (all/starts) all reuse this
+// same tab markup, so wiring them up is one function rather than one
+// per feature.
+function initChartTabs() {
+  document.querySelectorAll(".chart-tabs").forEach((tabRow) => {
+    tabRow.querySelectorAll(".chart-tab").forEach((btn) => {
+      btn.onclick = () => {
+        const key = btn.dataset.chartTab;
+        const panelGroup = tabRow.parentElement;
+        tabRow.querySelectorAll(".chart-tab").forEach((b) => b.classList.toggle("active", b === btn));
+        panelGroup.querySelectorAll(".chart-tab-panel").forEach((panel) => {
+          const showing = panel.dataset.chartPanel === key;
+          panel.style.display = showing ? "" : "none";
+          if (showing && !prefersReducedMotion()) {
+            // A newly-revealed panel's chart hasn't necessarily crossed
+            // the IntersectionObserver's threshold on its own — a
+            // display:none toggle isn't reliably treated as "entering the
+            // viewport" the same way scrolling is, across browsers. Redraw
+            // it directly on every tab switch instead of leaving that to
+            // chance; re-revealing on each switch reads as intentional
+            // rather than repetitive at this scale (a handful of tabs,
+            // occasional clicks).
+            const wrap = panel.querySelector(".line-chart-wrap");
+            if (wrap) animateLinesIn(wrap);
+          }
+        });
+      };
+    });
+  });
+}

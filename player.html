@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Newsletters</title>
+  <title>NFL Players</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -30,39 +30,43 @@
       <li><a class="nav-link" href="trades.html">Trades</a></li>
       <li><a class="nav-link" href="rivalries.html">Rivalries</a></li>
       <li><a class="nav-link" href="records.html">Records</a></li>
-      <li><a class="nav-link" href="player.html">Players</a></li>
-      <li><a class="nav-link active" href="newsletters.html">Newsletters</a></li>
+      <li><a class="nav-link active" href="player.html">Players</a></li>
+      <li><a class="nav-link" href="newsletters.html">Newsletters</a></li>
     </ul>
   </nav>
 
   <section class="scoreboard">
-    <p class="scoreboard-eyebrow">THE PRESS BOX</p>
-    <h1 class="scoreboard-title">Weekly Snap</h1>
-    <p class="scoreboard-sub">League recaps, awards, and trash talk — issue by issue</p>
+    <p class="scoreboard-eyebrow">SCOUTING REPORT</p>
+    <h1 class="scoreboard-title">NFL Players</h1>
+    <p class="scoreboard-sub" id="sb-sub">Loading…</p>
+    <div class="player-search-wrap">
+      <input type="text" id="player-search" class="player-search-input" placeholder="Search any player who's started for a team…" autocomplete="off" />
+      <div id="player-search-results" class="player-search-results" style="display:none;"></div>
+    </div>
   </section>
 
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">Issues</span>
-    <div class="line"></div>
+  <div class="wrap">
+    <div id="player-error" class="error-state" style="display:none;"></div>
+    <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
   </div>
 
   <main class="wrap">
-    <div id="newsletter-list-view">
-      <div class="loading">Loading issues…</div>
+    <div class="panel" id="player-empty-view">
+      <div class="empty-state">Search for a player above to see their ownership history — only players who've started for a team in this league's Sleeper-era history are searchable.</div>
     </div>
-    <div id="newsletter-detail-view" style="display:none;"></div>
+    <div id="player-detail-view" style="display:none;"></div>
   </main>
 
   <footer class="site-footer">
-    New issues get added to data/newsletters.json — just ask for a draft after game day.
+    Sleeper era only — this league's pre-Sleeper (ESPN-era) seasons don't have player-level data on record.
   </footer>
 
   <script src="js/nav.js"></script>
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/sleeper-api.js"></script>
-  <script src="js/newsletters.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/animations.js"></script>
+  <script src="js/player.js"></script>
 </body>
 </html>

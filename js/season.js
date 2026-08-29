@@ -1068,38 +1068,6 @@ function renderPowerRankHistorySection(season) {
     </div></div>`;
 }
 
-function initChartTabs() {
-  // Generic over every ".chart-tabs" group on the page — both Power Rank
-  // History (rank/score/odds) and Standings Over Time (replay/rank chart)
-  // reuse this same tab markup, so wiring them up is one function rather
-  // than one per feature.
-  document.querySelectorAll(".chart-tabs").forEach((tabRow) => {
-    tabRow.querySelectorAll(".chart-tab").forEach((btn) => {
-      btn.onclick = () => {
-        const key = btn.dataset.chartTab;
-        const panelGroup = tabRow.parentElement;
-        tabRow.querySelectorAll(".chart-tab").forEach((b) => b.classList.toggle("active", b === btn));
-        panelGroup.querySelectorAll(".chart-tab-panel").forEach((panel) => {
-          const showing = panel.dataset.chartPanel === key;
-          panel.style.display = showing ? "" : "none";
-          if (showing && !prefersReducedMotion()) {
-            // A newly-revealed panel's chart hasn't necessarily crossed
-            // the IntersectionObserver's threshold on its own — a
-            // display:none toggle isn't reliably treated as "entering the
-            // viewport" the same way scrolling is, across browsers. Redraw
-            // it directly on every tab switch instead of leaving that to
-            // chance; re-revealing on each switch reads as intentional
-            // rather than repetitive at this scale (3 tabs, occasional
-            // clicks).
-            const wrap = panel.querySelector(".line-chart-wrap");
-            if (wrap) animateLinesIn(wrap);
-          }
-        });
-      };
-    });
-  });
-}
-
 let PLAYER_NAME_INDEX_CACHE = null;
 function getPlayerNameIndex() {
   if (!PLAYER_NAME_INDEX_CACHE) PLAYER_NAME_INDEX_CACHE = buildPlayerNameIndex(PLAYER_DIRECTORY);

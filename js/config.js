@@ -92,6 +92,16 @@ const POWER_RANK_CSV_HISTORY_FILE = "data/power-rank-csv-history.json";
 const INJURIES_FILE = "data/injuries.json";
 
 /*
+  PLAYER_INDEX_FILE
+  --------------------
+  Precomputed player ownership history (Sleeper era only) — who owned
+  every started player, when, and their career high — see
+  data/player-index.json and scripts/build-player-index.js. Powers the
+  NFL Player search page. Regenerate with `node scripts/build-player-index.js`.
+*/
+const PLAYER_INDEX_FILE = "data/player-index.json";
+
+/*
   LAST_FANTASY_WEEK
   ------------------
   The last NFL week that actually counts for this league's fantasy season.

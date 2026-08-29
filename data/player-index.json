@@ -1,0 +1,5 @@
+{
+  "_instructions": "Precomputed player ownership history, Sleeper era only — see scripts/build-player-index.js. Regenerate by running that script (reads data/sleeper-archive/ first, falls back to a live Sleeper fetch for any season not yet archived). Only includes players who've started at least one game for a roster in this league's history; the NFL Player page's search is scoped to exactly this set. Each player's `spans` is their ownership timeline (one entry per continuous stretch with the same manager — the same manager can appear in more than one span if they owned, lost, and later re-acquired the player). `weekly` is every week someone in the league had them rostered, for the Career Arc chart; a week nobody in the league owned them simply has no entry, rather than a special placeholder. This file is empty until you run: node scripts/build-player-index.js (needs Node 18+ and network access to Sleeper's API — see the script's own header comment).",
+  "generatedAt": null,
+  "players": {}
+}

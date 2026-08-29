@@ -711,6 +711,81 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .season-pill:hover:not(.active) { border-color: var(--gold-dim); color: var(--chalk); }
 .season-pill.active { color: var(--turf-dark); background: var(--gold); border-color: var(--gold); font-weight: 600; }
 
+/* ==========================================================================
+   NFL PLAYER PAGE
+   ========================================================================== */
+.player-search-wrap { position: relative; max-width: 420px; margin-top: 16px; }
+.player-search-input {
+  width: 100%;
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--chalk);
+}
+.player-search-input::placeholder { color: var(--chalk-dim); }
+.player-search-input:focus { outline: none; border-color: var(--gold-dim); }
+.player-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  z-index: 5;
+}
+.player-search-result {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 14px;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.player-search-result:last-child { border-bottom: none; }
+.player-search-result:hover { background: rgba(232,178,61,0.08); }
+.player-search-result-name { font-family: var(--font-body); font-size: 14px; color: var(--chalk); }
+.player-search-result-meta { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); white-space: nowrap; }
+
+.player-header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid var(--gold); padding-bottom: 20px; margin-bottom: 20px; }
+.player-header-name { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 26px; text-transform: uppercase; color: var(--chalk); line-height: 1.15; }
+.player-header-position { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--chalk-dim); margin-top: 4px; }
+
+.player-stat-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.player-stat-card { background: var(--turf-mid); border-radius: var(--radius); padding: 12px; }
+.player-stat-value { font-family: var(--font-mono); font-size: 20px; color: var(--chalk); }
+.player-stat-value.gold { color: var(--gold); }
+.player-stat-label { font-family: var(--font-body); font-size: 11px; color: var(--chalk-dim); margin-top: 2px; }
+
+.player-high-callout {
+  background: var(--turf-mid);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.player-high-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); }
+.player-high-detail { font-family: var(--font-body); font-size: 13px; color: var(--chalk-dim); margin-top: 4px; }
+.player-high-value { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 28px; color: var(--chalk); flex-shrink: 0; }
+
+.career-arc-wrap { width: 100%; }
+.career-arc-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+.career-arc-legend span { display: flex; align-items: center; gap: 5px; font-family: var(--font-body); font-size: 11px; color: var(--chalk-dim); }
+.career-arc-legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.career-arc-legend-dot.filled { background: var(--gold); }
+.career-arc-legend-dot.hollow { background: var(--turf-dark); border: 1.5px solid var(--gold); }
+.career-arc-legend-dot.ring { width: 12px; height: 12px; border: 2px solid var(--chalk); background: transparent; }
+.career-arc-legend-swatch { width: 10px; height: 9px; background: var(--pos-wr); opacity: 0.5; display: inline-block; }
+
 .chart-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .chart-tab {
   font-family: var(--font-mono);
