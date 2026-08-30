@@ -61,3 +61,62 @@ test("fetchSeasonDeep: falls through to the live-fetch path when no archive file
 
   assert.deepStrictEqual(progressCalls, ["fetching"], "with no archive available, it should correctly fall through to the live-fetch path rather than getting stuck or silently returning nothing");
 });
+
+test("fetchSeasonDeep: a fresh (within 24h) cached entry is used as-is, without re-checking the archive or doing a live fetch", async () => {
+  const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js"]);
+  const { DeepHistory } = ctx;
+
+  const seasonEntry = { league: { league_id: "L1", season: "2023", status: "complete" } };
+  const cachedPayload = { leagueId: "L1", season: "2023", weeks: [{ week: 1, matchups: [] }], scheduleWeeks: [], transactions: [], draft: null };
+  ctx.localStorage.setItem("deep_season_v4_L1", JSON.stringify({ fetchedAt: Date.now(), data: cachedPayload }));
+
+  ctx.fetch = async () => {
+    throw new Error("should not have fetched anything -- the cache should have been used");
+  };
+
+  const progressCalls = [];
+  const result = await DeepHistory.fetchSeasonDeep(seasonEntry, (season, status) => progressCalls.push(status));
+
+  assert.deepStrictEqual(progressCalls, ["cached"]);
+  assert.strictEqual(result.leagueId, cachedPayload.leagueId);
+  assert.strictEqual(result.season, cachedPayload.season);
+  assert.strictEqual(result.weeks.length, cachedPayload.weeks.length);
+  assert.strictEqual(result.weeks[0].week, cachedPayload.weeks[0].week);
+});
+
+test("fetchSeasonDeep: a cache entry older than 24 hours is treated as expired and re-fetched, rather than trusted forever", async () => {
+  const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js"]);
+  const { DeepHistory } = ctx;
+
+  const seasonEntry = { league: { league_id: "L1", season: "2023", status: "complete" } };
+  const staleCachedPayload = { leagueId: "L1", season: "2023", weeks: [{ week: 1, matchups: [] }], scheduleWeeks: [], transactions: [], draft: null };
+  const twentyFiveHoursAgo = Date.now() - 25 * 60 * 60 * 1000;
+  ctx.localStorage.setItem("deep_season_v4_L1", JSON.stringify({ fetchedAt: twentyFiveHoursAgo, data: staleCachedPayload }));
+
+  // No archive available either -- this should fall all the way through
+  // to a live fetch, proving the stale cache entry was NOT trusted.
+  ctx.fetch = async () => ({ ok: false, status: 404 });
+
+  const progressCalls = [];
+  await DeepHistory.fetchSeasonDeep(seasonEntry, (season, status) => progressCalls.push(status));
+
+  assert.deepStrictEqual(progressCalls, ["fetching"], "an expired cache entry should be ignored, falling through to archive-then-live just like no cache existed at all");
+});
+
+test("fetchSeasonDeep: an old-format (pre-TTL) cache entry with no fetchedAt is treated as expired rather than crashing or being trusted forever", async () => {
+  const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js"]);
+  const { DeepHistory } = ctx;
+
+  const seasonEntry = { league: { league_id: "L1", season: "2023", status: "complete" } };
+  // The OLD cache shape, before this fix -- the raw season object with no
+  // {fetchedAt, data} wrapper at all (and stored under the old v3 key,
+  // which the new code doesn't even look at -- but simulating an entry
+  // under the NEW key with the old shape covers the "no fetchedAt" case
+  // defensively too).
+  ctx.localStorage.setItem("deep_season_v4_L1", JSON.stringify({ leagueId: "L1", season: "2023", weeks: [] }));
+  ctx.fetch = async () => ({ ok: false, status: 404 });
+
+  const progressCalls = [];
+  await assert.doesNotReject(DeepHistory.fetchSeasonDeep(seasonEntry, (season, status) => progressCalls.push(status)));
+  assert.deepStrictEqual(progressCalls, ["fetching"], "a malformed/old-shape entry should be treated as a cache miss, not trusted or crash");
+});

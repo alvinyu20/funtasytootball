@@ -124,17 +124,29 @@ const DeepHistory = {
     const { league } = seasonEntry;
     const leagueId = league.league_id;
     const isComplete = league.status === "complete";
-    // v3: bumped from v2 to split out scheduleWeeks (see below) and to
-    // make sure "played weeks" is judged by actual scoring, not just
-    // whether the API returned a non-empty array.
-    const cacheKey = `deep_season_v3_${leagueId}`;
+    // v4: bumped from v3 to add a cache expiry (see MAX_AGE_MS below) —
+    // v3 and earlier entries have no fetchedAt field, so they'd fail an
+    // age check anyway, but bumping the key makes that explicit rather
+    // than relying on a NaN comparison to fail safe.
+    const cacheKey = `deep_season_v4_${leagueId}`;
+    // "Complete" isn't quite as permanent a guarantee as it sounds —
+    // official NFL stat corrections can still land in the days after a
+    // season wraps, and this cache previously had NO expiry at all once
+    // written, meaning whichever numbers happened to be live the FIRST
+    // time a given browser cached a freshly-completed season would stay
+    // frozen in that browser forever, even after the archive (or Sleeper
+    // itself) later settled on corrected numbers. A day is long enough to
+    // avoid re-fetching a genuinely stable season on every repeat visit,
+    // short enough that any one browser can't silently disagree with
+    // everyone else for more than a day before self-correcting.
+    const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
     if (isComplete) {
       try {
         const cached = JSON.parse(localStorage.getItem(cacheKey) || "null");
-        if (cached) {
+        if (cached && Date.now() - cached.fetchedAt < MAX_AGE_MS) {
           onProgress && onProgress(league.season, "cached");
-          return cached;
+          return cached.data;
         }
       } catch (err) {
         // corrupt cache entry — fall through and refetch
@@ -222,7 +234,7 @@ const DeepHistory = {
 
     if (isComplete) {
       try {
-        localStorage.setItem(cacheKey, JSON.stringify(result));
+        localStorage.setItem(cacheKey, JSON.stringify({ fetchedAt: Date.now(), data: result }));
       } catch (err) {
         console.warn("Couldn't cache season data (localStorage full/unavailable):", err);
       }
