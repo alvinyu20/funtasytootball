@@ -296,6 +296,29 @@ test("renderChampionshipRings: a player rostered by the champion at ANY point th
   assert.ok(!html.includes("Player Three"), "only ever on the non-champion roster");
 });
 
+test("renderChampionshipRings: kickers and defenses are not eligible for rings, even when they were genuinely on the champion's roster", async () => {
+  const ctx = setup();
+  const seasons = [fakeSeason("2021")];
+  ctx.__FAKE_DEEP__ = [
+    {
+      weeks: [{ week: 1, matchups: [{ roster_id: 1, players: ["P1", "K1", "D1"] }] }],
+    },
+  ];
+  runInLoadedContext(ctx, `SleeperAPI.findChampionRosterId = () => 1; DeepHistory.buildAll = async () => __FAKE_DEEP__;`);
+
+  const playerDirectory = {
+    P1: { full_name: "Player One", position: "RB" },
+    K1: { full_name: "Kicker One", position: "K" },
+    D1: { full_name: "Some Defense", position: "DEF" },
+  };
+  await ctx.renderChampionshipRings(seasons, playerDirectory);
+
+  const html = ctx.document.getElementById("rings-body").innerHTML;
+  assert.ok(html.includes("Player One"), "a regular skill-position player should still be eligible");
+  assert.ok(!html.includes("Kicker One"), "a kicker should be excluded from ring eligibility");
+  assert.ok(!html.includes("Some Defense"), "a defense/special teams unit should be excluded from ring eligibility");
+});
+
 test("renderChampionshipRings: the same player on the champion's roster in multiple weeks of ONE season only earns that season's ring once", async () => {
   const ctx = setup();
   const seasons = [fakeSeason("2021")];

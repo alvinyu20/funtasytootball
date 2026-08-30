@@ -83,6 +83,13 @@ async function renderHistory() {
           .join("")
       : `<div class="empty-state">No champions crowned yet.</div>`;
 
+    // ---- All-time career records — deferred, since this needs full deep
+    //      history (not just the fast season-chain data used above) to
+    //      correctly separate genuine playoff games from regular season
+    //      and consolation-bracket games. Kicked off after the fast stuff
+    //      above is already on screen. ----
+    renderCareerRecords(seasons, playerDirectory, manual);
+
     // ---- Championship Rings: every player who was ever on a title
     // team's roster, Sleeper era only (no player-level data exists for
     // the ESPN era — see data/manual-history.json). Kicked off after
@@ -90,13 +97,6 @@ async function renderHistory() {
     // deep history (every week's roster) to know who was actually on
     // each champion's roster, not just who's in the league today. ----
     renderChampionshipRings(seasons, playerDirectory);
-
-    // ---- All-time career records — deferred, since this needs full deep
-    //      history (not just the fast season-chain data used above) to
-    //      correctly separate genuine playoff games from regular season
-    //      and consolation-bracket games. Kicked off after the fast stuff
-    //      above is already on screen. ----
-    renderCareerRecords(seasons, playerDirectory, manual);
   } catch (err) {
     console.error(err);
     errorBox.textContent = "Couldn't load league history — " + err.message;
@@ -113,7 +113,15 @@ async function renderHistory() {
   weeks of the SAME season only earns that season's ring once), ranks
   the top 10, and keeps which year(s)/manager(s) each ring came from so
   the table can show the breakdown, not just a bare count.
+
+  Kickers and defenses are excluded from eligibility entirely — a K/DEF
+  is much more a product of whichever streaming target was available
+  that week than a meaningful part of "this roster," so including them
+  would mostly just reward whoever happened to roster the right
+  matchup, not roster-building.
 */
+const RING_INELIGIBLE_POSITIONS = new Set(["K", "DEF"]);
+
 async function renderChampionshipRings(seasons, playerDirectory) {
   const tbody = document.getElementById("rings-body");
   try {
@@ -138,7 +146,10 @@ async function renderChampionshipRings(seasons, playerDirectory) {
         (w.matchups || []).forEach((m) => {
           if (m.roster_id !== championRosterId) return;
           (m.players || []).forEach((pid) => {
-            if (pid && pid !== "0") playerIdsOnChampionRoster.add(pid);
+            if (!pid || pid === "0") return;
+            const position = playerDirectory && playerDirectory[pid] && playerDirectory[pid].position;
+            if (RING_INELIGIBLE_POSITIONS.has(position)) return;
+            playerIdsOnChampionRoster.add(pid);
           });
         });
       });
