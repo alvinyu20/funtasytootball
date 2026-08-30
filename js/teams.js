@@ -83,7 +83,16 @@ function renderManagerPicker() {
       const overallTies = m.careerRegularSeasonTies + m.careerPlayoffTies;
       const totalGames = overallWins + overallLosses + overallTies;
       const winPct = totalGames > 0 ? (overallWins / totalGames) * 100 : 0;
-      const bySeasonAsc = [...(m.seasons || [])].sort((a, b) => a.season - b.season);
+      const bySeasonAsc = [...(m.seasons || [])]
+        // A still-in-progress season's win total is a partial number
+        // that will keep changing — including it would make the
+        // sparkline's most recent point look like a real dip or spike
+        // that hasn't actually happened yet. ESPN-era (manual) seasons
+        // have no isSeasonComplete field at all; treating that as
+        // "complete" is correct, since every one of them is already
+        // historical by definition.
+        .filter((s) => s.isSeasonComplete !== false)
+        .sort((a, b) => a.season - b.season);
       const points = sparklinePoints(
         bySeasonAsc.map((s) => s.wins),
         100,

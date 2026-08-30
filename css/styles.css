@@ -573,6 +573,18 @@ details.record-card-expandable {
   cursor: pointer;
 }
 details.record-card-expandable:hover { border-color: var(--gold-dim); }
+/* An expanded Top 5 card breaks out of its grid column to span the
+   full row width, since a 4-column table (#, Team/Player, Detail,
+   Value) doesn't fit well in a ~220px grid cell. Scoped to
+   .records-grid specifically so this doesn't also apply to the
+   unrelated "tap for lineup" reveal season.js uses the same
+   <details class="record-card-expandable"> component for elsewhere,
+   which lives in a different 2-column grid and doesn't need the extra
+   width. */
+.records-grid details.record-card-expandable[open] {
+  grid-column: 1 / -1;
+  border-color: var(--gold);
+}
 details.record-card-expandable summary {
   list-style: none;
   cursor: pointer;
@@ -1480,6 +1492,12 @@ details.bracket-game.championship {
   text-transform: uppercase;
   color: var(--chalk);
   line-height: 1.2;
+}
+.trophy-team-name {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--chalk-dim);
+  margin-top: 2px;
 }
 
 .career-grid {

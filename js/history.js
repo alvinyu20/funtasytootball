@@ -68,27 +68,28 @@ async function renderHistory() {
       ? trophyEntries
           .map((row) => {
             const displayName = row.championUsername || row.champion;
+            // The team name only adds anything when it's a distinct
+            // custom name — for a manager who never set one, teamName()
+            // just falls back to their username anyway, and printing
+            // the same string twice would look like a mistake, not a detail.
+            const teamName = row.championUsername && row.champion && row.champion !== row.championUsername ? row.champion : null;
             const card = `
             ${userAvatarHtml(row.championAvatarUrl, displayName, "player-photo-lg")}
             <div class="trophy-year">${escapeHtml(String(row.year))}</div>
-            <div class="trophy-champion-name">${escapeHtml(displayName)}</div>`;
+            <div class="trophy-champion-name">${escapeHtml(displayName)}</div>
+            ${teamName ? `<div class="trophy-team-name">${escapeHtml(teamName)}</div>` : ""}`;
             return `<a class="trophy-card" href="season.html#${row.year}">${card}</a>`;
           })
           .join("")
       : `<div class="empty-state">No champions crowned yet.</div>`;
 
-    document.getElementById("champions-ledger").innerHTML = fullLedger
-      .map((row) => {
-        const inner = `
-        <span class="year">${row.year}</span>
-        <div>
-          <div class="champ-name">${escapeHtml(row.champion)}${row.championUsername && row.championUsername !== row.champion ? ` <span class="muted-inline">(${escapeHtml(row.championUsername)})</span>` : ""}</div>
-          ${row.notes ? `<div class="champ-sub">${escapeHtml(row.notes)}</div>` : ""}
-        </div>
-        <span class="badge">${row.sourceBadge}</span>`;
-        return `<a class="ledger-row" href="season.html#${row.year}" style="text-decoration:none; color:inherit; cursor:pointer;">${inner}</a>`;
-      })
-      .join("");
+    // ---- Championship Rings: every player who was ever on a title
+    // team's roster, Sleeper era only (no player-level data exists for
+    // the ESPN era — see data/manual-history.json). Kicked off after
+    // the fast stuff above is already on screen, since it needs full
+    // deep history (every week's roster) to know who was actually on
+    // each champion's roster, not just who's in the league today. ----
+    renderChampionshipRings(seasons, playerDirectory);
 
     // ---- All-time career records — deferred, since this needs full deep
     //      history (not just the fast season-chain data used above) to
@@ -101,6 +102,85 @@ async function renderHistory() {
     errorBox.textContent = "Couldn't load league history — " + err.message;
     errorBox.style.display = "block";
   }
+}
+
+/*
+  A player earns one "ring" for a season if they were on the roster of
+  that season's championship team at ANY point during the season — not
+  just during the championship game, and regardless of whether they
+  were ever started. Counts distinct championship seasons per player
+  (a player rostered by the same eventual champion in two different
+  weeks of the SAME season only earns that season's ring once), ranks
+  the top 10, and keeps which year(s)/manager(s) each ring came from so
+  the table can show the breakdown, not just a bare count.
+*/
+async function renderChampionshipRings(seasons, playerDirectory) {
+  const tbody = document.getElementById("rings-body");
+  try {
+    const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
+
+    // playerId -> [{ season, ownerName }], one entry per distinct
+    // championship season that player was ever rostered by the winner.
+    const ringsByPlayer = new Map();
+
+    seasons.forEach((seasonEntry, idx) => {
+      const { league, rosters, users, bracket } = seasonEntry;
+      const championRosterId = SleeperAPI.findChampionRosterId(bracket);
+      if (championRosterId == null) return; // season still in progress, or no bracket on record
+
+      const roster = rosters.find((r) => r.roster_id === championRosterId);
+      const user = users.find((u) => u.user_id === (roster && roster.owner_id));
+      const ownerName = SleeperAPI.teamName(user, championRosterId);
+
+      const deep = deepSeasons[idx];
+      const playerIdsOnChampionRoster = new Set();
+      (deep ? deep.weeks : []).forEach((w) => {
+        (w.matchups || []).forEach((m) => {
+          if (m.roster_id !== championRosterId) return;
+          (m.players || []).forEach((pid) => {
+            if (pid && pid !== "0") playerIdsOnChampionRoster.add(pid);
+          });
+        });
+      });
+
+      playerIdsOnChampionRoster.forEach((pid) => {
+        if (!ringsByPlayer.has(pid)) ringsByPlayer.set(pid, []);
+        ringsByPlayer.get(pid).push({ season: league.season, ownerName });
+      });
+    });
+
+    const ranked = [...ringsByPlayer.entries()]
+      .map(([pid, rings]) => ({
+        playerId: pid,
+        name: playerName(pid, playerDirectory),
+        rings: rings.sort((a, b) => a.season - b.season),
+      }))
+      .sort((a, b) => b.rings.length - a.rings.length)
+      .slice(0, 10);
+
+    tbody.innerHTML = ranked.length
+      ? ranked
+          .map(
+            (p, i) => `
+      <tr>
+        <td class="rank" data-label="#">${i + 1}</td>
+        <td class="team-cell" data-label="Player">${escapeHtml(p.name)}</td>
+        <td data-label="Rings">${p.rings.length}</td>
+        <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${escapeHtml(r.ownerName)})`).join(", ")}</td>
+      </tr>`
+          )
+          .join("")
+      : `<tr><td colspan="4" class="empty-state">No champions crowned yet.</td></tr>`;
+  } catch (err) {
+    console.error(err);
+    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Couldn't load championship rings.</td></tr>`;
+  }
+}
+
+function playerName(playerId, playerDirectory) {
+  const p = playerDirectory && playerDirectory[playerId];
+  if (!p) return "Unknown Player";
+  return p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unknown Player";
 }
 
 let CAREER_ROWS = [];
@@ -189,34 +269,6 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
       m.seasons = [...m.seasons, ...manualForThisManager.seasons];
     });
 
-    const gridRows = stats.managers.map((m) => {
-      const totalGames =
-        m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies + m.careerPlayoffWins + m.careerPlayoffLosses + m.careerPlayoffTies;
-      const totalWins = m.careerRegularSeasonWins + m.careerPlayoffWins;
-      const overallWinPct = totalGames > 0 ? (totalWins / totalGames) * 100 : 0;
-      return { ...m, overallWinPct };
-    });
-
-    // Career trend grid — one small card per manager, each with a tiny
-    // sparkline of wins-per-season (their whole career, oldest to
-    // newest) so the shape of every career is scannable at once before
-    // the detailed table below spells out the exact numbers.
-    document.getElementById("career-grid").innerHTML = gridRows.length
-      ? gridRows
-          .map((m) => {
-            const bySeasonAsc = [...(m.seasons || [])].sort((a, b) => a.season - b.season);
-            const wins = bySeasonAsc.map((s) => s.wins);
-            const points = sparklinePoints(wins, 100, 28, 3);
-            return `
-      <div class="career-card">
-        <div class="career-card-name">${escapeHtml(m.username || m.teamName || "Unknown")}</div>
-        ${points ? `<svg class="career-spark" viewBox="0 0 100 28" preserveAspectRatio="none"><polyline points="${points}" /></svg>` : ""}
-        <div class="career-card-stat">${m.overallWinPct.toFixed(1)}% win rate</div>
-      </div>`;
-          })
-          .join("")
-      : `<div class="empty-state">No completed seasons yet.</div>`;
-
     // Career Records table — Titles (gold/silver/bronze), Playoffs
     // (appearances/rate/years played), and separate Playoff and Regular
     // Season records, each independently sortable by clicking its header
@@ -250,7 +302,6 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
     initCareerTableSorting();
   } catch (err) {
     console.error(err);
-    document.getElementById("career-grid").innerHTML = `<div class="empty-state">Couldn't load career trends.</div>`;
     document.getElementById("career-body").innerHTML = `<tr><td colspan="12" class="empty-state">Couldn't load career records.</td></tr>`;
   }
 }

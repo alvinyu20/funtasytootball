@@ -454,6 +454,15 @@ const DeepHistory = {
           isChampion: s.rosterId === championRosterId,
           isRunnerUp: s.rosterId === runnerUpRosterId,
           isThirdPlace: s.rosterId === thirdPlaceRosterId,
+          // Not "has this roster's season wrapped up" (a team eliminated
+          // in week 1 of the playoffs is still part of a season that's
+          // ongoing for everyone else) — literally the whole SEASON's
+          // own status, so a still-in-progress year's partial win total
+          // can be told apart from a genuinely finished one wherever
+          // that distinction matters (e.g. a career win-trend sparkline,
+          // where a partial current season would visually read as a
+          // sudden decline that hasn't actually happened yet).
+          isSeasonComplete: chainEntry.league.status === "complete",
           startingLineup: DeepHistory.buildStartingLineup(s.rosterId, chainEntry, deep, playerDirectory),
           draftPicks: [],
         };
