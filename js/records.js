@@ -26,6 +26,12 @@ async function renderRecords() {
     const stats = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
     grid.innerHTML = buildRecordCards(stats);
     initScrollAnimations();
+    // Every other expandable panel on the site (lineups, draft picks,
+    // bracket games) animates its open/close via this same generic
+    // <details> handler — this page just never called it, which is why
+    // its Top 5 disclosures snapped open/closed instead of easing like
+    // everywhere else.
+    initAnimatedDropdowns();
   } catch (err) {
     console.error(err);
     progressBox.style.display = "none";

@@ -185,10 +185,44 @@ function renderManagerDetail(m) {
   const h2hRows = renderH2hRows(m.headToHead);
   const h2hPlayoffRows = renderH2hRows(m.headToHeadPlayoffs);
 
-  const seasonRows = [...m.seasons]
-    .sort((a, b) => b.season - a.season)
+  const seasonsDesc = [...m.seasons].sort((a, b) => b.season - a.season);
+  function resultBadgeFor(s) {
+    return s.isChampion ? "🏆" : s.isRunnerUp ? "🥈" : s.isThirdPlace ? "🥉" : "";
+  }
+
+  // General season-by-season info — its own standalone section, no
+  // nested draft/lineup dropdowns anymore (those are their own
+  // sections below, one dropdown per year, so someone comparing draft
+  // picks across years isn't scrolling past a wall of unrelated stats
+  // to get from one year to the next).
+  const seasonSummaryRows = seasonsDesc
     .map((s) => {
-      const resultBadge = s.isChampion ? "🏆 Champion" : s.isRunnerUp ? "🥈 Runner-up" : s.isThirdPlace ? "🥉 3rd Place" : "";
+      const badge = s.isChampion ? "🏆 Champion" : s.isRunnerUp ? "🥈 Runner-up" : s.isThirdPlace ? "🥉 3rd Place" : "";
+      return `
+        <div class="season-card">
+          <div class="season-card-header">
+            <span class="season-card-year">${s.season}</span>
+            ${badge ? `<span class="season-card-result">${badge}</span>` : ""}
+          </div>
+          <div class="season-card-stats">
+            <div class="season-stat"><span class="season-stat-label">Rank</span><span class="season-stat-value">${s.rank}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Record</span><span class="season-stat-value">${s.wins}-${s.losses}${
+        s.ties ? "-" + s.ties : ""
+      }</span></div>
+            <div class="season-stat"><span class="season-stat-label">PF</span><span class="season-stat-value">${s.fpts.toFixed(1)}</span></div>
+            <div class="season-stat"><span class="season-stat-label">PA</span><span class="season-stat-value">${s.fptsAgainst.toFixed(1)}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Overall</span><span class="season-stat-value">${s.overallWins}-${
+        s.overallLosses
+      }${s.overallTies ? "-" + s.overallTies : ""}</span></div>
+            <div class="season-stat"><span class="season-stat-label">Luck</span><span class="season-stat-value">${s.luckPct != null ? luckBadge(s.luckPct) : "—"}</span></div>
+          </div>
+        </div>`;
+    })
+    .join("");
+
+  // Draft Picks — one dropdown per year.
+  const draftPicksRows = seasonsDesc
+    .map((s) => {
       const picksHtml = s.draftPicks.length
         ? `
           <table class="stat-table compact-mobile">
@@ -209,6 +243,19 @@ function renderManagerDetail(m) {
           </table>`
         : `<div class="empty-state">No draft data for this season.</div>`;
 
+      return `
+        <details class="draft-details">
+          <summary>${resultBadgeFor(s)} ${s.season} — ${s.draftPicks.length} pick${s.draftPicks.length === 1 ? "" : "s"}</summary>
+          <div class="draft-details-content heatmap-table-wrap stay-scrollable">${picksHtml}</div>
+        </details>`;
+    })
+    .join("");
+
+  // Most Common Lineup — one dropdown per year. "Most common" since
+  // this is which player logged the most starts at each roster slot
+  // that season, not a single date's actual lineup.
+  const lineupRows = seasonsDesc
+    .map((s) => {
       const lineupHtml =
         s.startingLineup && s.startingLineup.slots.length
           ? `
@@ -230,32 +277,10 @@ function renderManagerDetail(m) {
           : `<div class="empty-state">No lineup data for this season.</div>`;
 
       return `
-        <div class="season-card">
-          <div class="season-card-header">
-            <span class="season-card-year">${s.season}</span>
-            ${resultBadge ? `<span class="season-card-result">${resultBadge}</span>` : ""}
-          </div>
-          <div class="season-card-stats">
-            <div class="season-stat"><span class="season-stat-label">Rank</span><span class="season-stat-value">${s.rank}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Record</span><span class="season-stat-value">${s.wins}-${s.losses}${
-        s.ties ? "-" + s.ties : ""
-      }</span></div>
-            <div class="season-stat"><span class="season-stat-label">PF</span><span class="season-stat-value">${s.fpts.toFixed(1)}</span></div>
-            <div class="season-stat"><span class="season-stat-label">PA</span><span class="season-stat-value">${s.fptsAgainst.toFixed(1)}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Overall</span><span class="season-stat-value">${s.overallWins}-${
-        s.overallLosses
-      }${s.overallTies ? "-" + s.overallTies : ""}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Luck</span><span class="season-stat-value">${s.luckPct != null ? luckBadge(s.luckPct) : "—"}</span></div>
-          </div>
-          <details class="draft-details">
-            <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
-            <div class="draft-details-content heatmap-table-wrap stay-scrollable">${lineupHtml}</div>
-          </details>
-          <details class="draft-details">
-            <summary>Draft picks (${s.draftPicks.length})</summary>
-            <div class="draft-details-content heatmap-table-wrap stay-scrollable">${picksHtml}</div>
-          </details>
-        </div>`;
+        <details class="draft-details">
+          <summary>${resultBadgeFor(s)} ${s.season} — ${s.startingLineup ? s.startingLineup.weeksCounted : 0} games</summary>
+          <div class="draft-details-content heatmap-table-wrap stay-scrollable">${lineupHtml}</div>
+        </details>`;
     })
     .join("");
 
@@ -360,8 +385,26 @@ function renderManagerDetail(m) {
     </div>
     <div class="wrap">
       <div class="panel">
-        <div class="season-cards">${seasonRows}</div>
+        <div class="season-cards">${seasonSummaryRows}</div>
       </div>
+    </div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Draft Picks</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">${draftPicksRows}</div>
+    </div>
+
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Most Common Lineup</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">${lineupRows}</div>
     </div>`;
 }
 

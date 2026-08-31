@@ -52,42 +52,92 @@ function fakeManager(overrides) {
           ],
         },
       },
+      {
+        season: 2022,
+        rank: 4,
+        wins: 6,
+        losses: 7,
+        ties: 0,
+        fpts: 1300.0,
+        fptsAgainst: 1320.0,
+        overallWins: 60,
+        overallLosses: 57,
+        overallTies: 0,
+        luckPct: -2.1,
+        isChampion: false,
+        isRunnerUp: false,
+        isThirdPlace: false,
+        draftPicks: [{ round: 1, pickInRound: 2, player: "Someone Else", position: "QB", points: 180.0, vbd: 5.0, grade: "B" }],
+        startingLineup: { weeksCounted: 13, slots: [{ slot: "QB", player: "Someone Else", acquisition: "Draft", starts: 13 }] },
+      },
     ],
     ...overrides,
   };
 }
 
-test("renderManagerDetail: Starting Lineup and Draft Picks render as two separate <table> elements, not the old shared flex-row list", () => {
+function section(html, label) {
+  // Pulls out everything between one yard-divider label and the next,
+  // so a test can check that a given piece of content lives in the
+  // RIGHT standalone section rather than just appearing somewhere on
+  // the page.
+  const start = html.indexOf(`<span class="label">${label}</span>`);
+  if (start === -1) return null;
+  const next = html.indexOf('<span class="label">', start + 1);
+  return html.slice(start, next === -1 ? undefined : next);
+}
+
+test("renderManagerDetail: Season By Season, Draft Picks, and Most Common Lineup are three separate top-level sections, not nested inside each other", () => {
   const ctx = setup();
   const html = ctx.renderManagerDetail(fakeManager());
 
-  const tableCount = (html.match(/<table class="stat-table compact-mobile">/g) || []).length;
-  assert.ok(tableCount >= 2, "should render at least 2 real <table> elements (lineup + draft picks)");
-  assert.ok(!html.includes('class="draft-pick-row"'), "should no longer use the old generic flex-row list markup");
+  assert.ok(html.includes('<span class="label">Season By Season</span>'));
+  assert.ok(html.includes('<span class="label">Draft Picks</span>'));
+  assert.ok(html.includes('<span class="label">Most Common Lineup</span>'));
+
+  const seasonSection = section(html, "Season By Season");
+  assert.ok(!seasonSection.includes("<table"), "the Season By Season section should be pure stat cards, no nested draft/lineup tables");
+  assert.ok(!seasonSection.includes("<details"), "the Season By Season section should have no dropdowns at all now");
 });
 
-test("renderManagerDetail: the Starting Lineup table has its own column headers (Slot / Player / Starts), distinct from the Draft Picks table's", () => {
+test("renderManagerDetail: Draft Picks section has one dropdown per year, each with that year's own table", () => {
   const ctx = setup();
   const html = ctx.renderManagerDetail(fakeManager());
+  const picksSection = section(html, "Draft Picks");
 
-  const lineupSection = html.slice(html.indexOf("Starting lineup"), html.indexOf("Draft picks"));
-  assert.match(lineupSection, /<th>Slot<\/th><th>Player<\/th><th>Starts<\/th>/);
-  assert.ok(lineupSection.includes("Alex Turner"));
-  assert.ok(lineupSection.includes("14 gms"));
-  assert.ok(lineupSection.includes("Draft"), "acquisition tag should still show");
-  assert.ok(lineupSection.includes(">—<"), "an empty roster slot should show an em dash for both player and starts");
-});
-
-test("renderManagerDetail: the Draft Picks table has its own column headers (Pick / Player / Points / Grade), distinct from the lineup table's", () => {
-  const ctx = setup();
-  const html = ctx.renderManagerDetail(fakeManager());
-
-  const picksSection = html.slice(html.indexOf("Draft picks"));
+  const detailsCount = (picksSection.match(/<details class="draft-details">/g) || []).length;
+  assert.strictEqual(detailsCount, 2, "one dropdown per season (2023 and 2022)");
   assert.match(picksSection, /<th>Pick<\/th><th>Player<\/th><th>Points<\/th><th>Grade<\/th>/);
-  assert.ok(picksSection.includes("1.5"), "pick 1.5 (round.pickInRound) should show");
-  assert.ok(picksSection.includes("Derek Holloway"));
-  assert.ok(picksSection.includes("210.4 pts"));
-  assert.ok(picksSection.includes("+12.3 VBD"));
+  assert.ok(picksSection.includes("Derek Holloway"), "2023's pick");
+  assert.ok(picksSection.includes("Someone Else"), "2022's pick");
+  assert.ok(picksSection.includes("2023 — 2 picks"));
+  assert.ok(picksSection.includes("2022 — 1 pick"), "singular 'pick' when there's exactly one");
+});
+
+test("renderManagerDetail: Most Common Lineup section has one dropdown per year, each with that year's own table", () => {
+  const ctx = setup();
+  const html = ctx.renderManagerDetail(fakeManager());
+  const lineupSection = section(html, "Most Common Lineup");
+
+  const detailsCount = (lineupSection.match(/<details class="draft-details">/g) || []).length;
+  assert.strictEqual(detailsCount, 2, "one dropdown per season (2023 and 2022)");
+  assert.match(lineupSection, /<th>Slot<\/th><th>Player<\/th><th>Starts<\/th>/);
+  assert.ok(lineupSection.includes("Alex Turner"), "2023's lineup");
+  assert.ok(lineupSection.includes("2023 — 14 games"));
+  assert.ok(lineupSection.includes("2022 — 13 games"));
+});
+
+test("renderManagerDetail: a championship season's per-year dropdown summary shows the trophy, a non-champion season's doesn't", () => {
+  const ctx = setup();
+  const html = ctx.renderManagerDetail(fakeManager());
+  const picksSection = section(html, "Draft Picks");
+  assert.ok(picksSection.includes("🏆 2023"), "2023 was a championship season");
+  assert.ok(!picksSection.includes("🏆 2022"), "2022 was not");
+});
+
+test("renderManagerDetail: no longer uses the old shared flex-row list markup for either table", () => {
+  const ctx = setup();
+  const html = ctx.renderManagerDetail(fakeManager());
+  assert.ok(!html.includes('class="draft-pick-row"'));
 });
 
 test("renderManagerDetail: a draft pick with no grade doesn't render a broken/empty grade badge or crash", () => {
@@ -103,6 +153,7 @@ test("renderManagerDetail: empty draft/lineup data for a season still shows the 
   const manager = fakeManager();
   manager.seasons[0].draftPicks = [];
   manager.seasons[0].startingLineup = null;
+  manager.seasons.length = 1; // simplify to just the one (now-empty) season for this check
   const html = ctx.renderManagerDetail(manager);
   assert.ok(html.includes("No draft data for this season."));
   assert.ok(html.includes("No lineup data for this season."));
