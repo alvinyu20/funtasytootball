@@ -30,11 +30,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }} # always the current tip of the triggering branch, not the commit pinned at workflow start
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Back up Sleeper data
         run: node scripts/backup-sleeper-data.js
@@ -56,12 +58,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4 # a fresh checkout here picks up whatever backup-sleeper-data just committed above
+        uses: actions/checkout@v4
+        with:
+          # Deliberately re-resolves the branch tip at checkout time
+          # rather than defaulting to the commit that triggered the
+          # whole run — without this, this job checks out the state of
+          # the repo from BEFORE backup-sleeper-data's commit above,
+          # meaning it both builds the index against a stale archive and
+          # then fails to push (its commit isn't a fast-forward of what
+          # backup-sleeper-data already pushed to the same branch).
+          ref: ${{ github.ref }}
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Build player index
         run: node scripts/build-player-index.js
