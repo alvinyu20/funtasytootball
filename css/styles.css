@@ -373,6 +373,11 @@ table.stat-table td.team-cell {
   font-family: var(--font-body);
   font-size: 14px;
 }
+table.stat-table td.player-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 
 /* Two-tier sortable header (e.g. Career Records: Titles / Playoffs /

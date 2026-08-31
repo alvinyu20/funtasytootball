@@ -112,7 +112,10 @@ async function renderHistory() {
   (a player rostered by the same eventual champion in two different
   weeks of the SAME season only earns that season's ring once), ranks
   the top 10, and keeps which year(s)/manager(s) each ring came from so
-  the table can show the breakdown, not just a bare count.
+  the table can show the breakdown, not just a bare count. Also tracks
+  how many of those weeks they were actually STARTED (not just
+  rostered) for the champion, summed across every championship season
+  they were part of.
 
   Kickers and defenses are excluded from eligibility entirely — a K/DEF
   is much more a product of whichever streaming target was available
@@ -127,8 +130,9 @@ async function renderChampionshipRings(seasons, playerDirectory) {
   try {
     const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
 
-    // playerId -> [{ season, ownerName }], one entry per distinct
-    // championship season that player was ever rostered by the winner.
+    // playerId -> [{ season, ownerName, gamesStarted }], one entry per
+    // distinct championship season that player was ever rostered by
+    // the winner, with how many of that season's weeks they started.
     const ringsByPlayer = new Map();
 
     seasons.forEach((seasonEntry, idx) => {
@@ -140,23 +144,30 @@ async function renderChampionshipRings(seasons, playerDirectory) {
       const user = users.find((u) => u.user_id === (roster && roster.owner_id));
       const ownerName = SleeperAPI.teamName(user, championRosterId);
 
+      // playerId -> weeks started for the champion roster this season.
+      // A player's mere presence as a Map key (regardless of count,
+      // including 0) is what makes them eligible for this season's
+      // ring — matches the previous Set-based "were they ever on this
+      // roster" check, just now also carrying the start count.
       const deep = deepSeasons[idx];
-      const playerIdsOnChampionRoster = new Set();
+      const startsThisSeasonByPlayer = new Map();
       (deep ? deep.weeks : []).forEach((w) => {
         (w.matchups || []).forEach((m) => {
           if (m.roster_id !== championRosterId) return;
+          const starterSet = new Set(m.starters || []);
           (m.players || []).forEach((pid) => {
             if (!pid || pid === "0") return;
             const position = playerDirectory && playerDirectory[pid] && playerDirectory[pid].position;
             if (RING_INELIGIBLE_POSITIONS.has(position)) return;
-            playerIdsOnChampionRoster.add(pid);
+            if (!startsThisSeasonByPlayer.has(pid)) startsThisSeasonByPlayer.set(pid, 0);
+            if (starterSet.has(pid)) startsThisSeasonByPlayer.set(pid, startsThisSeasonByPlayer.get(pid) + 1);
           });
         });
       });
 
-      playerIdsOnChampionRoster.forEach((pid) => {
+      startsThisSeasonByPlayer.forEach((gamesStarted, pid) => {
         if (!ringsByPlayer.has(pid)) ringsByPlayer.set(pid, []);
-        ringsByPlayer.get(pid).push({ season: league.season, ownerName });
+        ringsByPlayer.get(pid).push({ season: league.season, ownerName, gamesStarted });
       });
     });
 
@@ -165,6 +176,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
         playerId: pid,
         name: playerName(pid, playerDirectory),
         rings: rings.sort((a, b) => a.season - b.season),
+        totalGamesStarted: rings.reduce((sum, r) => sum + r.gamesStarted, 0),
       }))
       .sort((a, b) => b.rings.length - a.rings.length)
       .slice(0, 10);
@@ -175,16 +187,17 @@ async function renderChampionshipRings(seasons, playerDirectory) {
             (p, i) => `
       <tr>
         <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell" data-label="Player">${escapeHtml(p.name)}</td>
+        <td class="team-cell player-cell" data-label="Player">${playerPhotoHtml(p.playerId, p.name, "player-photo-xs")}<span>${escapeHtml(p.name)}</span></td>
         <td data-label="Rings">${p.rings.length}</td>
+        <td data-label="Games Started">${p.totalGamesStarted}</td>
         <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${escapeHtml(r.ownerName)})`).join(", ")}</td>
       </tr>`
           )
           .join("")
-      : `<tr><td colspan="4" class="empty-state">No champions crowned yet.</td></tr>`;
+      : `<tr><td colspan="5" class="empty-state">No champions crowned yet.</td></tr>`;
   } catch (err) {
     console.error(err);
-    tbody.innerHTML = `<tr><td colspan="4" class="empty-state">Couldn't load championship rings.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Couldn't load championship rings.</td></tr>`;
   }
 }
 

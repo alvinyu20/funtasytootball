@@ -296,6 +296,49 @@ test("renderChampionshipRings: a player rostered by the champion at ANY point th
   assert.ok(!html.includes("Player Three"), "only ever on the non-champion roster");
 });
 
+test("renderChampionshipRings: each row includes a small player photo alongside the name", () => {
+  const ctx = setup();
+  const seasons = [fakeSeason("2021")];
+  ctx.__FAKE_DEEP__ = [{ weeks: [{ week: 1, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }] }];
+  runInLoadedContext(ctx, `SleeperAPI.findChampionRosterId = () => 1; DeepHistory.buildAll = async () => __FAKE_DEEP__;`);
+  return ctx.renderChampionshipRings(seasons, { P1: { full_name: "Player One", position: "RB" } }).then(() => {
+    const html = ctx.document.getElementById("rings-body").innerHTML;
+    assert.ok(html.includes("player-photo-xs"), "should render a small (xs) player photo");
+    assert.ok(html.includes('class="team-cell player-cell"'), "the player cell should use the photo+name inline layout class");
+  });
+});
+
+test("renderChampionshipRings: Games Started sums only weeks the player was actually in the starting lineup for the champion, not every week they were merely rostered", async () => {
+  const ctx = setup();
+  const seasons = [fakeSeason("2021")];
+  ctx.__FAKE_DEEP__ = [
+    {
+      weeks: [
+        { week: 1, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }, // started
+        { week: 2, matchups: [{ roster_id: 1, players: ["P1"], starters: [] }] }, // rostered but benched
+        { week: 3, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }, // started
+      ],
+    },
+  ];
+  runInLoadedContext(ctx, `SleeperAPI.findChampionRosterId = () => 1; DeepHistory.buildAll = async () => __FAKE_DEEP__;`);
+  await ctx.renderChampionshipRings(seasons, { P1: { full_name: "Player One", position: "RB" } });
+  const html = ctx.document.getElementById("rings-body").innerHTML;
+  assert.ok(html.includes('data-label="Games Started">2<'), "3 weeks rostered but only 2 actually started");
+});
+
+test("renderChampionshipRings: Games Started accumulates across every championship season, not just the most recent one", async () => {
+  const ctx = setup();
+  const seasons = [fakeSeason("2021"), fakeSeason("2022")];
+  ctx.__FAKE_DEEP__ = [
+    { weeks: [{ week: 1, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }, { week: 2, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }] }, // 2 starts, season 1
+    { weeks: [{ week: 1, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }] }, // 1 start, season 2
+  ];
+  runInLoadedContext(ctx, `SleeperAPI.findChampionRosterId = () => 1; DeepHistory.buildAll = async () => __FAKE_DEEP__;`);
+  await ctx.renderChampionshipRings(seasons, { P1: { full_name: "Player One", position: "RB" } });
+  const html = ctx.document.getElementById("rings-body").innerHTML;
+  assert.ok(html.includes('data-label="Games Started">3<'), "2 starts in 2021 + 1 start in 2022 = 3 total across both championship seasons");
+});
+
 test("renderChampionshipRings: kickers and defenses are not eligible for rings, even when they were genuinely on the champion's roster", async () => {
   const ctx = setup();
   const seasons = [fakeSeason("2021")];
@@ -387,7 +430,10 @@ test("renderChampionshipRings: ranks by ring count descending and caps at the to
   await ctx.renderChampionshipRings(seasons, directory);
 
   const html = ctx.document.getElementById("rings-body").innerHTML;
-  const rows = [...html.matchAll(/data-label="Player">([^<]+)</g)].map((m) => m[1]);
+  // The player name now sits inside a <span> alongside a photo, not as
+  // plain text right after the data-label attribute — pull it out of
+  // the <span> specifically.
+  const rows = [...html.matchAll(/data-label="Player">[\s\S]*?<span>([^<]+)<\/span>/g)].map((m) => m[1]);
   assert.strictEqual(rows.length, 10, "should cap at the top 10, even though 12 players earned at least 1 ring");
   assert.strictEqual(rows[0], "Player 1", "the 2-ring player should rank first");
 });

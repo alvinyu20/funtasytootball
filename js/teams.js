@@ -190,30 +190,44 @@ function renderManagerDetail(m) {
     .map((s) => {
       const resultBadge = s.isChampion ? "🏆 Champion" : s.isRunnerUp ? "🥈 Runner-up" : s.isThirdPlace ? "🥉 3rd Place" : "";
       const picksHtml = s.draftPicks.length
-        ? s.draftPicks
-            .map(
-              (p) => `
-          <div class="draft-pick-row">
-            <span>${p.round}.${p.pickInRound}</span>
-            <span class="pick-player">${escapeHtml(p.player)} ${p.position ? `(${escapeHtml(p.position)})` : ""}</span>
-            <span class="pick-points">${p.points.toFixed(1)} pts${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""} ${gradeBadgeHtml(p.grade)}</span>
-          </div>`
-            )
-            .join("")
+        ? `
+          <table class="stat-table compact-mobile">
+            <thead><tr><th>Pick</th><th>Player</th><th>Points</th><th>Grade</th></tr></thead>
+            <tbody>
+              ${s.draftPicks
+                .map(
+                  (p) => `
+              <tr>
+                <td data-label="Pick">${p.round}.${p.pickInRound}</td>
+                <td class="team-cell" data-label="Player">${escapeHtml(p.player)}${p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""}</td>
+                <td data-label="Points">${p.points.toFixed(1)} pts${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</td>
+                <td data-label="Grade">${gradeBadgeHtml(p.grade)}</td>
+              </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>`
         : `<div class="empty-state">No draft data for this season.</div>`;
 
-      const lineupHtml = s.startingLineup && s.startingLineup.slots.length
-        ? s.startingLineup.slots
-            .map(
-              (slot) => `
-          <div class="draft-pick-row">
-            <span>${escapeHtml(slot.slot)}</span>
-            <span class="pick-player">${slot.player ? escapeHtml(slot.player) : "—"}${slot.acquisition ? `<span class="acquisition-tag">${escapeHtml(slot.acquisition)}</span>` : ""}</span>
-            <span class="pick-points">${slot.starts ? `${slot.starts} gm${slot.starts === 1 ? "" : "s"}` : ""}</span>
-          </div>`
-            )
-            .join("")
-        : `<div class="empty-state">No lineup data for this season.</div>`;
+      const lineupHtml =
+        s.startingLineup && s.startingLineup.slots.length
+          ? `
+          <table class="stat-table compact-mobile">
+            <thead><tr><th>Slot</th><th>Player</th><th>Starts</th></tr></thead>
+            <tbody>
+              ${s.startingLineup.slots
+                .map(
+                  (slot) => `
+              <tr>
+                <td data-label="Slot">${escapeHtml(slot.slot)}</td>
+                <td class="team-cell" data-label="Player">${slot.player ? escapeHtml(slot.player) : "—"}${slot.acquisition ? ` <span class="acquisition-tag">${escapeHtml(slot.acquisition)}</span>` : ""}</td>
+                <td data-label="Starts">${slot.starts ? `${slot.starts} gm${slot.starts === 1 ? "" : "s"}` : "—"}</td>
+              </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>`
+          : `<div class="empty-state">No lineup data for this season.</div>`;
 
       return `
         <div class="season-card">
@@ -235,11 +249,11 @@ function renderManagerDetail(m) {
           </div>
           <details class="draft-details">
             <summary>Starting lineup (${s.startingLineup ? s.startingLineup.weeksCounted : 0} games)</summary>
-            <div class="draft-details-content">${lineupHtml}</div>
+            <div class="draft-details-content heatmap-table-wrap stay-scrollable">${lineupHtml}</div>
           </details>
           <details class="draft-details">
             <summary>Draft picks (${s.draftPicks.length})</summary>
-            <div class="draft-details-content">${picksHtml}</div>
+            <div class="draft-details-content heatmap-table-wrap stay-scrollable">${picksHtml}</div>
           </details>
         </div>`;
     })
