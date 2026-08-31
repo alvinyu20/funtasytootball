@@ -1,0 +1,79 @@
+name: Sleeper Data Pipeline
+
+# Runs weekly on Tuesdays — Monday Night Football (the last game of an NFL
+# week) usually wraps by ~11:30pm-12:30am ET, and Sleeper generally has
+# stats settled by the next morning. 10:00 UTC is early Tuesday morning
+# across every US timezone the league might be in, giving a comfortable
+# buffer after the last game before this runs. Adjust the cron below if
+# you'd rather it run at a different time.
+#
+# Two jobs, deliberately chained rather than run independently:
+# build-player-index reads data/sleeper-archive/ (see
+# scripts/build-player-index.js), so if it ran on its own separate
+# schedule it could end up reading a slightly older or newer archive
+# snapshot than what's actually current — the same "two clocks that
+# don't quite agree" problem the deep-season cache TTL fix addressed on
+# the live site. Running build-player-index right after backup-sleeper-data,
+# against the archive that same run just produced, removes that gap
+# entirely rather than just narrowing it.
+on:
+  schedule:
+    - cron: "0 10 * * 2"
+  workflow_dispatch: {} # lets you trigger a run manually from the Actions tab, without waiting for Tuesday
+
+permissions:
+  contents: write # needed to commit the regenerated data files back to the repo
+
+jobs:
+  backup-sleeper-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Back up Sleeper data
+        run: node scripts/backup-sleeper-data.js
+
+      - name: Commit and push if data/sleeper-archive/ changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sleeper-archive/
+          if git diff --staged --quiet; then
+            echo "No changes to the Sleeper archive — nothing to commit."
+          else
+            git commit -m "Update Sleeper data archive [automated]"
+            git push
+          fi
+
+  build-player-index:
+    needs: backup-sleeper-data
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4 # a fresh checkout here picks up whatever backup-sleeper-data just committed above
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build player index
+        run: node scripts/build-player-index.js
+
+      - name: Commit and push if data/player-index.json changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/player-index.json
+          if git diff --staged --quiet; then
+            echo "No changes to data/player-index.json — nothing to commit."
+          else
+            git commit -m "Update player index [automated]"
+            git push
+          fi
