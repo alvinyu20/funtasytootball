@@ -214,10 +214,10 @@ function recordCard(label, value, detail) {
 function recordCardWithPhoto(label, playerId, playerName, detail, badge) {
   return `
     <div class="record-card record-card-photo">
-      ${playerPhotoHtml(playerId, playerName, "player-photo-sm")}
+      ${playerLinkHtml(playerId, playerPhotoHtml(playerId, playerName, "player-photo-sm"))}
       <div>
         <p class="record-label">${escapeHtml(label)}${badge ? ` ${badge}` : ""}</p>
-        <p class="record-value record-value-photo">${escapeHtml(playerName)}</p>
+        <p class="record-value record-value-photo">${playerLinkHtml(playerId, escapeHtml(playerName))}</p>
         ${detail ? `<p class="record-detail">${detail}</p>` : ""}
       </div>
     </div>`;
@@ -229,7 +229,7 @@ function lineupRows(lineup) {
       (p) => `
       <div class="draft-pick-row">
         <span>${escapeHtml(p.slot)}</span>
-        <span class="pick-player">${escapeHtml(p.player)}</span>
+        <span class="pick-player">${playerLinkHtml(p.playerId, escapeHtml(p.player))}</span>
         <span class="pick-points">${p.points.toFixed(1)}</span>
       </div>`
     )
@@ -305,8 +305,8 @@ function renderFaabList(items, isTotal) {
     .map((p, i) => {
       const row = `
       <span class="rank-num">${i + 1}</span>
-      ${playerPhotoHtml(p.playerId, p.player, "player-photo-sm")}
-      <span class="desc">${escapeHtml(p.player)}<span class="sub">${escapeHtml(p.username || p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${
+      ${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(p.playerId, escapeHtml(p.player))}<span class="sub">${escapeHtml(p.username || p.teamName)}${p.week ? ` · Week ${p.week}` : ""}${
         isTotal && p.season ? ` · ${p.season}` : ""
       }</span></span>
       <span class="val">$${p.bid}</span>`;
@@ -349,8 +349,8 @@ function renderWaiverValueList(items, isTotal) {
       const sign = w.relativeValue >= 0 ? "+" : "";
       const row = `
       <span class="rank-num">${i + 1}</span>
-      ${playerPhotoHtml(w.playerId, w.player, "player-photo-sm")}
-      <span class="desc">${escapeHtml(w.player)} <span class="muted-inline">(${escapeHtml(w.position)})</span><span class="sub">${escapeHtml(
+      ${playerLinkHtml(w.playerId, playerPhotoHtml(w.playerId, w.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(w.playerId, escapeHtml(w.player))} <span class="muted-inline">(${escapeHtml(w.position)})</span><span class="sub">${escapeHtml(
         w.username || w.teamName
       )} · Week ${w.week} · ${bidLabel(w)}${isTotal && w.season ? ` · ${w.season}` : ""} · ${w.pickupPPG.toFixed(1)} PPG vs ${w.positionMeanPPG.toFixed(
         1
@@ -387,8 +387,8 @@ function renderInjuryList(items, isTotal) {
       (p, i) => `
     <div class="rank-list-row faab-row">
       <span class="rank-num">${i + 1}</span>
-      ${playerPhotoHtml(p.playerId, p.player, "player-photo-sm")}
-      <span class="desc">${escapeHtml(p.player)}<span class="sub">${escapeHtml(p.position)} · ${p.weeksInjured} week${p.weeksInjured === 1 ? "" : "s"}${
+      ${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(p.playerId, escapeHtml(p.player))}<span class="sub">${escapeHtml(p.position)} · ${p.weeksInjured} week${p.weeksInjured === 1 ? "" : "s"}${
         isTotal ? ` · ${escapeHtml(String(p.season))}` : ""
       }</span></span>
       <span class="val">${p.pointsLost.toFixed(1)} pts lost</span>
@@ -413,8 +413,8 @@ function renderTeamInjuryLuckList(teams, playerInjuries) {
         .map(
           (p) => `
         <div class="injury-detail-row">
-          ${playerPhotoHtml(p.playerId, p.player, "player-photo-xs")}
-          <span class="injury-detail-name">${escapeHtml(p.player)} <span class="muted-inline">(${escapeHtml(p.position)})</span></span>
+          ${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-xs"))}
+          <span class="injury-detail-name">${playerLinkHtml(p.playerId, escapeHtml(p.player))} <span class="muted-inline">(${escapeHtml(p.position)})</span></span>
           <span class="injury-detail-pts">${p.pointsLost.toFixed(1)} pts lost</span>
         </div>`
         )
@@ -499,9 +499,9 @@ function renderBracket(bracketData) {
           ? `
       <div class="bracket-sidebar-label" style="margin-top:20px;">Finals MVP</div>
       <div class="player-rep-card" style="gap:12px; margin-top:8px;">
-        ${playerPhotoHtml(bracketData.champion.mvp.playerId, bracketData.champion.mvp.player, "player-photo-sm")}
+        ${playerLinkHtml(bracketData.champion.mvp.playerId, playerPhotoHtml(bracketData.champion.mvp.playerId, bracketData.champion.mvp.player, "player-photo-sm"))}
         <div>
-          <div class="bracket-sidebar-value" style="font-size:15px;">${escapeHtml(bracketData.champion.mvp.player)}</div>
+          <div class="bracket-sidebar-value" style="font-size:15px;">${playerLinkHtml(bracketData.champion.mvp.playerId, escapeHtml(bracketData.champion.mvp.player))}</div>
           <div class="bracket-sidebar-sub">${bracketData.champion.mvp.points.toFixed(1)} pts</div>
         </div>
       </div>`
@@ -658,7 +658,7 @@ const RECAP_MVP_VARIANTS = [
 function championshipMvpNarrative(c) {
   if (!c.seasonMVP) return "";
   const seed = seasonSeed(c.teamName + "|" + c.seasonMVP.player);
-  const player = `<strong>${escapeHtml(c.seasonMVP.player)}</strong>`;
+  const player = playerLinkHtml(c.seasonMVP.playerId, `<strong>${escapeHtml(c.seasonMVP.player)}</strong>`);
   if (c.mvpDraftRound) {
     return RECAP_MVP_DRAFT_VARIANTS[seed % RECAP_MVP_DRAFT_VARIANTS.length](player, c.mvpDraftRound);
   }
@@ -676,7 +676,7 @@ function buildSeasonRecordHighlights(records, season) {
     const r = records.mostRegularSeasonPoints;
     highlights.push(
       `<strong>${escapeHtml(r.username || r.teamName)}</strong> put up the highest-scoring regular season in league history${
-        r.topScorer ? `, powered by <strong>${escapeHtml(r.topScorer.player)}</strong>` : ""
+        r.topScorer ? `, powered by <strong>${playerLinkHtml(r.topScorer.playerId, escapeHtml(r.topScorer.player))}</strong>` : ""
       }.`
     );
   }
@@ -688,7 +688,7 @@ function buildSeasonRecordHighlights(records, season) {
     const r = records.highestWeekScore;
     highlights.push(
       `<strong>${escapeHtml(r.username || r.teamName)}</strong> put up the highest single-week score in league history${
-        r.topScorer ? `, led by <strong>${escapeHtml(r.topScorer.player)}</strong>` : ""
+        r.topScorer ? `, led by <strong>${playerLinkHtml(r.topScorer.playerId, escapeHtml(r.topScorer.player))}</strong>` : ""
       }.`
     );
   }
@@ -726,11 +726,11 @@ function buildSeasonRecordHighlights(records, season) {
   }
   if (matches(records.bestValuePick)) {
     const r = records.bestValuePick;
-    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> landed the best draft steal in league history: <strong>${escapeHtml(r.player)}</strong>.`);
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> landed the best draft steal in league history: <strong>${playerLinkHtml(r.playerId, escapeHtml(r.player))}</strong>.`);
   }
   if (matches(records.worstValuePick)) {
     const r = records.worstValuePick;
-    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> had the biggest draft bust in league history: <strong>${escapeHtml(r.player)}</strong>.`);
+    highlights.push(`<strong>${escapeHtml(r.username || r.teamName)}</strong> had the biggest draft bust in league history: <strong>${playerLinkHtml(r.playerId, escapeHtml(r.player))}</strong>.`);
   }
 
   return highlights;
@@ -740,9 +740,9 @@ function seasonStatCard(label, stat, subFormatter) {
   if (!stat) return "";
   return `
     <div class="recap-player-card">
-      ${playerPhotoHtml(stat.playerId, stat.player, "player-photo-lg")}
+      ${playerLinkHtml(stat.playerId, playerPhotoHtml(stat.playerId, stat.player, "player-photo-lg"))}
       <div class="recap-player-label">${escapeHtml(label)}</div>
-      <div class="recap-player-name">${escapeHtml(stat.player)}</div>
+      <div class="recap-player-name">${playerLinkHtml(stat.playerId, escapeHtml(stat.player))}</div>
       <div class="recap-player-sub">${escapeHtml(subFormatter(stat))}</div>
     </div>`;
 }
@@ -760,9 +760,9 @@ function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
     c && c.seasonMVP
       ? `
     <div class="recap-player-card">
-      ${playerPhotoHtml(c.seasonMVP.playerId, c.seasonMVP.player, "player-photo-lg")}
+      ${playerLinkHtml(c.seasonMVP.playerId, playerPhotoHtml(c.seasonMVP.playerId, c.seasonMVP.player, "player-photo-lg"))}
       <div class="recap-player-label">Season MVP</div>
-      <div class="recap-player-name">${escapeHtml(c.seasonMVP.player)}</div>
+      <div class="recap-player-name">${playerLinkHtml(c.seasonMVP.playerId, escapeHtml(c.seasonMVP.player))}</div>
     </div>`
       : "";
 
@@ -1085,11 +1085,11 @@ function awardCard(label, winnerLabel, detail, playerId) {
   }
   return `
     <div class="record-card record-card-photo">
-      ${playerPhotoHtml(playerId, detail || winnerLabel, "player-photo-sm")}
+      ${playerLinkHtml(playerId, playerPhotoHtml(playerId, detail || winnerLabel, "player-photo-sm"))}
       <div>
         <p class="record-label">${escapeHtml(label)}</p>
         <p class="record-value award-winner-value">${escapeHtml(winnerLabel)}</p>
-        ${detail ? `<p class="record-detail">${escapeHtml(detail)}</p>` : ""}
+        ${detail ? `<p class="record-detail">${playerLinkHtml(playerId, escapeHtml(detail))}</p>` : ""}
       </div>
     </div>`;
 }

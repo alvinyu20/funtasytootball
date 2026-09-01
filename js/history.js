@@ -143,6 +143,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
       const roster = rosters.find((r) => r.roster_id === championRosterId);
       const user = users.find((u) => u.user_id === (roster && roster.owner_id));
       const ownerName = SleeperAPI.teamName(user, championRosterId);
+      const ownerId = roster ? roster.owner_id : null;
 
       // playerId -> weeks started for the champion roster this season.
       // A player's mere presence as a Map key (regardless of count,
@@ -167,7 +168,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
 
       startsThisSeasonByPlayer.forEach((gamesStarted, pid) => {
         if (!ringsByPlayer.has(pid)) ringsByPlayer.set(pid, []);
-        ringsByPlayer.get(pid).push({ season: league.season, ownerName, gamesStarted });
+        ringsByPlayer.get(pid).push({ season: league.season, ownerName, ownerId, gamesStarted });
       });
     });
 
@@ -187,10 +188,10 @@ async function renderChampionshipRings(seasons, playerDirectory) {
             (p, i) => `
       <tr>
         <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell player-cell" data-label="Player">${playerPhotoHtml(p.playerId, p.name, "player-photo-xs")}<span>${escapeHtml(p.name)}</span></td>
+        <td class="team-cell player-cell" data-label="Player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.name))}</span></td>
         <td data-label="Rings">${p.rings.length}</td>
         <td data-label="Games Started">${p.totalGamesStarted}</td>
-        <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${escapeHtml(r.ownerName)})`).join(", ")}</td>
+        <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${r.ownerId ? `<a href="teams.html#${encodeURIComponent(r.ownerId)}">${escapeHtml(r.ownerName)}</a>` : escapeHtml(r.ownerName)})`).join(", ")}</td>
       </tr>`
           )
           .join("")
@@ -231,7 +232,7 @@ function renderCareerTable() {
           (m, i) => `
       <tr>
         <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell" data-label="Owner">${escapeHtml(m.name)}</td>
+        <td class="team-cell" data-label="Owner">${m.userId ? `<a href="teams.html#${encodeURIComponent(m.userId)}">${escapeHtml(m.name)}</a>` : escapeHtml(m.name)}</td>
         <td data-label="Gold">${m.gold || "—"}</td>
         <td data-label="Silver">${m.silver || "—"}</td>
         <td data-label="Bronze">${m.bronze || "—"}</td>
@@ -305,6 +306,7 @@ async function renderCareerRecords(seasons, playerDirectory, manual) {
       const regGames = m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies;
       const regWinPct = regGames > 0 ? (m.careerRegularSeasonWins / regGames) * 100 : 0;
       return {
+        userId: m.userId,
         name: m.username || m.teamName || "Unknown",
         gold: m.championships || 0,
         silver: m.runnerUps || 0,

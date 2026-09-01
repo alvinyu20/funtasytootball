@@ -88,6 +88,17 @@ function playerPhotoHtml(playerId, playerName, sizeClass) {
     </div>`;
 }
 
+// Wraps arbitrary already-built HTML (a name, a photo, a photo+name
+// pair, ...) in a link to that player's page, wherever a player is
+// named across the site. Falls back to returning innerHtml completely
+// unwrapped when there's no playerId to link to — e.g. an ESPN-era
+// award whose player name couldn't be matched back to a Sleeper ID —
+// rather than ever producing a link to nowhere.
+function playerLinkHtml(playerId, innerHtml) {
+  if (!playerId) return innerHtml;
+  return `<a href="player.html#${encodeURIComponent(playerId)}" class="player-link">${innerHtml}</a>`;
+}
+
 // A round manager/team avatar with the same graceful initial-letter
 // fallback as playerPhotoHtml. avatarUrl should already be a full CDN
 // URL (from SleeperAPI.avatarUrl) or null/undefined for no avatar.

@@ -125,7 +125,7 @@ test("renderCareerRecords: the table has a two-tier header (Titles / Playoffs / 
   await setupCareerTable(ctx);
 
   const bodyHtml = ctx.document.getElementById("career-body").innerHTML;
-  const names = [...bodyHtml.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const names = [...bodyHtml.matchAll(/data-label="Owner">(?:<a[^>]*>)?([^<]+)</g)].map((m) => m[1]);
   assert.deepStrictEqual(names, ["zeta", "alpha", "mno"], "default sort should be Gold descending: zeta(3), alpha(1), mno(0)");
 
   const goldCells = [...bodyHtml.matchAll(/data-label="Gold">([^<]+)</g)].map((m) => m[1]);
@@ -154,7 +154,7 @@ test("sortCareerRows: sorting by a different key produces a genuinely different 
   await setupCareerTable(ctx);
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "name", dir: "asc" }; renderCareerTable();`);
-  const byName = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const byName = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">(?:<a[^>]*>)?([^<]+)</g)].map((m) => m[1]);
   assert.deepStrictEqual(byName, ["alpha", "mno", "zeta"], "sorting by name should read alphabetically, not match the gold-count order");
 });
 
@@ -163,7 +163,7 @@ test("sortCareerRows: clicking the same column again (simulated by toggling dir)
   await setupCareerTable(ctx);
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "gold", dir: "asc" }; renderCareerTable();`);
-  const ascending = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const ascending = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">(?:<a[^>]*>)?([^<]+)</g)].map((m) => m[1]);
   assert.deepStrictEqual(ascending, ["mno", "alpha", "zeta"], "ascending gold order should be the exact reverse of the default descending order");
 });
 
@@ -172,11 +172,11 @@ test("sortCareerRows: sorting by Years (Playoffs group) and by Playoff Win % eac
   await setupCareerTable(ctx);
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "years", dir: "desc" }; renderCareerTable();`);
-  const byYears = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const byYears = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">(?:<a[^>]*>)?([^<]+)</g)].map((m) => m[1]);
   assert.deepStrictEqual(byYears, ["zeta", "alpha", "mno"], "zeta and alpha both played 6 years (tied, stable order), mno played 3");
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "playoffWinPct", dir: "desc" }; renderCareerTable();`);
-  const byPlayoffWinPct = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const byPlayoffWinPct = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">(?:<a[^>]*>)?([^<]+)</g)].map((m) => m[1]);
   // zeta: 10/15=66.7%, alpha: 8/16=50%, mno: 2/5=40%
   assert.deepStrictEqual(byPlayoffWinPct, ["zeta", "alpha", "mno"]);
 });
@@ -252,7 +252,7 @@ test("renderCareerRecords: the career table still correctly merges in ESPN-era (
   await ctx.renderCareerRecords([{ league: { season: "2023" } }], {}, { seasons: [] });
 
   const bodyHtml = ctx.document.getElementById("career-body").innerHTML;
-  assert.ok(bodyHtml.includes('data-label="Owner">yulovesyou<'));
+  assert.match(bodyHtml, /data-label="Owner">(?:<a[^>]*>)?yulovesyou/);
   // Regular season: 8 (Sleeper) + 9 (ESPN) = 17 wins, 5+4=9 losses.
   assert.ok(bodyHtml.includes('data-label="Reg Season Record">17-9<'), "regular season record should include the merged-in ESPN-era games");
   assert.ok(bodyHtml.includes('data-label="Gold">1<'), "the ESPN-era championship should count toward career titles");
@@ -398,8 +398,8 @@ test("renderChampionshipRings: multiple championship seasons for the same player
   await ctx.renderChampionshipRings(seasons, { P1: { full_name: "Player One" } });
   const html = ctx.document.getElementById("rings-body").innerHTML;
   assert.ok(html.includes('data-label="Rings">2<'), "two different championship seasons should give 2 rings");
-  assert.ok(html.includes("2021 (yulovesyou)"), "breakdown should note the 2021 ring came via yulovesyou");
-  assert.ok(html.includes("2022 (hmart92)"), "breakdown should note the 2022 ring came via hmart92");
+  assert.match(html, /2021 \((?:<a[^>]*>)?yulovesyou/, "breakdown should note the 2021 ring came via yulovesyou");
+  assert.match(html, /2022 \((?:<a[^>]*>)?hmart92/, "breakdown should note the 2022 ring came via hmart92");
 });
 
 test("renderChampionshipRings: a season with no determinable champion (still in progress, or bracket data missing) is skipped without crashing", async () => {
@@ -430,10 +430,10 @@ test("renderChampionshipRings: ranks by ring count descending and caps at the to
   await ctx.renderChampionshipRings(seasons, directory);
 
   const html = ctx.document.getElementById("rings-body").innerHTML;
-  // The player name now sits inside a <span> alongside a photo, not as
-  // plain text right after the data-label attribute — pull it out of
-  // the <span> specifically.
-  const rows = [...html.matchAll(/data-label="Player">[\s\S]*?<span>([^<]+)<\/span>/g)].map((m) => m[1]);
+  // The player name now sits inside a <span>, itself now wrapped in an
+  // <a> link to the player's page -- pull the name out from wherever it
+  // ends up, optionally skipping that link wrapper.
+  const rows = [...html.matchAll(/data-label="Player">[\s\S]*?<span>(?:<a[^>]*>)?([^<]+)/g)].map((m) => m[1]);
   assert.strictEqual(rows.length, 10, "should cap at the top 10, even though 12 players earned at least 1 ring");
   assert.strictEqual(rows[0], "Player 1", "the 2-ring player should rank first");
 });

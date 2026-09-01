@@ -66,7 +66,7 @@ function top5Table(rows) {
               (r, i) => `
           <tr>
             <td class="rank" data-label="#">${i + 1}</td>
-            <td class="team-cell" data-label="Team / Player">${escapeHtml(r.name)}</td>
+            <td class="team-cell" data-label="Team / Player">${playerLinkHtml(r.playerId, escapeHtml(r.name))}</td>
             <td data-label="Detail">${escapeHtml(r.detail)}</td>
             <td data-label="Value">${escapeHtml(r.value)}</td>
           </tr>`
@@ -109,11 +109,13 @@ const TOP5_ROW_FORMATTERS = {
   longestLoseStreak: (x) => ({ name: x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
   bestValuePick: (x) => ({
     name: x.player,
+    playerId: x.playerId,
     detail: `${x.round}.${x.pickInRound} by ${x.username || x.teamName} (${x.season})`,
     value: x.vbd != null ? `+${x.vbd.toFixed(1)} VBD` : `${x.points.toFixed(1)} pts`,
   }),
   worstValuePick: (x) => ({
     name: x.player,
+    playerId: x.playerId,
     detail: `${x.round}.${x.pickInRound} by ${x.username || x.teamName} (${x.season})`,
     value: x.vbd != null ? `${x.vbd.toFixed(1)} VBD` : `${x.points.toFixed(1)} pts`,
   }),
@@ -192,7 +194,7 @@ function buildRecordCards(stats) {
     cards.push(
       expandableCard(
         "Best Late-Round Steal",
-        escapeHtml(x.player),
+        playerLinkHtml(x.playerId, escapeHtml(x.player)),
         `${x.round}.${x.pickInRound} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
         gradeBadgeHtml(x.grade),
         top5RowsFor(stats, "bestValuePick")
@@ -204,7 +206,7 @@ function buildRecordCards(stats) {
     cards.push(
       expandableCard(
         "Biggest Draft Bust",
-        escapeHtml(x.player),
+        playerLinkHtml(x.playerId, escapeHtml(x.player)),
         `${x.round}.${x.pickInRound} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
         gradeBadgeHtml(x.grade),
         top5RowsFor(stats, "worstValuePick")

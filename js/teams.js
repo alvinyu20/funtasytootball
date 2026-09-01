@@ -1,6 +1,12 @@
 let LEAGUE_STATS = null;
 let SEASON_AWARDS = null;
 let TRACKED_SEASON_YEARS = null;
+let PLAYER_DIRECTORY = null;
+let PLAYER_NAME_INDEX_CACHE = null;
+function getPlayerNameIndex() {
+  if (!PLAYER_NAME_INDEX_CACHE) PLAYER_NAME_INDEX_CACHE = buildPlayerNameIndex(PLAYER_DIRECTORY);
+  return PLAYER_NAME_INDEX_CACHE;
+}
 
 async function renderTeams() {
   const errorBox = document.getElementById("teams-error");
@@ -19,6 +25,7 @@ async function renderTeams() {
     }
 
     SEASON_AWARDS = seasonAwards;
+    PLAYER_DIRECTORY = playerDirectory;
     TRACKED_SEASON_YEARS = new Set(seasonChain.map((s) => String(s.league.season)));
 
     const latest = seasonChain[seasonChain.length - 1].league;
@@ -137,7 +144,7 @@ function renderManagerDetail(m) {
 
   const chips = m.mostRostered.length
     ? m.mostRostered
-        .map((p) => `<span class="player-chip">${escapeHtml(p.name)}<span class="count">${p.weeksRostered} wks</span></span>`)
+        .map((p) => `<span class="player-chip">${playerLinkHtml(p.playerId, escapeHtml(p.name))}<span class="count">${p.weeksRostered} wks</span></span>`)
         .join("")
     : `<span class="empty-state">No roster data yet.</span>`;
 
@@ -153,17 +160,19 @@ function renderManagerDetail(m) {
     });
   }
   myAwards.sort((a, b) => b.year - a.year);
+  const nameIndex = getPlayerNameIndex();
   const awardsRows = myAwards
-    .map(
-      (a) => `
+    .map((a) => {
+      const detailPlayerId = a.detail ? findPlayerIdByName(a.detail, nameIndex) : null;
+      return `
       <div class="ledger-row">
         <span class="year">${escapeHtml(a.year)}</span>
         <div>
           <div class="champ-name">${escapeHtml(a.category)}</div>
-          ${a.detail ? `<div class="champ-sub">${escapeHtml(a.detail)}</div>` : ""}
+          ${a.detail ? `<div class="champ-sub">${playerLinkHtml(detailPlayerId, escapeHtml(a.detail))}</div>` : ""}
         </div>
-      </div>`
-    )
+      </div>`;
+    })
     .join("");
 
   function renderH2hRows(list) {
@@ -179,7 +188,7 @@ function renderManagerDetail(m) {
         const pct = pcts[i];
         return `
         <tr>
-          <td class="team-cell">${escapeHtml(h.opponentName)}</td>
+          <td class="team-cell"><a href="rivalries.html#${encodeURIComponent(m.userId)}-vs-${encodeURIComponent(h.opponentUserId)}">${escapeHtml(h.opponentName)}</a></td>
           <td>${h.wins}-${h.losses}${h.ties ? "-" + h.ties : ""}</td>
           <td class="heat-cell" style="background:${heatColor(pct, min, max)}">${pct.toFixed(0)}%</td>
         </tr>`;
@@ -236,7 +245,7 @@ function renderManagerDetail(m) {
                   (p) => `
               <tr>
                 <td data-label="Pick">${p.round}.${p.pickInRound}</td>
-                <td class="team-cell" data-label="Player">${escapeHtml(p.player)}${p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""}</td>
+                <td class="team-cell" data-label="Player">${playerLinkHtml(p.playerId, escapeHtml(p.player))}${p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""}</td>
                 <td data-label="Points">${p.points.toFixed(1)} pts${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</td>
                 <td data-label="Grade">${gradeBadgeHtml(p.grade)}</td>
               </tr>`
@@ -270,7 +279,7 @@ function renderManagerDetail(m) {
                   (slot) => `
               <tr>
                 <td data-label="Slot">${escapeHtml(slot.slot)}</td>
-                <td class="team-cell" data-label="Player">${slot.player ? escapeHtml(slot.player) : "—"}${slot.acquisition ? ` <span class="acquisition-tag">${escapeHtml(slot.acquisition)}</span>` : ""}</td>
+                <td class="team-cell" data-label="Player">${slot.player ? playerLinkHtml(slot.playerId, escapeHtml(slot.player)) : "—"}${slot.acquisition ? ` <span class="acquisition-tag">${escapeHtml(slot.acquisition)}</span>` : ""}</td>
                 <td data-label="Starts">${slot.starts ? `${slot.starts} gm${slot.starts === 1 ? "" : "s"}` : "—"}</td>
               </tr>`
                 )
@@ -318,9 +327,9 @@ function renderManagerDetail(m) {
     </div>
     <div class="wrap">
       <div class="panel player-rep-card">
-        ${playerPhotoHtml(m.mostRostered[0].playerId, m.mostRostered[0].name, "player-photo-lg")}
+        ${playerLinkHtml(m.mostRostered[0].playerId, playerPhotoHtml(m.mostRostered[0].playerId, m.mostRostered[0].name, "player-photo-lg"))}
         <div>
-          <div class="player-rep-name">${escapeHtml(m.mostRostered[0].name)}</div>
+          <div class="player-rep-name">${playerLinkHtml(m.mostRostered[0].playerId, escapeHtml(m.mostRostered[0].name))}</div>
           <div class="player-rep-detail">Rostered ${m.mostRostered[0].weeksRostered} weeks — more than anyone else on this team, ever.</div>
         </div>
       </div>

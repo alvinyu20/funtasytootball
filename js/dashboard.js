@@ -92,7 +92,7 @@ function renderStandingsTable(standings, teamStrength, playoffTeams) {
       const row = `
       <tr>
         <td class="rank">${i + 1}</td>
-        <td class="team-cell">${escapeHtml(t.teamName)}</td>
+        <td class="team-cell">${t.userId ? `<a href="teams.html#${encodeURIComponent(t.userId)}">${escapeHtml(t.teamName)}</a>` : escapeHtml(t.teamName)}</td>
         <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
         <td>${t.fpts.toFixed(1)}</td>
         <td>${strength ? "#" + strength.rank : "—"}</td>
@@ -454,7 +454,7 @@ function describeTransaction(tx, rosterInfoByRosterId, playerDirectory) {
     const roster = rosterInfoByRosterId.get(rid);
     return escapeHtml(roster ? roster.username || roster.teamName : "Unknown");
   };
-  const playerLabel = (pid) => escapeHtml(SleeperAPI.playerName(playerDirectory, pid));
+  const playerLabel = (pid) => playerLinkHtml(pid, escapeHtml(SleeperAPI.playerName(playerDirectory, pid)));
 
   if (tx.type === "trade") {
     const sides = (tx.roster_ids || []).map(teamLabel);

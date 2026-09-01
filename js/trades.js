@@ -59,7 +59,7 @@ function renderFilterPills(activeKey) {
 }
 
 function tradePlayerLine(p) {
-  return `<li>${playerPhotoHtml(p.playerId, p.name, "player-photo-xs")}<span>${escapeHtml(p.name)}${
+  return `<li>${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.name))}${
     p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
   }${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</span></li>`;
 }

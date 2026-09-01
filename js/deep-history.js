@@ -93,8 +93,8 @@ const DeepHistory = {
   },
 
   // Turns one team's raw matchup object for a week into a display-ready
-  // starting lineup: [{ slot, player, points }], using that season's own
-  // roster_positions to label each starter's slot correctly.
+  // starting lineup: [{ slot, player, playerId, points }], using that
+  // season's own roster_positions to label each starter's slot correctly.
   lineupForMatchup(m, slotTypes, playerDirectory) {
     if (!m) return [];
     const pointsMap = m.players_points || {};
@@ -104,6 +104,7 @@ const DeepHistory = {
         return {
           slot: SleeperAPI.friendlySlotLabel(slotTypes[i] || "?"),
           player: SleeperAPI.playerName(playerDirectory, pid),
+          playerId: pid,
           points: pointsMap[pid] || 0,
         };
       })
@@ -2112,6 +2113,7 @@ const DeepHistory = {
       slots.push({
         slot: label,
         player: pid ? SleeperAPI.playerName(playerDirectory, pid) : null,
+        playerId: pid || null,
         starts: pid ? count : 0,
         acquisition: pid ? acquisitionByPlayer.get(pid) || "Roster" : null,
       });

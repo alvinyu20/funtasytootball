@@ -124,7 +124,7 @@ function renderTopPicks(picks) {
       (p) => `
     <tr>
       <td data-label="Pick">${p.round}.${p.pickInRound}</td>
-      <td class="team-cell player-cell" data-label="Player">${playerPhotoHtml(p.playerId, p.player, "player-photo-xs")}<span>${escapeHtml(p.player)}${
+      <td class="team-cell player-cell" data-label="Player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.player))}${
         p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
       }</span></td>
       <td data-label="Drafted By">${escapeHtml(p.ownerUsername)}</td>
@@ -153,7 +153,7 @@ function renderDraftCell(pick) {
   return `
     <td class="draft-cell ${posClassFor(pick.position)}${gradeClass}" data-player-id="${escapeHtml(pick.playerId || "")}">
       <div class="draft-cell-pick">${pick.round}.${pick.pickInRound}</div>
-      <div class="draft-cell-player">${escapeHtml(pick.player)}</div>
+      <div class="draft-cell-player">${playerLinkHtml(pick.playerId, escapeHtml(pick.player))}</div>
       <div class="draft-cell-meta"><span class="draft-cell-pos">${escapeHtml(pick.position || "")}</span>${gradeBadgeHtml(pick.grade)}</div>
     </td>`;
 }
