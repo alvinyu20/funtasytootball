@@ -11,9 +11,9 @@ function fakePlayer(overrides) {
     name: "Test Player",
     position: "RB",
     spans: [
-      { ownerId: "u1", ownerName: "yulovesyou", startSeason: "2021", startWeek: 1, endSeason: "2021", endWeek: 3, gamesOwned: 3, gamesStarted: 2, totalPoints: 36, ppg: 12 },
-      { ownerId: "u2", ownerName: "hmart92", startSeason: "2021", startWeek: 5, endSeason: "2022", endWeek: 2, gamesOwned: 4, gamesStarted: 4, totalPoints: 51, ppg: 12.8 },
-      { ownerId: "u1", ownerName: "yulovesyou", startSeason: "2022", startWeek: 3, endSeason: "2022", endWeek: 3, gamesOwned: 1, gamesStarted: 1, totalPoints: 30, ppg: 30 },
+      { ownerId: "u1", ownerName: "yulovesyou", startSeason: "2021", startWeek: 1, endSeason: "2021", endWeek: 3, gamesOwned: 3, gamesStarted: 2, gamesPlayed: 3, totalPoints: 36, ppg: 12 },
+      { ownerId: "u2", ownerName: "hmart92", startSeason: "2021", startWeek: 5, endSeason: "2022", endWeek: 2, gamesOwned: 4, gamesStarted: 4, gamesPlayed: 4, totalPoints: 51, ppg: 12.8 },
+      { ownerId: "u1", ownerName: "yulovesyou", startSeason: "2022", startWeek: 3, endSeason: "2022", endWeek: 3, gamesOwned: 1, gamesStarted: 1, gamesPlayed: 1, totalPoints: 30, ppg: 30 },
     ],
     careerHigh: { points: 30, season: "2022", week: 3, ownerId: "u1", ownerName: "yulovesyou", started: true },
     totals: { owners: 2, gamesOwned: 8, gamesStarted: 7, gamesBenched: 1, totalPoints: 117, ppg: 14.6 },
@@ -71,6 +71,50 @@ test("searchPlayers: caps results at 8, even with many matches", () => {
   assert.strictEqual(ctx.searchPlayers("test").length, 8);
 });
 
+test("searchPlayers: a name that starts with the query outranks a heavily-rostered name that only contains it mid-word", () => {
+  const ctx = setup();
+  ctx.__FAKE_INDEX__ = {
+    p1: { name: "Travis Kelce", position: "TE", totals: { gamesOwned: 90 } }, // "c" only appears mid-word, in "Kelce"
+    p2: { name: "Christian McCaffrey", position: "RB", totals: { gamesOwned: 10 } }, // first name genuinely starts with "c"
+  };
+  runInLoadedContext(ctx, "PLAYER_INDEX = __FAKE_INDEX__;");
+  const results = ctx.searchPlayers("c");
+  assert.strictEqual(results[0][0], "p2", "Christian McCaffrey should rank first for query 'c' even though Travis Kelce is far more rostered");
+});
+
+test("searchPlayers: a last name starting with the query ranks above a name that only contains it mid-word, even without matching at the very start of the full name", () => {
+  const ctx = setup();
+  ctx.__FAKE_INDEX__ = {
+    p1: { name: "Travis Kelce", position: "TE", totals: { gamesOwned: 90 } }, // mid-word match only
+    p2: { name: "Amari Cooper", position: "WR", totals: { gamesOwned: 5 } }, // last name starts with "c", first name doesn't
+  };
+  runInLoadedContext(ctx, "PLAYER_INDEX = __FAKE_INDEX__;");
+  const results = ctx.searchPlayers("c");
+  assert.strictEqual(results[0][0], "p2", "Amari Cooper's last name starts with 'c', which should outrank a mid-word-only match");
+});
+
+test("searchPlayers: within the same match quality, the more-rostered player still wins the tiebreaker", () => {
+  const ctx = setup();
+  ctx.__FAKE_INDEX__ = {
+    p1: { name: "Christian McCaffrey", position: "RB", totals: { gamesOwned: 10 } },
+    p2: { name: "CeeDee Lamb", position: "WR", totals: { gamesOwned: 80 } },
+  };
+  runInLoadedContext(ctx, "PLAYER_INDEX = __FAKE_INDEX__;");
+  const results = ctx.searchPlayers("c");
+  assert.strictEqual(results[0][0], "p2", "both start with 'c' (same tier) -- the more-rostered player (CeeDee Lamb) should win the tiebreak");
+});
+
+test("searchPlayers: a name that doesn't match anywhere at all is excluded, not just ranked last", () => {
+  const ctx = setup();
+  ctx.__FAKE_INDEX__ = {
+    p1: { name: "Josh Allen", position: "QB", totals: { gamesOwned: 40 } },
+    p2: { name: "Derrick Henry", position: "RB", totals: { gamesOwned: 30 } },
+  };
+  runInLoadedContext(ctx, "PLAYER_INDEX = __FAKE_INDEX__;");
+  const results = ctx.searchPlayers("zzz");
+  assert.strictEqual(results.length, 0);
+});
+
 test("formatSpanRange: collapses to a single label when a span starts and ends the same week", () => {
   const ctx = setup();
   const span = { startSeason: "2022", startWeek: 3, endSeason: "2022", endWeek: 3 };
@@ -103,7 +147,7 @@ test("renderPlayerDetail: renders the header, stat strip, career-high callout, a
   assert.ok(html.includes("Test Player"), "player name in the header");
   assert.ok(html.includes(">RB<"), "position shown");
   assert.ok(html.includes(">2<") , "owners stat card (2 distinct owners)");
-  assert.ok(html.includes("7 / 1"), "started/benched stat card");
+  assert.ok(html.includes("7 / 1 / 0"), "started/benched/FA stat card, FA defaulting to 0 when the fixture has no gamesFA");
   assert.ok(html.includes("Career high"));
   assert.ok(html.includes("30.0"), "career-high value");
   assert.ok(html.includes("owned by yulovesyou"), "career-high owner attribution");
@@ -112,19 +156,147 @@ test("renderPlayerDetail: renders the header, stat strip, career-high callout, a
   assert.ok(yuloCount >= 2, "yulovesyou should appear in at least 2 separate table rows (their two non-contiguous spans)");
 });
 
+test("renderPlayerDetail: the started/benched/FA stat card shows a non-zero FA count when the player has free-agent weeks on record", () => {
+  const ctx = setup();
+  const player = fakePlayer({ totals: { owners: 2, gamesOwned: 8, gamesStarted: 7, gamesBenched: 1, gamesFA: 5, totalPoints: 117, ppg: 14.6 } });
+  const html = ctx.renderPlayerDetail("9999", player);
+  assert.ok(html.includes("7 / 1 / 5"), "started/benched/FA stat card should reflect a real FA count, not just default to 0");
+});
+
 test("renderPlayerDetail: omits the career-high callout box gracefully when there's no career high on record", () => {
   const ctx = setup();
   const html = ctx.renderPlayerDetail("9999", fakePlayer({ careerHigh: null }));
   assert.ok(!html.includes("player-high-callout"), "the callout box itself should be omitted (the chart legend's unrelated 'Career high' label is expected to still appear)");
 });
 
-test("renderCareerArc: both All and Starts tab panels are present, with the correct game counts in the tab labels", () => {
+test("cumulativeOwnershipRows: the same owner's non-contiguous spans combine into a single aggregated row", () => {
+  const ctx = setup();
+  const rows = ctx.cumulativeOwnershipRows(fakePlayer().spans);
+  assert.strictEqual(rows.length, 2, "yulovesyou's two spans should collapse into one row, alongside hmart92's one row -- 2 total");
+  const yulo = rows.find((r) => r.ownerName === "yulovesyou");
+  assert.strictEqual(yulo.gamesOwned, 4, "3 + 1 games owned across both spans");
+  assert.strictEqual(yulo.gamesStarted, 3, "2 + 1 games started across both spans");
+  assert.strictEqual(yulo.totalPoints, 66, "36 + 30 points across both spans");
+});
+
+test("cumulativeOwnershipRows: PPG is re-derived from combined totals, not averaged from each span's own PPG", () => {
+  const ctx = setup();
+  const rows = ctx.cumulativeOwnershipRows(fakePlayer().spans);
+  const yulo = rows.find((r) => r.ownerName === "yulovesyou");
+  // 66 total points / (3+1) games played = 16.5 -- NOT (12 + 30) / 2 = 21,
+  // which is what naively averaging the two spans' own ppg values would give.
+  assert.strictEqual(yulo.ppg, 16.5);
+});
+
+test("cumulativeOwnershipRows: sorted by games owned, most first", () => {
+  const ctx = setup();
+  const rows = ctx.cumulativeOwnershipRows(fakePlayer().spans);
+  assert.strictEqual(rows[0].ownerName, "yulovesyou", "yulovesyou has 4 combined games owned vs hmart92's 4 -- tie broken by Map insertion order, but the sort itself should be descending by gamesOwned");
+  assert.ok(rows[0].gamesOwned >= rows[1].gamesOwned);
+});
+
+test("cumulativeOwnershipRows: a single-span owner (no repeats) still aggregates correctly as a trivial one-span sum", () => {
+  const ctx = setup();
+  const rows = ctx.cumulativeOwnershipRows(fakePlayer().spans);
+  const hmart = rows.find((r) => r.ownerName === "hmart92");
+  assert.strictEqual(hmart.gamesOwned, 4);
+  assert.strictEqual(hmart.ppg, 12.75, "51 points / 4 games played = 12.75");
+});
+
+test("renderOwnershipHistory: both By Span and Cumulative tab panels are present, with the same-owner-twice case visible in the By Span view and collapsed in Cumulative", () => {
+  const ctx = setup();
+  const html = ctx.renderOwnershipHistory(fakePlayer());
+  assert.ok(html.includes('data-chart-panel="by-span"'));
+  assert.ok(html.includes('data-chart-panel="cumulative"'));
+
+  const bySpanSection = html.slice(html.indexOf('data-chart-panel="by-span"'), html.indexOf('data-chart-panel="cumulative"'));
+  const yuloCountBySpan = (bySpanSection.match(/yulovesyou/g) || []).length;
+  assert.strictEqual(yuloCountBySpan, 2, "By Span should still show yulovesyou's two separate spans as two rows");
+
+  const cumulativeSection = html.slice(html.indexOf('data-chart-panel="cumulative"'));
+  const yuloCountCumulative = (cumulativeSection.match(/yulovesyou/g) || []).length;
+  assert.strictEqual(yuloCountCumulative, 1, "Cumulative should show yulovesyou once, combined");
+});
+
+test("renderOwnershipHistory: the Cumulative table has no Span column, since it's combining across spans", () => {
+  const ctx = setup();
+  const html = ctx.renderOwnershipHistory(fakePlayer());
+  const cumulativeSection = html.slice(html.indexOf('data-chart-panel="cumulative"'));
+  assert.ok(!/<th>Span<\/th>/.test(cumulativeSection.split("</thead>")[0]));
+});
+
+test("renderCareerArc: Owned, All, and Starts tab panels are all present, with the correct game counts in each tab label", () => {
   const ctx = setup();
   const html = ctx.renderCareerArc(fakePlayer());
-  assert.ok(html.includes("All (8)"), "the All tab should show the total games-owned count");
+  assert.ok(html.includes("Owned (8)"), "the Owned tab should show the games-owned count");
+  assert.ok(html.includes("All (8)"), "with no FA weeks on this fixture, All should equal Owned (8 + 0)");
   assert.ok(html.includes("Starts (7)"), "the Starts tab should show the games-started count");
+  assert.ok(html.includes('data-chart-panel="owned"'));
   assert.ok(html.includes('data-chart-panel="all"'));
   assert.ok(html.includes('data-chart-panel="starts"'));
+});
+
+function fakePlayerWithFA() {
+  const player = fakePlayer();
+  // Insert two free-agent weeks into the existing owned timeline: one
+  // mid-career (between the 2021 and 2022 stretches) and one at the
+  // very end, both marked owned:0 and with no span covering them.
+  player.weekly = [
+    { season: "2021", week: 1, points: 10, started: 1, owned: 1 },
+    { season: "2021", week: 2, points: 5, started: 0, owned: 1 },
+    { season: "2021", week: 3, points: 12, started: 1, owned: 1 },
+    { season: "2021", week: 4, points: 18, started: 0, owned: 0 }, // FA week
+    { season: "2021", week: 5, points: 20, started: 1, owned: 1 },
+    { season: "2021", week: 6, points: 8, started: 1, owned: 1 },
+    { season: "2022", week: 1, points: 14, started: 1, owned: 1 },
+    { season: "2022", week: 2, points: 9, started: 1, owned: 1 },
+    { season: "2022", week: 3, points: 30, started: 1, owned: 1 },
+    { season: "2022", week: 4, points: 22, started: 0, owned: 0 }, // FA week
+  ];
+  player.totals = { ...player.totals, gamesFA: 2 };
+  return player;
+}
+
+test("renderCareerArc: the All tab's count includes both owned and free-agent games", () => {
+  const ctx = setup();
+  const html = ctx.renderCareerArc(fakePlayerWithFA());
+  assert.ok(html.includes("Owned (8)"), "8 owned weeks, unchanged");
+  assert.ok(html.includes("All (10)"), "8 owned + 2 FA = 10");
+});
+
+test("careerArcSvg: 'owned' mode excludes free-agent weeks entirely", () => {
+  const ctx = setup();
+  const svg = ctx.careerArcSvg(fakePlayerWithFA(), "owned");
+  const dotCount = (svg.match(/<circle/g) || []).length;
+  const allSvg = ctx.careerArcSvg(fakePlayerWithFA(), "all");
+  const allDotCount = (allSvg.match(/<circle/g) || []).length;
+  assert.ok(dotCount < allDotCount, "'owned' should plot fewer points than 'all', since it excludes the 2 FA weeks");
+});
+
+test("careerArcSvg: 'all' mode plots free-agent weeks with an 'UNOWNED' band label, distinct from any real owner's band", () => {
+  const ctx = setup();
+  const svg = ctx.careerArcSvg(fakePlayerWithFA(), "all");
+  assert.ok(svg.includes("UNOWNED"), "a stretch with no owning span should be labeled as unowned, not attributed to any manager");
+});
+
+test("careerArcSvg: 'starts' mode still excludes free-agent weeks too, since a player can't be 'started' by nobody", () => {
+  const ctx = setup();
+  const svg = ctx.careerArcSvg(fakePlayerWithFA(), "starts");
+  // Both FA weeks in the fixture have started:0, so they'd already be
+  // excluded by the started filter alone -- this just confirms the
+  // 'starts' branch doesn't accidentally use the "all" pass-through.
+  assert.ok(!svg.includes("UNOWNED"), "no unowned band should appear on the Starts view");
+});
+
+test("careerArcSvg: an older cached player with no `owned` field at all on its weekly entries is treated as fully owned, not silently emptied out", () => {
+  const ctx = setup();
+  const player = fakePlayer();
+  player.weekly = player.weekly.map(({ owned, ...rest }) => rest); // strip the field entirely, simulating pre-FA-feature cached data
+  const ownedSvg = ctx.careerArcSvg(player, "owned");
+  const allSvg = ctx.careerArcSvg(player, "all");
+  const ownedDotCount = (ownedSvg.match(/<circle/g) || []).length;
+  const allDotCount = (allSvg.match(/<circle/g) || []).length;
+  assert.strictEqual(ownedDotCount, allDotCount, "with no owned field anywhere, 'owned' and 'all' should show the exact same points");
 });
 
 test("careerArcSvg: bands reflect real ownership spans, including the short middle span and the repeat owner", () => {

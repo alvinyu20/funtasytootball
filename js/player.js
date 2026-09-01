@@ -28,17 +28,38 @@ async function renderPlayers() {
   }
 }
 
-// Substring match against every eligible player's name, ranked by how
-// much of their career they've actually been rostered for — a simple,
-// good-enough relevance signal since the search universe here is only
-// ever players who've started at least once, not the full NFL.
+// How well a player's name matches a search query, low number = best
+// match. 0: the full name starts with the query (e.g. "Christian" for
+// "chr"). 1: some OTHER word in the name starts with it (e.g. "Amari
+// Cooper" for "coo" — the last name, not the first, starts the match).
+// 2: the query shows up anywhere else in the name (e.g. "Kelce" for
+// "c" — matches, but only mid-word). null: no match at all. Without
+// this, a plain substring search ranks "Travis Kelce" above every
+// player whose actual first or last name starts with "C", since
+// "Kelce" happens to contain a "c" — technically a match, just not the
+// one anyone typing "c" is looking for.
+function nameMatchRank(name, q) {
+  const lower = name.toLowerCase();
+  if (lower.startsWith(q)) return 0;
+  if (lower.split(/[\s'-]+/).some((word) => word.startsWith(q))) return 1;
+  if (lower.includes(q)) return 2;
+  return null;
+}
+
+// Matches ranked by nameMatchRank first (closest match wins), then by
+// how much of their career they've actually been rostered for as a
+// tiebreaker within the same rank — a simple, good-enough popularity
+// signal since the search universe here is only ever players who've
+// started at least once, not the full NFL.
 function searchPlayers(query) {
   const q = query.trim().toLowerCase();
   if (!q || !PLAYER_INDEX) return [];
   return Object.entries(PLAYER_INDEX)
-    .filter(([, p]) => p.name.toLowerCase().includes(q))
-    .sort((a, b) => b[1].totals.gamesOwned - a[1].totals.gamesOwned)
-    .slice(0, 8);
+    .map(([id, p]) => [id, p, nameMatchRank(p.name, q)])
+    .filter(([, , rank]) => rank != null)
+    .sort((a, b) => a[2] - b[2] || b[1].totals.gamesOwned - a[1].totals.gamesOwned)
+    .slice(0, 8)
+    .map(([id, p]) => [id, p]);
 }
 
 function initPlayerSearch() {
@@ -106,19 +127,6 @@ function renderPlayerDetail(playerId, player) {
   const t = player.totals;
   const high = player.careerHigh;
 
-  const spansRows = player.spans
-    .map(
-      (s) => `
-    <tr>
-      <td class="team-cell" data-label="Owner">${escapeHtml(s.ownerName)}</td>
-      <td data-label="Span">${escapeHtml(formatSpanRange(s))}</td>
-      <td data-label="Games Owned">${s.gamesOwned}</td>
-      <td data-label="Games Started">${s.gamesStarted}</td>
-      <td data-label="PPG">${s.ppg.toFixed(1)}</td>
-    </tr>`
-    )
-    .join("");
-
   return `
     <div class="player-header">
       ${playerPhotoHtml(playerId, player.name, "player-photo-lg")}
@@ -131,7 +139,7 @@ function renderPlayerDetail(playerId, player) {
     <div class="player-stat-strip">
       <div class="player-stat-card"><div class="player-stat-value gold">${t.owners}</div><div class="player-stat-label">owner${t.owners === 1 ? "" : "s"}</div></div>
       <div class="player-stat-card"><div class="player-stat-value">${t.gamesOwned}</div><div class="player-stat-label">games rostered</div></div>
-      <div class="player-stat-card"><div class="player-stat-value">${t.gamesStarted} / ${t.gamesBenched}</div><div class="player-stat-label">started / benched</div></div>
+      <div class="player-stat-card"><div class="player-stat-value">${t.gamesStarted} / ${t.gamesBenched} / ${t.gamesFA || 0}</div><div class="player-stat-label">started / benched / FA</div></div>
       <div class="player-stat-card"><div class="player-stat-value">${t.totalPoints.toFixed(1)}</div><div class="player-stat-label">total points</div></div>
       <div class="player-stat-card"><div class="player-stat-value">${t.ppg.toFixed(1)}</div><div class="player-stat-label">career ppg</div></div>
     </div>
@@ -164,14 +172,84 @@ function renderPlayerDetail(playerId, player) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
+      ${renderOwnershipHistory(player)}
+    </div></div>`;
+}
+
+// Aggregates a player's ownership spans by owner — the same manager's
+// multiple non-contiguous spans (see buildPlayerIndex's span-splitting
+// logic) collapse into one row with combined totals, rather than
+// showing their career with this player broken up into pieces. PPG is
+// re-derived from the summed totals rather than averaging each span's
+// own PPG, so a long low-scoring span and a short high-scoring span
+// combine correctly instead of being weighted as if they were equal
+// samples.
+function cumulativeOwnershipRows(spans) {
+  const byOwner = new Map();
+  spans.forEach((s) => {
+    if (!byOwner.has(s.ownerId)) {
+      byOwner.set(s.ownerId, { ownerName: s.ownerName, gamesOwned: 0, gamesStarted: 0, gamesPlayed: 0, totalPoints: 0 });
+    }
+    const agg = byOwner.get(s.ownerId);
+    agg.gamesOwned += s.gamesOwned;
+    agg.gamesStarted += s.gamesStarted;
+    agg.gamesPlayed += s.gamesPlayed || 0;
+    agg.totalPoints += s.totalPoints;
+  });
+  return [...byOwner.values()]
+    .map((agg) => ({ ...agg, ppg: agg.gamesPlayed > 0 ? agg.totalPoints / agg.gamesPlayed : 0 }))
+    .sort((a, b) => b.gamesOwned - a.gamesOwned);
+}
+
+function renderOwnershipHistory(player) {
+  const spanRows = player.spans
+    .map(
+      (s) => `
+    <tr>
+      <td class="team-cell" data-label="Owner">${escapeHtml(s.ownerName)}</td>
+      <td data-label="Span">${escapeHtml(formatSpanRange(s))}</td>
+      <td data-label="Games Owned">${s.gamesOwned}</td>
+      <td data-label="Games Started">${s.gamesStarted}</td>
+      <td data-label="PPG">${s.ppg.toFixed(1)}</td>
+    </tr>`
+    )
+    .join("");
+
+  const cumulativeRows = cumulativeOwnershipRows(player.spans)
+    .map(
+      (agg) => `
+    <tr>
+      <td class="team-cell" data-label="Owner">${escapeHtml(agg.ownerName)}</td>
+      <td data-label="Games Owned">${agg.gamesOwned}</td>
+      <td data-label="Games Started">${agg.gamesStarted}</td>
+      <td data-label="PPG">${agg.ppg.toFixed(1)}</td>
+    </tr>`
+    )
+    .join("");
+
+  return `
+    <div class="chart-tabs">
+      <button type="button" class="chart-tab active" data-chart-tab="by-span">By Span</button>
+      <button type="button" class="chart-tab" data-chart-tab="cumulative">Cumulative</button>
+    </div>
+    <div class="chart-tab-panel" data-chart-panel="by-span">
       <div class="heatmap-table-wrap stay-scrollable">
         <table class="stat-table compact-mobile">
           <thead><tr><th>Owner</th><th>Span</th><th>Games Owned</th><th>Games Started</th><th>PPG</th></tr></thead>
-          <tbody>${spansRows}</tbody>
+          <tbody>${spanRows}</tbody>
         </table>
       </div>
       <p class="heatmap-note">Sorted oldest to newest. The same manager can appear more than once if they owned, lost, and later re-acquired this player.</p>
-    </div></div>`;
+    </div>
+    <div class="chart-tab-panel" data-chart-panel="cumulative" style="display:none;">
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile">
+          <thead><tr><th>Owner</th><th>Games Owned</th><th>Games Started</th><th>PPG</th></tr></thead>
+          <tbody>${cumulativeRows}</tbody>
+        </table>
+      </div>
+      <p class="heatmap-note">Every span for the same manager combined into one line, sorted by games owned.</p>
+    </div>`;
 }
 
 // "2021:05" (zero-padded week) so plain string comparison sorts
@@ -193,12 +271,17 @@ function buildSpanLookup(spans) {
 
 function renderCareerArc(player) {
   const t = player.totals;
+  const gamesFA = t.gamesFA || 0;
   return `
     <div class="chart-tabs">
-      <button type="button" class="chart-tab active" data-chart-tab="all">All (${t.gamesOwned})</button>
+      <button type="button" class="chart-tab active" data-chart-tab="owned">Owned (${t.gamesOwned})</button>
+      <button type="button" class="chart-tab" data-chart-tab="all">All (${t.gamesOwned + gamesFA})</button>
       <button type="button" class="chart-tab" data-chart-tab="starts">Starts (${t.gamesStarted})</button>
     </div>
-    <div class="chart-tab-panel" data-chart-panel="all">
+    <div class="chart-tab-panel" data-chart-panel="owned">
+      ${careerArcSvg(player, "owned")}
+    </div>
+    <div class="chart-tab-panel" data-chart-panel="all" style="display:none;">
       ${careerArcSvg(player, "all")}
     </div>
     <div class="chart-tab-panel" data-chart-panel="starts" style="display:none;">
@@ -209,6 +292,7 @@ function renderCareerArc(player) {
       <span><span class="career-arc-legend-dot hollow"></span>Benched</span>
       <span><span class="career-arc-legend-dot ring"></span>Career high</span>
       <span><span class="career-arc-legend-swatch"></span>Owner span</span>
+      <span><span class="career-arc-legend-swatch fa"></span>Free agent (All view only)</span>
     </div>`;
 }
 
@@ -238,8 +322,20 @@ function careerArcSvg(player, mode) {
     if (!ownerColors.has(s.ownerId)) ownerColors.set(s.ownerId, MULTI_LINE_COLORS[ownerColors.size % MULTI_LINE_COLORS.length]);
   });
 
-  const visible = weekly.map((w, i) => ({ ...w, i, span: findSpan(w.season, w.week) })).filter((w) => (mode === "starts" ? w.started : true));
-  if (!visible.length) return `<div class="empty-state">No starts on record yet.</div>`;
+  const visible = weekly
+    .map((w, i) => ({ ...w, i, span: findSpan(w.season, w.week) }))
+    .filter((w) => {
+      if (mode === "starts") return !!w.started;
+      // "owned" excludes FA weeks; "owned: undefined" (older cached
+      // data from before the FA feature existed) is treated as owned,
+      // matching what it always implicitly meant back then.
+      if (mode === "owned") return w.owned !== 0;
+      return true; // "all" -- owned and FA weeks both
+    });
+  if (!visible.length) {
+    const emptyMessage = mode === "starts" ? "No starts on record yet." : mode === "all" ? "No games on record yet." : "No owned games on record yet.";
+    return `<div class="empty-state">${emptyMessage}</div>`;
+  }
 
   const dataMax = Math.max(...weekly.map((w) => w.points));
   const yMax = Math.max(35, Math.ceil(dataMax / 5) * 5);
