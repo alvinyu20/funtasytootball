@@ -902,7 +902,7 @@ table.stat-table td.heat-cell {
   text-align: center;
   font-weight: 600;
   border-radius: 3px;
-  color: #1a1410;
+  color: var(--chalk);
 }
 table.stat-table td.heat-cell.empty {
   color: var(--chalk-dim);

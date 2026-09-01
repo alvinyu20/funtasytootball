@@ -235,6 +235,9 @@ function cumulativeOwnershipRows(spans) {
 }
 
 function renderOwnershipHistory(player) {
+  const spanPpgs = player.spans.map((s) => s.ppg);
+  const spanPpgMin = Math.min(...spanPpgs);
+  const spanPpgMax = Math.max(...spanPpgs);
   const spanRows = player.spans
     .map(
       (s) => `
@@ -243,19 +246,23 @@ function renderOwnershipHistory(player) {
       <td data-label="Span">${escapeHtml(formatSpanRange(s))}</td>
       <td data-label="Games Owned">${s.gamesOwned}</td>
       <td data-label="Games Started">${s.gamesStarted}</td>
-      <td data-label="PPG">${s.ppg.toFixed(1)}</td>
+      <td class="heat-cell" data-label="PPG" style="background:${heatColor(s.ppg, spanPpgMin, spanPpgMax)}">${s.ppg.toFixed(1)}</td>
     </tr>`
     )
     .join("");
 
-  const cumulativeRows = cumulativeOwnershipRows(player.spans)
+  const cumulative = cumulativeOwnershipRows(player.spans);
+  const cumulativePpgs = cumulative.map((agg) => agg.ppg);
+  const cumulativePpgMin = Math.min(...cumulativePpgs);
+  const cumulativePpgMax = Math.max(...cumulativePpgs);
+  const cumulativeRows = cumulative
     .map(
       (agg) => `
     <tr>
       <td class="team-cell" data-label="Owner">${escapeHtml(agg.ownerName)}</td>
       <td data-label="Games Owned">${agg.gamesOwned}</td>
       <td data-label="Games Started">${agg.gamesStarted}</td>
-      <td data-label="PPG">${agg.ppg.toFixed(1)}</td>
+      <td class="heat-cell" data-label="PPG" style="background:${heatColor(agg.ppg, cumulativePpgMin, cumulativePpgMax)}">${agg.ppg.toFixed(1)}</td>
     </tr>`
     )
     .join("");
@@ -272,7 +279,7 @@ function renderOwnershipHistory(player) {
           <tbody>${spanRows}</tbody>
         </table>
       </div>
-      <p class="heatmap-note">Sorted oldest to newest. The same manager can appear more than once if they owned, lost, and later re-acquired this player.</p>
+      <p class="heatmap-note">Sorted oldest to newest. The same manager can appear more than once if they owned, lost, and later re-acquired this player. PPG is colored relative to this player's own spans — green is their best, red is their worst.</p>
     </div>
     <div class="chart-tab-panel" data-chart-panel="cumulative" style="display:none;">
       <div class="heatmap-table-wrap stay-scrollable">
@@ -281,7 +288,7 @@ function renderOwnershipHistory(player) {
           <tbody>${cumulativeRows}</tbody>
         </table>
       </div>
-      <p class="heatmap-note">Every span for the same manager combined into one line, sorted by games owned.</p>
+      <p class="heatmap-note">Every span for the same manager combined into one line, sorted by games owned. PPG is colored relative to this player's own owners — green is their best, red is their worst.</p>
     </div>`;
 }
 

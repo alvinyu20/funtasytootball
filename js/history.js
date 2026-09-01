@@ -178,7 +178,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
         rings: rings.sort((a, b) => a.season - b.season),
         totalGamesStarted: rings.reduce((sum, r) => sum + r.gamesStarted, 0),
       }))
-      .sort((a, b) => b.rings.length - a.rings.length)
+      .sort((a, b) => b.rings.length - a.rings.length || b.totalGamesStarted - a.totalGamesStarted)
       .slice(0, 10);
 
     tbody.innerHTML = ranked.length

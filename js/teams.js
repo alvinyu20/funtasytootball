@@ -167,20 +167,24 @@ function renderManagerDetail(m) {
     .join("");
 
   function renderH2hRows(list) {
-    return list.length
-      ? list
-          .map((h) => {
-            const total = h.wins + h.losses + h.ties;
-            const pct = total ? ((h.wins / total) * 100).toFixed(0) : "0";
-            return `
+    if (!list.length) return "";
+    const pcts = list.map((h) => {
+      const total = h.wins + h.losses + h.ties;
+      return total ? (h.wins / total) * 100 : 0;
+    });
+    const min = Math.min(...pcts);
+    const max = Math.max(...pcts);
+    return list
+      .map((h, i) => {
+        const pct = pcts[i];
+        return `
         <tr>
           <td class="team-cell">${escapeHtml(h.opponentName)}</td>
           <td>${h.wins}-${h.losses}${h.ties ? "-" + h.ties : ""}</td>
-          <td>${pct}%</td>
+          <td class="heat-cell" style="background:${heatColor(pct, min, max)}">${pct.toFixed(0)}%</td>
         </tr>`;
-          })
-          .join("")
-      : "";
+      })
+      .join("");
   }
   const h2hRows = renderH2hRows(m.headToHead);
   const h2hPlayoffRows = renderH2hRows(m.headToHeadPlayoffs);
@@ -195,13 +199,21 @@ function renderManagerDetail(m) {
   // sections below, one dropdown per year, so someone comparing draft
   // picks across years isn't scrolling past a wall of unrelated stats
   // to get from one year to the next).
+  const rankValues = seasonsDesc.map((s) => s.rank);
+  const rankMin = Math.min(...rankValues);
+  const rankMax = Math.max(...rankValues);
   const seasonSummaryRows = seasonsDesc
     .map((s) => {
       const badge = s.isChampion ? " 🏆" : s.isRunnerUp ? " 🥈" : s.isThirdPlace ? " 🥉" : "";
+      // Rank is inverted from the usual "higher is better" heatmap
+      // convention -- a LOWER rank (1st place) is the good outcome, so
+      // the low/high colors are swapped to keep green meaning "good"
+      // rather than "numerically large" here.
+      const rankBg = heatColor(s.rank, rankMin, rankMax, "#5CB85C", "#E8C13D", "#D9534F");
       return `
       <tr>
         <td data-label="Year">${s.season}${badge}</td>
-        <td data-label="Rank">${s.rank}</td>
+        <td class="heat-cell" data-label="Rank" style="background:${rankBg}">${s.rank}</td>
         <td data-label="Record">${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}</td>
         <td data-label="PF">${s.fpts.toFixed(1)}</td>
         <td data-label="PA">${s.fptsAgainst.toFixed(1)}</td>
@@ -352,6 +364,7 @@ function renderManagerDetail(m) {
           <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th></tr></thead>
           <tbody>${h2hRows || `<tr><td colspan="3" class="empty-state">No matchups recorded yet.</td></tr>`}</tbody>
         </table>
+        ${h2hRows ? `<p class="heatmap-note">Green is your best matchup win rate, red is your worst.</p>` : ""}
       </div>
     </div>
 
@@ -366,6 +379,7 @@ function renderManagerDetail(m) {
           <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th></tr></thead>
           <tbody>${h2hPlayoffRows || `<tr><td colspan="3" class="empty-state">No playoff matchups recorded yet.</td></tr>`}</tbody>
         </table>
+        ${h2hPlayoffRows ? `<p class="heatmap-note">Green is your best matchup win rate, red is your worst.</p>` : ""}
       </div>
     </div>
 
@@ -382,6 +396,7 @@ function renderManagerDetail(m) {
             <tbody>${seasonSummaryRows}</tbody>
           </table>
         </div>
+        <p class="heatmap-note">Rank is colored relative to your own history here — green is your best finish, red is your worst.</p>
       </div>
     </div>
 

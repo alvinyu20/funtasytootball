@@ -407,3 +407,44 @@ test("pickRandomPlayerId: with several players, only ever returns a valid id fro
     assert.ok(["p2", "p3", "p4"].includes(picked));
   }
 });
+
+function heatCells(html) {
+  return [...html.matchAll(/<td class="heat-cell" data-label="PPG" style="background:(rgba\([^)]+\))">([\d.]+)</g)].map((m) => ({ color: m[1], ppg: m[2] }));
+}
+
+test("renderOwnershipHistory: By Span's PPG column is heat-colored relative to this player's own spans, best span green-ish and worst red-ish", () => {
+  const ctx = setup();
+  const html = ctx.renderOwnershipHistory(fakePlayer());
+  const bySpanSection = html.slice(html.indexOf('data-chart-panel="by-span"'), html.indexOf('data-chart-panel="cumulative"'));
+  const cells = heatCells(bySpanSection);
+  assert.strictEqual(cells.length, 3, "one per span");
+  const best = cells.find((c) => c.ppg === "30.0"); // yulovesyou's 2nd stint, the max in this fixture
+  const worst = cells.find((c) => c.ppg === "12.0"); // yulovesyou's 1st stint, the min
+  assert.ok(best && worst);
+  const [br, bg] = best.color.match(/[\d.]+/g).map(Number);
+  const [wr, wg] = worst.color.match(/[\d.]+/g).map(Number);
+  assert.ok(bg > br, "the highest-PPG span should be green-dominant");
+  assert.ok(wr > wg, "the lowest-PPG span should be red-dominant");
+});
+
+test("renderOwnershipHistory: Cumulative's PPG column is heat-colored independently, scaled to the combined per-owner totals, not the raw per-span values", () => {
+  const ctx = setup();
+  const html = ctx.renderOwnershipHistory(fakePlayer());
+  const cumulativeSection = html.slice(html.indexOf('data-chart-panel="cumulative"'));
+  const cells = heatCells(cumulativeSection);
+  assert.strictEqual(cells.length, 2, "one per distinct owner");
+  // yulovesyou combined: (36+30)/(3+1) = 16.5 -- the max here.
+  // hmart92: 51/4 = 12.75 -- the min here.
+  const yulo = cells.find((c) => c.ppg === "16.5");
+  assert.ok(yulo, "yulovesyou's combined 16.5 PPG should be present");
+  const [yr, yg] = yulo.color.match(/[\d.]+/g).map(Number);
+  assert.ok(yg > yr, "yulovesyou (the higher combined PPG) should be green-dominant");
+});
+
+test("renderOwnershipHistory: heat-cell colors on both PPG columns use a muted rgba alpha, matching the see-through heatmap style everywhere else", () => {
+  const ctx = setup();
+  const html = ctx.renderOwnershipHistory(fakePlayer());
+  const cells = heatCells(html);
+  assert.ok(cells.length >= 5, "3 by-span + 2 cumulative rows");
+  cells.forEach((c) => assert.match(c.color, /^rgba\(\d+, \d+, \d+, 0\.\d+\)$/));
+});

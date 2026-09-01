@@ -296,7 +296,7 @@ function renderPositionTable(positionTable) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="heatmap-note">Each column is colored independently — gold is that column's best, rust is its worst.</p>`;
+    <p class="heatmap-note">Each column is colored independently — green is that column's best, red is its worst.</p>`;
 }
 
 function renderFaabList(items, isTotal) {

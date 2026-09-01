@@ -45,12 +45,19 @@ function interpolateColor(hexLow, hexHigh, t) {
 // Maps a value to a color scaled to that value's own min/max range — used
 // so each heatmap column is standardized independently rather than
 // against a single shared scale. Three-stop gradient: red (low) through
-// yellow (middle) to green (high).
-function heatColor(value, min, max, lowHex = "#D9534F", midHex = "#E8C13D", highHex = "#5CB85C") {
-  if (max === min) return midHex;
+// yellow (middle) to green (high). Returns rgba with a low alpha
+// (rather than opaque rgb) so it reads as a soft background tint
+// against the site's dark theme rather than a hard block of color —
+// alpha only affects the fill, never the cell's own text.
+function heatColor(value, min, max, lowHex = "#D9534F", midHex = "#E8C13D", highHex = "#5CB85C", alpha = 0.38) {
+  const toRgba = (hex) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  };
+  if (max === min) return toRgba(midHex);
   const t = (value - min) / (max - min);
-  if (t <= 0.5) return interpolateColor(lowHex, midHex, t / 0.5);
-  return interpolateColor(midHex, highHex, (t - 0.5) / 0.5);
+  const rgb = t <= 0.5 ? interpolateColor(lowHex, midHex, t / 0.5) : interpolateColor(midHex, highHex, (t - 0.5) / 0.5);
+  return rgb.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
 }
 
 // Formats a "Luck" percentage (actual win% minus overall/all-play win%)
