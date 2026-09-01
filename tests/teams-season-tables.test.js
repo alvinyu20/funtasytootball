@@ -95,8 +95,31 @@ test("renderManagerDetail: Season By Season, Draft Picks, and Most Common Lineup
   assert.ok(html.includes('<span class="label">Most Common Lineup</span>'));
 
   const seasonSection = section(html, "Season By Season");
-  assert.ok(!seasonSection.includes("<table"), "the Season By Season section should be pure stat cards, no nested draft/lineup tables");
-  assert.ok(!seasonSection.includes("<details"), "the Season By Season section should have no dropdowns at all now");
+  assert.ok(!seasonSection.includes("<details"), "Season By Season itself should have no per-year dropdowns -- those live in the other two sections");
+});
+
+test("renderManagerDetail: Season By Season is a single table with Year as its own column, one row per season -- not a separate card per year", () => {
+  const ctx = setup();
+  const html = ctx.renderManagerDetail(fakeManager());
+  const seasonSection = section(html, "Season By Season");
+
+  assert.match(seasonSection.split("</thead>")[0], /<th>Year<\/th>/);
+  const tableCount = (seasonSection.match(/<table class="stat-table compact-mobile">/g) || []).length;
+  assert.strictEqual(tableCount, 1, "should be exactly one table, not one per year");
+  const rowCount = (seasonSection.match(/<tr>\s*<td data-label="Year">/g) || []).length;
+  assert.strictEqual(rowCount, 2, "one row for 2023, one row for 2022");
+});
+
+test("renderManagerDetail: Season By Season's Year column shows the trophy for a championship season inline, and PF/PA/Overall/Luck/Record for both", () => {
+  const ctx = setup();
+  const html = ctx.renderManagerDetail(fakeManager());
+  const seasonSection = section(html, "Season By Season");
+
+  assert.ok(seasonSection.includes("2023 🏆"), "the championship season's year cell should include the trophy");
+  assert.ok(!seasonSection.includes("2022 🏆"), "a non-championship season's year cell should not");
+  assert.ok(seasonSection.includes("11-2"), "2023's record");
+  assert.ok(seasonSection.includes("1489.9"), "2023's PF");
+  assert.ok(seasonSection.includes("78-39"), "2023's overall record");
 });
 
 test("renderManagerDetail: Draft Picks section has one dropdown per year, each with that year's own table", () => {

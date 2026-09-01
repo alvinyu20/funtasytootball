@@ -197,26 +197,17 @@ function renderManagerDetail(m) {
   // to get from one year to the next).
   const seasonSummaryRows = seasonsDesc
     .map((s) => {
-      const badge = s.isChampion ? "🏆 Champion" : s.isRunnerUp ? "🥈 Runner-up" : s.isThirdPlace ? "🥉 3rd Place" : "";
+      const badge = s.isChampion ? " 🏆" : s.isRunnerUp ? " 🥈" : s.isThirdPlace ? " 🥉" : "";
       return `
-        <div class="season-card">
-          <div class="season-card-header">
-            <span class="season-card-year">${s.season}</span>
-            ${badge ? `<span class="season-card-result">${badge}</span>` : ""}
-          </div>
-          <div class="season-card-stats">
-            <div class="season-stat"><span class="season-stat-label">Rank</span><span class="season-stat-value">${s.rank}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Record</span><span class="season-stat-value">${s.wins}-${s.losses}${
-        s.ties ? "-" + s.ties : ""
-      }</span></div>
-            <div class="season-stat"><span class="season-stat-label">PF</span><span class="season-stat-value">${s.fpts.toFixed(1)}</span></div>
-            <div class="season-stat"><span class="season-stat-label">PA</span><span class="season-stat-value">${s.fptsAgainst.toFixed(1)}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Overall</span><span class="season-stat-value">${s.overallWins}-${
-        s.overallLosses
-      }${s.overallTies ? "-" + s.overallTies : ""}</span></div>
-            <div class="season-stat"><span class="season-stat-label">Luck</span><span class="season-stat-value">${s.luckPct != null ? luckBadge(s.luckPct) : "—"}</span></div>
-          </div>
-        </div>`;
+      <tr>
+        <td data-label="Year">${s.season}${badge}</td>
+        <td data-label="Rank">${s.rank}</td>
+        <td data-label="Record">${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}</td>
+        <td data-label="PF">${s.fpts.toFixed(1)}</td>
+        <td data-label="PA">${s.fptsAgainst.toFixed(1)}</td>
+        <td data-label="Overall">${s.overallWins}-${s.overallLosses}${s.overallTies ? "-" + s.overallTies : ""}</td>
+        <td data-label="Luck">${s.luckPct != null ? luckBadge(s.luckPct) : "—"}</td>
+      </tr>`;
     })
     .join("");
 
@@ -385,7 +376,12 @@ function renderManagerDetail(m) {
     </div>
     <div class="wrap">
       <div class="panel">
-        <div class="season-cards">${seasonSummaryRows}</div>
+        <div class="heatmap-table-wrap stay-scrollable">
+          <table class="stat-table compact-mobile">
+            <thead><tr><th>Year</th><th>Rank</th><th>Record</th><th>PF</th><th>PA</th><th>Overall</th><th>Luck</th></tr></thead>
+            <tbody>${seasonSummaryRows}</tbody>
+          </table>
+        </div>
       </div>
     </div>
 

@@ -86,7 +86,7 @@ function buildDraftBoard(season) {
   const withoutRound1 = managersWithPicks.filter((m) => !round1UserIds.has(m.userId));
   const columns = [...withRound1, ...withoutRound1];
 
-  const allPicks = managersWithPicks.flatMap((m) => m.picks);
+  const allPicks = managersWithPicks.flatMap((m) => m.picks.map((p) => ({ ...p, ownerUsername: m.username || m.teamName })));
   const maxRound = Math.max(1, ...allPicks.map((p) => p.round || 1));
   const rounds = [];
   for (let r = 1; r <= maxRound; r++) {
@@ -101,6 +101,50 @@ function buildDraftBoard(season) {
 function posClassFor(position) {
   const known = ["QB", "RB", "WR", "TE", "K", "DEF"];
   return `pos-${(known.includes(position) ? position : "other").toLowerCase()}`;
+}
+
+// Best 5 picks of the draft board, ranked by letter grade first (S
+// before A before B, ...) and then by VBD as a tiebreaker within the
+// same grade, since a whole handful of picks commonly share a grade.
+// Ungraded picks (no player points on record, or graded on too few
+// picks league-wide to mean anything) are excluded rather than sorting
+// to the bottom, since an ungraded pick isn't a "worse" pick, just an
+// unranked one.
+function topPicksForBoard(board) {
+  return [...board.allPicks]
+    .filter((p) => p.grade)
+    .sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || (b.vbd || 0) - (a.vbd || 0))
+    .slice(0, 5);
+}
+
+function renderTopPicks(picks) {
+  if (!picks.length) return "";
+  const rows = picks
+    .map(
+      (p) => `
+    <tr>
+      <td data-label="Pick">${p.round}.${p.pickInRound}</td>
+      <td class="team-cell player-cell" data-label="Player">${playerPhotoHtml(p.playerId, p.player, "player-photo-xs")}<span>${escapeHtml(p.player)}${
+        p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
+      }</span></td>
+      <td data-label="Drafted By">${escapeHtml(p.ownerUsername)}</td>
+      <td data-label="Grade">${gradeBadgeHtml(p.grade)}</td>
+      <td data-label="Points">${p.points.toFixed(1)} pts${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</td>
+    </tr>`
+    )
+    .join("");
+  return `
+    <div class="wrap">
+      <div class="panel">
+        <h2>Top 5 Picks</h2>
+        <div class="heatmap-table-wrap stay-scrollable">
+          <table class="stat-table compact-mobile">
+            <thead><tr><th>Pick</th><th>Player</th><th>Drafted By</th><th>Grade</th><th>Points</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderDraftCell(pick) {
@@ -154,6 +198,7 @@ function renderSelectedDraft() {
         <span class="draft-legend-item"><span class="draft-cell-a-grade-sample"></span>A grade</span>
       </div>
     </div>
+    ${renderTopPicks(topPicksForBoard(board))}
     <div class="wrap-wide">${renderDraftBoardTable(board)}</div>`;
 
   initScrollAnimations();

@@ -236,6 +236,17 @@ test("renderCareerArc: Owned, All, and Starts tab panels are all present, with t
   assert.ok(html.includes('data-chart-panel="starts"'));
 });
 
+test("renderCareerArc: the All tab is active by default, not Owned", () => {
+  const ctx = setup();
+  const html = ctx.renderCareerArc(fakePlayer());
+  assert.ok(html.includes('class="chart-tab active" data-chart-tab="all"'), "the All button should carry the active class");
+  assert.ok(html.includes('class="chart-tab" data-chart-tab="owned"'), "the Owned button should NOT be active");
+  const allPanel = html.slice(html.indexOf('data-chart-panel="all"'));
+  assert.ok(!allPanel.slice(0, 40).includes("display:none"), "the All panel should be visible by default");
+  const ownedPanel = html.slice(html.indexOf('data-chart-panel="owned"'), html.indexOf('data-chart-panel="all"'));
+  assert.ok(ownedPanel.includes("display:none"), "the Owned panel should be hidden by default");
+});
+
 function fakePlayerWithFA() {
   const player = fakePlayer();
   // Insert two free-agent weeks into the existing owned timeline: one
@@ -273,19 +284,36 @@ test("careerArcSvg: 'owned' mode excludes free-agent weeks entirely", () => {
   assert.ok(dotCount < allDotCount, "'owned' should plot fewer points than 'all', since it excludes the 2 FA weeks");
 });
 
-test("careerArcSvg: 'all' mode plots free-agent weeks with an 'UNOWNED' band label, distinct from any real owner's band", () => {
+test("careerArcSvg: 'all' mode plots free-agent stretches with a neutral gray band, but no 'UNOWNED' text label", () => {
   const ctx = setup();
   const svg = ctx.careerArcSvg(fakePlayerWithFA(), "all");
-  assert.ok(svg.includes("UNOWNED"), "a stretch with no owning span should be labeled as unowned, not attributed to any manager");
+  assert.ok(!svg.includes("UNOWNED"), "no text should be printed for an unowned stretch -- the legend already explains the gray band");
+  assert.ok(svg.includes('fill="#5A5A52" opacity="0.12"'), "the neutral gray band itself should still render, just without a text label");
 });
 
-test("careerArcSvg: 'starts' mode still excludes free-agent weeks too, since a player can't be 'started' by nobody", () => {
+test("careerArcSvg: two consecutive narrow bands with long owner names get staggered onto different vertical positions", () => {
   const ctx = setup();
-  const svg = ctx.careerArcSvg(fakePlayerWithFA(), "starts");
-  // Both FA weeks in the fixture have started:0, so they'd already be
-  // excluded by the started filter alone -- this just confirms the
-  // 'starts' branch doesn't accidentally use the "all" pass-through.
-  assert.ok(!svg.includes("UNOWNED"), "no unowned band should appear on the Starts view");
+  // A 14-week filler span first, so the chart has enough total points
+  // that individual 1-week bands are actually narrow -- with only 2-3
+  // points total, the whole plot width goes into a single step and
+  // nothing is ever cramped, regardless of label length.
+  const fillerWeeks = Array.from({ length: 14 }, (_, i) => ({ season: "2020", week: i + 1, points: 10, started: 1, owned: 1 }));
+  const player = {
+    name: "Test Player",
+    position: "RB",
+    spans: [
+      { ownerId: "u0", ownerName: "Filler", startSeason: "2020", startWeek: 1, endSeason: "2020", endWeek: 14, gamesOwned: 14, gamesStarted: 14, gamesPlayed: 14, totalPoints: 140, ppg: 10 },
+      { ownerId: "u1", ownerName: "AVeryLongUsernameIndeed", startSeason: "2021", startWeek: 1, endSeason: "2021", endWeek: 1, gamesOwned: 1, gamesStarted: 1, gamesPlayed: 1, totalPoints: 10, ppg: 10 },
+      { ownerId: "u2", ownerName: "AnotherVeryLongUsernameToo", startSeason: "2021", startWeek: 2, endSeason: "2021", endWeek: 2, gamesOwned: 1, gamesStarted: 1, gamesPlayed: 1, totalPoints: 12, ppg: 12 },
+    ],
+    careerHigh: null,
+    totals: { owners: 3, gamesOwned: 16, gamesStarted: 16, gamesBenched: 0, gamesFA: 0, gamesPlayed: 16, totalPoints: 162, ppg: 10.1 },
+    weekly: [...fillerWeeks, { season: "2021", week: 1, points: 10, started: 1, owned: 1 }, { season: "2021", week: 2, points: 12, started: 1, owned: 1 }],
+  };
+  const svg = ctx.careerArcSvg(player, "owned");
+  const yValues = [...svg.matchAll(/<text x="[\d.]+" y="(\d+)" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="600"/g)].map((m) => m[1]);
+  assert.strictEqual(yValues.length, 3, "the filler band plus both single-week bands should each get a label");
+  assert.notStrictEqual(yValues[1], yValues[2], "the two consecutive cramped labels should be staggered onto different Y positions, not overlap");
 });
 
 test("careerArcSvg: an older cached player with no `owned` field at all on its weekly entries is treated as fully owned, not silently emptied out", () => {
@@ -350,4 +378,32 @@ test("careerArcSvg: the first and last owner bands never extend past the chart's
     rectXs.every((x) => x >= 44),
     `no band should start left of the plot area's left edge (padL=44) — found: ${rectXs}`
   );
+});
+
+test("pickRandomPlayerId: returns null when the index is empty", () => {
+  const ctx = setup();
+  assert.strictEqual(ctx.pickRandomPlayerId({}, ""), null);
+  assert.strictEqual(ctx.pickRandomPlayerId(null, ""), null);
+});
+
+test("pickRandomPlayerId: returns the only id when there's exactly one player, even if it matches currentId", () => {
+  const ctx = setup();
+  assert.strictEqual(ctx.pickRandomPlayerId({ "4046": {} }, "4046"), "4046");
+});
+
+test("pickRandomPlayerId: with 2+ players, never returns the same id as currentId, across many trials", () => {
+  const ctx = setup();
+  const index = { p1: {}, p2: {} };
+  for (let i = 0; i < 50; i++) {
+    assert.strictEqual(ctx.pickRandomPlayerId(index, "p1"), "p2", "with only 2 players, landing on p1 again should be impossible");
+  }
+});
+
+test("pickRandomPlayerId: with several players, only ever returns a valid id from the index", () => {
+  const ctx = setup();
+  const index = { p1: {}, p2: {}, p3: {}, p4: {} };
+  for (let i = 0; i < 30; i++) {
+    const picked = ctx.pickRandomPlayerId(index, "p1");
+    assert.ok(["p2", "p3", "p4"].includes(picked));
+  }
 });

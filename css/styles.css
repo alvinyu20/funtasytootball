@@ -614,57 +614,6 @@ details.record-card-expandable.top5[open] summary::after { content: "▴ hide to
 /* ==========================================================================
    DRAFT PICKS DISCLOSURE
    ========================================================================== */
-.season-cards { display: flex; flex-direction: column; gap: 14px; }
-.season-card {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--turf-line);
-  border-radius: 8px;
-  padding: 16px 18px;
-}
-.season-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-.season-card-year {
-  font-family: var(--font-display); font-weight: var(--font-display-weight);
-  font-size: 20px;
-  color: var(--chalk-header);
-  text-transform: uppercase;
-}
-.season-card-result {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  color: var(--gold);
-  background: rgba(232, 178, 61, 0.1);
-  border: 1px solid rgba(232, 178, 61, 0.3);
-  border-radius: 20px;
-  padding: 4px 10px;
-  white-space: nowrap;
-}
-.season-card-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(74px, 1fr));
-  gap: 12px 14px;
-}
-.season-stat { display: flex; flex-direction: column; gap: 3px; }
-.season-stat-label {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--chalk-dim);
-}
-.season-stat-value {
-  font-family: var(--font-mono);
-  font-size: 15px;
-  color: var(--chalk);
-  font-variant-numeric: tabular-nums;
-}
 
 details.draft-details {
   margin-top: 8px;
@@ -731,7 +680,21 @@ details.draft-details[open] summary::before { content: "▾ "; }
 /* ==========================================================================
    NFL PLAYER PAGE
    ========================================================================== */
-.player-search-wrap { position: relative; max-width: 420px; margin-top: 16px; }
+.player-search-row { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.player-search-wrap { position: relative; max-width: 420px; flex: 1 1 320px; margin-bottom: 20px; }
+.player-random-btn {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--turf-line);
+  background: transparent;
+  color: var(--chalk-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.player-random-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
 .player-search-input {
   width: 100%;
   background: var(--turf-mid);

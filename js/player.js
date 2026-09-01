@@ -18,6 +18,7 @@ async function renderPlayers() {
       : "No player data yet — run scripts/build-player-index.js to generate it.";
 
     initPlayerSearch();
+    initRandomPlayerButton();
     renderFromHash();
     window.addEventListener("hashchange", renderFromHash);
   } catch (err) {
@@ -26,6 +27,38 @@ async function renderPlayers() {
     errorBox.textContent = "Couldn't load player data — " + err.message;
     errorBox.style.display = "block";
   }
+}
+
+function initRandomPlayerButton() {
+  const btn = document.getElementById("player-random-btn");
+  btn.addEventListener("click", () => {
+    const currentId = decodeURIComponent(location.hash.replace(/^#/, ""));
+    const randomId = pickRandomPlayerId(PLAYER_INDEX, currentId);
+    if (!randomId) return; // no data loaded yet (or none on record) -- nothing to jump to
+    if (`#${encodeURIComponent(randomId)}` === location.hash) {
+      // Only reachable when there's exactly one player total (the only
+      // case pickRandomPlayerId can't avoid repeating) -- hashchange
+      // wouldn't fire for setting the hash to what it already is.
+      renderFromHash();
+    } else {
+      location.hash = encodeURIComponent(randomId);
+    }
+  });
+}
+
+// Picks a random player id from the index. When there's more than one
+// player on record, deliberately never returns currentId — landing on
+// the SAME player you're already viewing would make a repeat click
+// feel like the button silently did nothing.
+function pickRandomPlayerId(index, currentId) {
+  const ids = Object.keys(index || {});
+  if (!ids.length) return null;
+  if (ids.length === 1) return ids[0];
+  let randomId = currentId;
+  while (randomId === currentId) {
+    randomId = ids[Math.floor(Math.random() * ids.length)];
+  }
+  return randomId;
 }
 
 // How well a player's name matches a search query, low number = best
@@ -274,14 +307,14 @@ function renderCareerArc(player) {
   const gamesFA = t.gamesFA || 0;
   return `
     <div class="chart-tabs">
-      <button type="button" class="chart-tab active" data-chart-tab="owned">Owned (${t.gamesOwned})</button>
-      <button type="button" class="chart-tab" data-chart-tab="all">All (${t.gamesOwned + gamesFA})</button>
+      <button type="button" class="chart-tab" data-chart-tab="owned">Owned (${t.gamesOwned})</button>
+      <button type="button" class="chart-tab active" data-chart-tab="all">All (${t.gamesOwned + gamesFA})</button>
       <button type="button" class="chart-tab" data-chart-tab="starts">Starts (${t.gamesStarted})</button>
     </div>
-    <div class="chart-tab-panel" data-chart-panel="owned">
+    <div class="chart-tab-panel" data-chart-panel="owned" style="display:none;">
       ${careerArcSvg(player, "owned")}
     </div>
-    <div class="chart-tab-panel" data-chart-panel="all" style="display:none;">
+    <div class="chart-tab-panel" data-chart-panel="all">
       ${careerArcSvg(player, "all")}
     </div>
     <div class="chart-tab-panel" data-chart-panel="starts" style="display:none;">
@@ -365,6 +398,7 @@ function careerArcSvg(player, mode) {
   // half-step math.
   let bandsHtml = "";
   let cursor = 0;
+  let crampedCount = 0;
   while (cursor < visible.length) {
     const span = visible[cursor].span;
     let end = cursor;
@@ -373,11 +407,28 @@ function careerArcSvg(player, mode) {
     const x1 = Math.min(W - padR, x(end) + step / 2);
     const bandW = x1 - x0;
     const color = span ? ownerColors.get(span.ownerId) : "#5A5A52";
-    const label = span ? span.ownerName : "Unowned";
     bandsHtml += `<rect x="${x0.toFixed(1)}" y="${padT}" width="${bandW.toFixed(1)}" height="${innerH}" fill="${color}" opacity="0.12"></rect>`;
-    bandsHtml += `<text x="${(x0 + 6).toFixed(1)}" y="${padT + 15}" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="600" fill="${color}">${escapeHtml(
-      label.toUpperCase()
-    )}</text>`;
+    // A free-agent stretch keeps the neutral gray band but gets no text
+    // label at all -- the legend already explains what an unlabeled
+    // gray band means, and a career with several such stretches would
+    // otherwise print "UNOWNED" repeatedly, adding noise rather than
+    // information.
+    if (span) {
+      const label = span.ownerName.toUpperCase();
+      // The chart's labels use a monospace font (10px IBM Plex Mono),
+      // so character count is a reliable stand-in for rendered width --
+      // ~6.2px/char is the standard ratio for that pairing. When a
+      // band's too narrow for its own label, alternate that label's
+      // vertical position among the other cramped ones, so two short
+      // consecutive spans (a player bouncing between rosters) don't
+      // print their names directly on top of each other.
+      const isCramped = label.length * 6.2 + 12 > bandW;
+      const labelY = isCramped && crampedCount % 2 === 1 ? padT + 27 : padT + 15;
+      if (isCramped) crampedCount++;
+      bandsHtml += `<text x="${(x0 + 6).toFixed(1)}" y="${labelY}" font-family="IBM Plex Mono, monospace" font-size="10" font-weight="600" fill="${color}">${escapeHtml(
+        label
+      )}</text>`;
+    }
     cursor = end + 1;
   }
 
