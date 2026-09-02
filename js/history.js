@@ -191,7 +191,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
         <td class="team-cell player-cell" data-label="Player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.name))}</span></td>
         <td data-label="Rings">${p.rings.length}</td>
         <td data-label="Games Started">${p.totalGamesStarted}</td>
-        <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${r.ownerId ? `<a href="teams.html#${encodeURIComponent(r.ownerId)}">${escapeHtml(r.ownerName)}</a>` : escapeHtml(r.ownerName)})`).join(", ")}</td>
+        <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${r.ownerId ? `<a href="teams.html#${encodeURIComponent(r.ownerId)}" class="subtle-link">${escapeHtml(r.ownerName)}</a>` : escapeHtml(r.ownerName)})`).join(", ")}</td>
       </tr>`
           )
           .join("")
@@ -232,7 +232,7 @@ function renderCareerTable() {
           (m, i) => `
       <tr>
         <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell" data-label="Owner">${m.userId ? `<a href="teams.html#${encodeURIComponent(m.userId)}">${escapeHtml(m.name)}</a>` : escapeHtml(m.name)}</td>
+        <td class="team-cell" data-label="Owner">${m.userId ? `<a href="teams.html#${encodeURIComponent(m.userId)}" class="subtle-link">${escapeHtml(m.name)}</a>` : escapeHtml(m.name)}</td>
         <td data-label="Gold">${m.gold || "—"}</td>
         <td data-label="Silver">${m.silver || "—"}</td>
         <td data-label="Bronze">${m.bronze || "—"}</td>

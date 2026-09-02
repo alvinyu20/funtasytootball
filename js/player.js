@@ -172,7 +172,11 @@ function renderPlayerDetail(playerId, player) {
     <div class="player-stat-strip">
       <div class="player-stat-card"><div class="player-stat-value gold">${t.owners}</div><div class="player-stat-label">owner${t.owners === 1 ? "" : "s"}</div></div>
       <div class="player-stat-card"><div class="player-stat-value">${t.gamesOwned}</div><div class="player-stat-label">games rostered</div></div>
-      <div class="player-stat-card"><div class="player-stat-value">${t.gamesStarted} / ${t.gamesBenched} / ${t.gamesFA || 0}</div><div class="player-stat-label">started / benched / FA</div></div>
+      <div class="player-stat-card player-stat-card-split">
+        <div class="player-stat-split-row"><span class="player-stat-split-value">${t.gamesStarted}</span><span class="player-stat-split-label">Started</span></div>
+        <div class="player-stat-split-row"><span class="player-stat-split-value">${t.gamesBenched}</span><span class="player-stat-split-label">Benched</span></div>
+        <div class="player-stat-split-row"><span class="player-stat-split-value">${t.gamesFA || 0}</span><span class="player-stat-split-label">FA</span></div>
+      </div>
       <div class="player-stat-card"><div class="player-stat-value">${t.totalPoints.toFixed(1)}</div><div class="player-stat-label">total points</div></div>
       <div class="player-stat-card"><div class="player-stat-value">${t.ppg.toFixed(1)}</div><div class="player-stat-label">career ppg</div></div>
     </div>
@@ -274,8 +278,8 @@ function renderOwnershipHistory(player) {
     </div>
     <div class="chart-tab-panel" data-chart-panel="by-span">
       <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile">
-          <thead><tr><th>Owner</th><th>Span</th><th>Games Owned</th><th>Games Started</th><th>PPG</th></tr></thead>
+        <table class="stat-table compact-mobile ownership-table">
+          <thead><tr><th>Owner</th><th>Span</th><th><span class="full-label">Games Owned</span><span class="short-label">Owned</span></th><th><span class="full-label">Games Started</span><span class="short-label">Started</span></th><th>PPG</th></tr></thead>
           <tbody>${spanRows}</tbody>
         </table>
       </div>
@@ -283,8 +287,8 @@ function renderOwnershipHistory(player) {
     </div>
     <div class="chart-tab-panel" data-chart-panel="cumulative" style="display:none;">
       <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile">
-          <thead><tr><th>Owner</th><th>Games Owned</th><th>Games Started</th><th>PPG</th></tr></thead>
+        <table class="stat-table compact-mobile ownership-table">
+          <thead><tr><th>Owner</th><th><span class="full-label">Games Owned</span><span class="short-label">Owned</span></th><th><span class="full-label">Games Started</span><span class="short-label">Started</span></th><th>PPG</th></tr></thead>
           <tbody>${cumulativeRows}</tbody>
         </table>
       </div>
@@ -383,13 +387,28 @@ function careerArcSvg(player, mode) {
     padR = 20,
     padT = 34,
     padB = 26,
-    W = 1000,
     H = 316;
+  // The chart's width is driven by how many points there are, not
+  // squeezed to fit whatever container it's in — a long career on a
+  // narrow phone screen used to mean every dot, band label, and axis
+  // tick shrank down together until they were illegible. Instead, each
+  // point gets a fixed, always-legible amount of space; a career long
+  // enough to need more room than the panel has just becomes wider
+  // than it, and the wrapping div (see below) lets that be explored by
+  // scrolling sideways rather than shrinking to fit. The 700 floor
+  // matches roughly what a short career already filled comfortably, so
+  // this doesn't change anything for the common case.
+  const minPxPerPoint = 32;
+  const W = Math.max(700, padL + padR + (visible.length - 1) * minPxPerPoint);
   const innerW = W - padL - padR,
     innerH = H - padT - padB;
   const step = visible.length > 1 ? innerW / (visible.length - 1) : 0;
   const x = (i) => padL + i * step;
   const y = (v) => padT + innerH - (v / yMax) * innerH;
+  // Only worth telling someone to scroll when the chart could plausibly
+  // be wider than a typical phone screen -- a short career already
+  // fits comfortably and doesn't need the hint.
+  const isPannable = visible.length > 12;
 
   // Bands are computed against the currently-VISIBLE (filtered)
   // sequence, so switching to "Starts" naturally narrows — or, for a
@@ -479,16 +498,19 @@ function careerArcSvg(player, mode) {
   });
 
   return `
-    <div class="career-arc-wrap">
-      <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMin meet" role="img">
-        <title>${escapeHtml(player.name)}'s career scoring arc</title>
-        ${bandsHtml}
-        ${gridHtml}
-        ${xAxisHtml}
-        <path fill="none" stroke="#EDEAE0" stroke-width="1.5" opacity="0.6" d="${linePath}"></path>
-        ${dotsHtml}
-      </svg>
-    </div>`;
+    <div class="career-arc-scroll">
+      <div class="career-arc-wrap" style="min-width:${W}px;">
+        <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="xMinYMin meet" role="img">
+          <title>${escapeHtml(player.name)}'s career scoring arc</title>
+          ${bandsHtml}
+          ${gridHtml}
+          ${xAxisHtml}
+          <path fill="none" stroke="#EDEAE0" stroke-width="1.5" opacity="0.6" d="${linePath}"></path>
+          ${dotsHtml}
+        </svg>
+      </div>
+    </div>
+    ${isPannable ? `<div class="career-arc-swipe-hint">← Swipe to explore the full career →</div>` : ""}`;
 }
 
 document.addEventListener("DOMContentLoaded", renderPlayers);

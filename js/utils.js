@@ -96,7 +96,7 @@ function playerPhotoHtml(playerId, playerName, sizeClass) {
 // rather than ever producing a link to nowhere.
 function playerLinkHtml(playerId, innerHtml) {
   if (!playerId) return innerHtml;
-  return `<a href="player.html#${encodeURIComponent(playerId)}" class="player-link">${innerHtml}</a>`;
+  return `<a href="player.html#${encodeURIComponent(playerId)}" class="subtle-link">${innerHtml}</a>`;
 }
 
 // A round manager/team avatar with the same graceful initial-letter

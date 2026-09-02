@@ -46,11 +46,11 @@ body {
 }
 
 a { color: var(--gold); }
-.player-link {
+.subtle-link {
   color: inherit;
   text-decoration: none;
 }
-.player-link:hover {
+.subtle-link:hover {
   text-decoration: underline;
   text-decoration-color: var(--gold-dim);
 }
@@ -749,6 +749,10 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .player-stat-value { font-family: var(--font-mono); font-size: 20px; color: var(--chalk); }
 .player-stat-value.gold { color: var(--gold); }
 .player-stat-label { font-family: var(--font-body); font-size: 11px; color: var(--chalk-dim); margin-top: 2px; }
+.player-stat-card-split { display: flex; flex-direction: column; gap: 4px; justify-content: center; }
+.player-stat-split-row { display: flex; align-items: baseline; gap: 6px; }
+.player-stat-split-value { font-family: var(--font-mono); font-size: 14px; color: var(--chalk); min-width: 16px; }
+.player-stat-split-label { font-family: var(--font-body); font-size: 11px; color: var(--chalk-dim); }
 
 .player-high-callout {
   background: var(--turf-mid);
@@ -766,6 +770,27 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .player-high-value { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 28px; color: var(--chalk); flex-shrink: 0; }
 
 .career-arc-wrap { width: 100%; }
+.career-arc-scroll { overflow-x: auto; }
+.career-arc-swipe-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: center;
+  color: var(--chalk-dim);
+  margin-top: 6px;
+}
+/* Ownership History tables: the Owner column stays put while the rest
+   of the row scrolls underneath it, so scrolling right to see PPG
+   doesn't cost you the context of which row you're even looking at.
+   Needs an explicit background since sticky cells sit above whatever
+   scrolls past beneath them, not behind it. */
+.ownership-table th:first-child,
+.ownership-table td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--turf-mid);
+  z-index: 1;
+}
+.ownership-table .short-label { display: none; }
 .career-arc-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
 .career-arc-legend span { display: flex; align-items: center; gap: 5px; font-family: var(--font-body); font-size: 11px; color: var(--chalk-dim); }
 .career-arc-legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
@@ -1799,6 +1824,15 @@ table.stat-table td.playoff-cutoff-label {
   .trade-item-list { font-size: 12px; }
   .matchup .name { font-size: 12px; }
   .matchup .pts { font-size: 14px; }
+  /* Player page: the Career High callout's value sits at a fixed
+     width next to the label/detail text (font-size unchanged so it
+     stays readable) -- on a narrow screen there isn't room left for
+     both side by side without the text getting squeezed, especially
+     against a long username. Stacking the value below instead gives
+     the text its own full-width line to wrap normally. */
+  .player-high-callout { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .ownership-table .full-label { display: none; }
+  .ownership-table .short-label { display: inline; }
 }
 
 /* ==========================================================================

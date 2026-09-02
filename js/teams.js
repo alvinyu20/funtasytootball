@@ -188,7 +188,7 @@ function renderManagerDetail(m) {
         const pct = pcts[i];
         return `
         <tr>
-          <td class="team-cell"><a href="rivalries.html#${encodeURIComponent(m.userId)}-vs-${encodeURIComponent(h.opponentUserId)}">${escapeHtml(h.opponentName)}</a></td>
+          <td class="team-cell"><a href="rivalries.html#${encodeURIComponent(m.userId)}-vs-${encodeURIComponent(h.opponentUserId)}" class="subtle-link">${escapeHtml(h.opponentName)}</a></td>
           <td>${h.wins}-${h.losses}${h.ties ? "-" + h.ties : ""}</td>
           <td class="heat-cell" style="background:${heatColor(pct, min, max)}">${pct.toFixed(0)}%</td>
         </tr>`;

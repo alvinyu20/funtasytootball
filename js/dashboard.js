@@ -92,7 +92,7 @@ function renderStandingsTable(standings, teamStrength, playoffTeams) {
       const row = `
       <tr>
         <td class="rank">${i + 1}</td>
-        <td class="team-cell">${t.userId ? `<a href="teams.html#${encodeURIComponent(t.userId)}">${escapeHtml(t.teamName)}</a>` : escapeHtml(t.teamName)}</td>
+        <td class="team-cell">${t.userId ? `<a href="teams.html#${encodeURIComponent(t.userId)}" class="subtle-link">${escapeHtml(t.teamName)}</a>` : escapeHtml(t.teamName)}</td>
         <td>${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
         <td>${t.fpts.toFixed(1)}</td>
         <td>${strength ? "#" + strength.rank : "—"}</td>

@@ -147,7 +147,9 @@ test("renderPlayerDetail: renders the header, stat strip, career-high callout, a
   assert.ok(html.includes("Test Player"), "player name in the header");
   assert.ok(html.includes(">RB<"), "position shown");
   assert.ok(html.includes(">2<") , "owners stat card (2 distinct owners)");
-  assert.ok(html.includes("7 / 1 / 0"), "started/benched/FA stat card, FA defaulting to 0 when the fixture has no gamesFA");
+  assert.ok(html.includes('<span class="player-stat-split-value">7</span><span class="player-stat-split-label">Started</span>'), "started row");
+  assert.ok(html.includes('<span class="player-stat-split-value">1</span><span class="player-stat-split-label">Benched</span>'), "benched row");
+  assert.ok(html.includes('<span class="player-stat-split-value">0</span><span class="player-stat-split-label">FA</span>'), "FA defaulting to 0 when the fixture has no gamesFA");
   assert.ok(html.includes("Career high"));
   assert.ok(html.includes("30.0"), "career-high value");
   assert.ok(html.includes("owned by yulovesyou"), "career-high owner attribution");
@@ -160,7 +162,7 @@ test("renderPlayerDetail: the started/benched/FA stat card shows a non-zero FA c
   const ctx = setup();
   const player = fakePlayer({ totals: { owners: 2, gamesOwned: 8, gamesStarted: 7, gamesBenched: 1, gamesFA: 5, totalPoints: 117, ppg: 14.6 } });
   const html = ctx.renderPlayerDetail("9999", player);
-  assert.ok(html.includes("7 / 1 / 5"), "started/benched/FA stat card should reflect a real FA count, not just default to 0");
+  assert.ok(html.includes('<span class="player-stat-split-value">5</span><span class="player-stat-split-label">FA</span>'), "started/benched/FA stat card should reflect a real FA count, not just default to 0");
 });
 
 test("renderPlayerDetail: omits the career-high callout box gracefully when there's no career high on record", () => {
@@ -447,4 +449,57 @@ test("renderOwnershipHistory: heat-cell colors on both PPG columns use a muted r
   const cells = heatCells(html);
   assert.ok(cells.length >= 5, "3 by-span + 2 cumulative rows");
   cells.forEach((c) => assert.match(c.color, /^rgba\(\d+, \d+, \d+, 0\.\d+\)$/));
+});
+
+test("careerArcSvg: a short career (few data points) uses the 700px floor width, not a cramped fit-to-point-count width", () => {
+  const ctx = setup();
+  const svg = ctx.careerArcSvg(fakePlayer(), "owned"); // 8 weekly entries in the fixture, well under the pannable threshold
+  const minWidthMatch = svg.match(/min-width:(\d+)px/);
+  assert.ok(minWidthMatch, "should set an explicit min-width on the wrapping div");
+  assert.strictEqual(Number(minWidthMatch[1]), 700, "a short career should sit at the 700px floor, not shrink below it");
+});
+
+test("careerArcSvg: a long career's width grows with the point count, past the 700px floor", () => {
+  const ctx = setup();
+  const player = fakePlayer();
+  player.weekly = Array.from({ length: 30 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+  const svg = ctx.careerArcSvg(player, "owned");
+  const minWidthMatch = svg.match(/min-width:(\d+)px/);
+  assert.ok(minWidthMatch);
+  // padL(44) + padR(20) + (30-1)*32 = 64 + 928 = 992
+  assert.strictEqual(Number(minWidthMatch[1]), 992);
+});
+
+test("careerArcSvg: the chart is wrapped in a horizontally-scrollable container", () => {
+  const ctx = setup();
+  const svg = ctx.careerArcSvg(fakePlayer(), "owned");
+  assert.ok(svg.includes('class="career-arc-scroll"'));
+});
+
+test("careerArcSvg: the 'swipe to explore' hint only appears for a career long enough to actually need panning", () => {
+  const ctx = setup();
+  const shortSvg = ctx.careerArcSvg(fakePlayer(), "owned"); // 8 points
+  assert.ok(!shortSvg.includes("Swipe to explore"), "a short career that already fits shouldn't show the hint");
+
+  const longPlayer = fakePlayer();
+  longPlayer.weekly = Array.from({ length: 20 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+  const longSvg = ctx.careerArcSvg(longPlayer, "owned");
+  assert.ok(longSvg.includes("Swipe to explore"), "a long career that needs panning should show the hint");
+});
+
+test("renderOwnershipHistory: both tables carry the ownership-table class (for the sticky-Owner-column CSS) and abbreviated mobile header labels for Games Owned/Games Started", () => {
+  const ctx = setup();
+  const html = ctx.renderOwnershipHistory(fakePlayer());
+  const tableCount = (html.match(/class="stat-table compact-mobile ownership-table"/g) || []).length;
+  assert.strictEqual(tableCount, 2, "both By Span and Cumulative tables should carry the class");
+  assert.ok(html.includes('<span class="full-label">Games Owned</span><span class="short-label">Owned</span>'));
+  assert.ok(html.includes('<span class="full-label">Games Started</span><span class="short-label">Started</span>'));
+});
+
+test("renderPlayerDetail: the started/benched/FA stat card is a stacked 3-row layout, not a single slash-separated line prone to wrapping", () => {
+  const ctx = setup();
+  const html = ctx.renderPlayerDetail("9999", fakePlayer());
+  assert.ok(html.includes('class="player-stat-card player-stat-card-split"'));
+  const rowCount = (html.match(/class="player-stat-split-row"/g) || []).length;
+  assert.strictEqual(rowCount, 3, "should have exactly 3 rows: Started, Benched, FA");
 });
