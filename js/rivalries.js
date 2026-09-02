@@ -135,14 +135,30 @@ function renderRivalry(userIdA, userIdB) {
       const aIsA = g.aUserId === userIdA;
       const scoreA = aIsA ? g.aScore : g.bScore;
       const scoreB = aIsA ? g.bScore : g.aScore;
-      const result = scoreA > scoreB ? nameA : scoreB > scoreA ? nameB : "Tie";
+      const margin = Math.abs(scoreA - scoreB);
+      const isTie = scoreA === scoreB;
+      // The winning side's score is bolded gold (same convention the
+      // playoff bracket already uses for a winning team), with its
+      // margin of victory right alongside it -- enough on its own to
+      // read "who won, and by how much" at a glance without needing a
+      // separate column repeating the winner's name in text, or having
+      // to subtract the two numbers yourself.
+      const cellA = isTie
+        ? `<td data-label="${nameA}">${scoreA.toFixed(1)}</td>`
+        : scoreA > scoreB
+        ? `<td data-label="${nameA}" class="rivalry-score-win">${scoreA.toFixed(1)} <span class="rivalry-score-margin">+${margin.toFixed(1)}</span></td>`
+        : `<td data-label="${nameA}" class="rivalry-score-loss">${scoreA.toFixed(1)}</td>`;
+      const cellB = isTie
+        ? `<td data-label="${nameB}">${scoreB.toFixed(1)}</td>`
+        : scoreB > scoreA
+        ? `<td data-label="${nameB}" class="rivalry-score-win">${scoreB.toFixed(1)} <span class="rivalry-score-margin">+${margin.toFixed(1)}</span></td>`
+        : `<td data-label="${nameB}" class="rivalry-score-loss">${scoreB.toFixed(1)}</td>`;
       return `
     <tr>
       <td data-label="Season">${escapeHtml(String(g.season))}</td>
-      <td data-label="Week">Wk ${g.week}${g.isPlayoff ? " (Playoffs)" : ""}</td>
-      <td data-label="${nameA}">${scoreA.toFixed(1)}</td>
-      <td data-label="${nameB}">${scoreB.toFixed(1)}</td>
-      <td data-label="Result">${result}</td>
+      <td data-label="Week">Wk ${g.week}${g.isPlayoff ? ` <span class="rivalry-playoff-badge">Playoffs</span>` : ""}</td>
+      ${cellA}
+      ${cellB}
     </tr>`;
     })
     .join("");
@@ -172,10 +188,11 @@ function renderRivalry(userIdA, userIdB) {
     <div class="wrap"><div class="panel">
       <div class="heatmap-table-wrap">
         <table class="stat-table responsive-stack">
-          <thead><tr><th>Season</th><th>Week</th><th>${nameA}</th><th>${nameB}</th><th>Result</th></tr></thead>
+          <thead><tr><th>Season</th><th>Week</th><th>${nameA}</th><th>${nameB}</th></tr></thead>
           <tbody>${gameRows}</tbody>
         </table>
       </div>
+      <p class="heatmap-note">Gold is the winning score each week, with the margin of victory alongside it.</p>
     </div></div>
   `;
 }

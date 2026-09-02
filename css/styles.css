@@ -1462,6 +1462,22 @@ details.bracket-game.championship {
   font-weight: 600;
 }
 .rivalry-series-vs { font-family: var(--font-mono); font-size: 13px; color: var(--chalk-dim); }
+/* Full Game Log: same "gold = winner" convention the playoff bracket
+   already uses, so who won each week reads at a glance instead of
+   requiring a side-by-side comparison of two plain numbers. */
+table.stat-table td.rivalry-score-win { color: var(--gold); font-weight: 600; }
+table.stat-table td.rivalry-score-loss { color: var(--chalk-dim); }
+.rivalry-score-margin { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--gold-dim); }
+.rivalry-playoff-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  border: 1px solid var(--gold-dim);
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
 
 .trophy-grid {
   display: grid;

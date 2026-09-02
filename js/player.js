@@ -187,7 +187,7 @@ function renderPlayerDetail(playerId, player) {
     <div class="player-high-callout">
       <div>
         <div class="player-high-eyebrow">Career high</div>
-        <div class="player-high-detail">${escapeHtml(String(high.season))} Wk ${high.week} · owned by ${escapeHtml(high.ownerName)} · ${high.started ? "started" : "benched"}</div>
+        <div class="player-high-detail">${escapeHtml(String(high.season))} Wk ${high.week} · ${high.owned !== false ? `owned by ${escapeHtml(high.ownerName)} · ${high.started ? "started" : "benched"}` : "free agent"}</div>
       </div>
       <div class="player-high-value">${high.points.toFixed(1)}</div>
     </div>`

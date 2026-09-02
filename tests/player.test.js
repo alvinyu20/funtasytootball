@@ -503,3 +503,26 @@ test("renderPlayerDetail: the started/benched/FA stat card is a stacked 3-row la
   const rowCount = (html.match(/class="player-stat-split-row"/g) || []).length;
   assert.strictEqual(rowCount, 3, "should have exactly 3 rows: Started, Benched, FA");
 });
+
+test("renderPlayerDetail: a career high from a free-agent week shows 'free agent', not an owner attribution built from missing/null fields", () => {
+  const ctx = setup();
+  const player = fakePlayer({ careerHigh: { points: 24.0, season: "2021", week: 2, owned: false, ownerId: null, ownerName: null, started: null } });
+  const html = ctx.renderPlayerDetail("9999", player);
+  assert.ok(html.includes("2021 Wk 2 · free agent"));
+  assert.ok(!html.includes("owned by null"), "should never render a broken 'owned by null' string");
+});
+
+test("renderPlayerDetail: a career high from an owned week still shows the owner and started/benched status, unaffected by the FA-agnostic search", () => {
+  const ctx = setup();
+  const html = ctx.renderPlayerDetail("9999", fakePlayer());
+  assert.ok(html.includes("owned by yulovesyou"));
+  assert.ok(html.includes("started"));
+});
+
+test("renderPlayerDetail: an older-shaped careerHigh with no `owned` field at all is still treated as owned (backward compatible), not misread as a free agent", () => {
+  const ctx = setup();
+  const player = fakePlayer({ careerHigh: { points: 30, season: "2022", week: 3, ownerId: "u1", ownerName: "yulovesyou", started: true } }); // no `owned` field
+  const html = ctx.renderPlayerDetail("9999", player);
+  assert.ok(html.includes("owned by yulovesyou"), "missing `owned` field should default to treating it as an owned week");
+  assert.ok(!html.includes("free agent"));
+});

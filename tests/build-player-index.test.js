@@ -271,6 +271,52 @@ test("buildPlayerIndex: a genuine free-agent week (a real box score, but not on 
   assert.strictEqual(players.P1.totals.gamesFA, 1);
 });
 
+test("buildPlayerIndex: careerHigh considers free-agent weeks too, not just owned ones -- a player's best week is a fact about them, not about who (if anyone) owned them that week", () => {
+  const chain = twoTeamChain();
+  chain[0].league.scoring_settings = { pass_yd: 0.04, pass_td: 4 };
+  const weeksList = [
+    [
+      { week: 1, matchups: [m(1, ["P1"], ["P1"], { P1: 20 })] }, // owned week 1, 20 pts
+      { week: 2, matchups: [m(1, [], [], {})] }, // week 2: unowned
+    ],
+    [],
+  ];
+  const weekStatsBySeasonWeek = new Map([
+    ["2021:1", { P1: { pass_yd: 250, pass_td: 1 } }],
+    ["2021:2", { P1: { pass_yd: 300, pass_td: 3 } }], // FA week, 24.0 pts -- higher than the owned week
+  ]);
+  const players = buildPlayerIndex(chain, weeksList, {}, weekStatsBySeasonWeek);
+  const high = players.P1.careerHigh;
+  assert.strictEqual(high.points, 24, "the FA week's 24.0 should win over the owned week's 20.0, even though nobody owned P1 that week");
+  assert.strictEqual(high.week, 2);
+  assert.strictEqual(high.owned, false);
+  assert.strictEqual(high.ownerId, null, "no owner to attribute an FA week's career high to");
+  assert.strictEqual(high.ownerName, null);
+  assert.strictEqual(high.started, null, "'started' doesn't apply to a week nobody owned them");
+});
+
+test("buildPlayerIndex: careerHigh still correctly attributes an owned week when that's genuinely the best one, FA weeks included in the search", () => {
+  const chain = twoTeamChain();
+  chain[0].league.scoring_settings = { pass_yd: 0.04, pass_td: 4 };
+  const weeksList = [
+    [
+      { week: 1, matchups: [m(1, ["P1"], ["P1"], { P1: 40 })] }, // owned week 1, 40 pts -- the real best week
+      { week: 2, matchups: [m(1, [], [], {})] },
+    ],
+    [],
+  ];
+  const weekStatsBySeasonWeek = new Map([
+    ["2021:1", { P1: { pass_yd: 250, pass_td: 1 } }],
+    ["2021:2", { P1: { pass_yd: 300, pass_td: 3 } }], // FA week, only 24.0 pts -- lower than the owned week
+  ]);
+  const players = buildPlayerIndex(chain, weeksList, {}, weekStatsBySeasonWeek);
+  const high = players.P1.careerHigh;
+  assert.strictEqual(high.points, 40);
+  assert.strictEqual(high.owned, true);
+  assert.strictEqual(high.ownerId, "userA");
+  assert.strictEqual(high.ownerName, "Alice");
+});
+
 test("buildPlayerIndex: a week with no box score at all (bye, not yet in the league, etc.) is NOT counted as a free-agent week", () => {
   const chain = twoTeamChain();
   chain[0].league.scoring_settings = { pass_yd: 0.04 };

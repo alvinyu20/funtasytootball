@@ -328,20 +328,6 @@ function buildPlayerIndex(seasonChain, seasonWeeksList, playerDirectory, weekSta
       delete s._lastGlobalIndex;
     });
 
-    let careerHigh = null;
-    weeklyEntries.forEach((e) => {
-      if (!careerHigh || e.points > careerHigh.points) {
-        careerHigh = {
-          points: round1(e.points),
-          season: e.season,
-          week: e.week,
-          ownerId: e.ownerId,
-          ownerName: managerNames.get(e.ownerId) || "Unknown",
-          started: e.started,
-        };
-      }
-    });
-
     const distinctOwners = new Set(spans.map((s) => s.ownerId)).size;
     const totalGamesOwned = weeklyEntries.length;
     const totalGamesPlayed = weeklyEntries.filter((e) => e.points !== 0).length;
@@ -370,9 +356,31 @@ function buildPlayerIndex(seasonChain, seasonWeeksList, playerDirectory, weekSta
     }
 
     const combinedWeekly = [
-      ...weeklyEntries.map((e) => ({ season: e.season, week: e.week, points: e.points, started: e.started, owned: true, globalIndex: e.globalIndex })),
-      ...faEntries.map((e) => ({ season: e.season, week: e.week, points: e.points, started: false, owned: false, globalIndex: e.globalIndex })),
+      ...weeklyEntries.map((e) => ({ season: e.season, week: e.week, points: e.points, started: e.started, owned: true, ownerId: e.ownerId, globalIndex: e.globalIndex })),
+      ...faEntries.map((e) => ({ season: e.season, week: e.week, points: e.points, started: false, owned: false, ownerId: null, globalIndex: e.globalIndex })),
     ].sort((a, b) => a.globalIndex - b.globalIndex);
+
+    // A player's single best week is a fact about THEM, not about
+    // whoever (if anyone) happened to have them rostered that week —
+    // searches every week on record, owned or free agent, rather than
+    // being scoped to ownership like the rest of this file's stats
+    // deliberately are. Owner attribution (and started/benched, which
+    // doesn't apply to a week nobody owned them) is only included when
+    // the record-setting week actually was an owned one.
+    let careerHigh = null;
+    combinedWeekly.forEach((e) => {
+      if (!careerHigh || e.points > careerHigh.points) {
+        careerHigh = {
+          points: round1(e.points),
+          season: e.season,
+          week: e.week,
+          owned: e.owned,
+          ownerId: e.owned ? e.ownerId : null,
+          ownerName: e.owned ? managerNames.get(e.ownerId) || "Unknown" : null,
+          started: e.owned ? e.started : null,
+        };
+      }
+    });
 
     players[playerId] = {
       name: info.full_name || `${info.first_name || ""} ${info.last_name || ""}`.trim() || "Unknown Player",
