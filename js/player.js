@@ -510,7 +510,7 @@ function careerArcSvg(player, mode) {
         </svg>
       </div>
     </div>
-    ${isPannable ? `<div class="career-arc-swipe-hint">← Swipe to explore the full career →</div>` : ""}`;
+    ${isPannable ? `<div class="scroll-hint-caption">← Swipe to explore the full career →</div>` : ""}`;
 }
 
 document.addEventListener("DOMContentLoaded", renderPlayers);

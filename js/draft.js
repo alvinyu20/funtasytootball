@@ -33,8 +33,8 @@ async function renderDraftPage() {
     LEAGUE_STATS = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
 
     if (!location.hash) {
-      const defaultEntry = [...seasonChain].reverse().find((e) => e.league.status === "complete") || seasonChain[seasonChain.length - 1];
-      if (defaultEntry) location.hash = `#${defaultEntry.league.season}`;
+      const defaultSeason = pickDefaultSeason(seasonChain);
+      if (defaultSeason) location.hash = `#${defaultSeason}`;
     }
 
     renderSeasonPicker();
@@ -66,6 +66,23 @@ function renderSeasonPicker() {
 // Round 1 draft slot, matching how a real draft board reads — snake
 // order shows up as pick order alternating across rows, not columns
 // swapping teams), rows are rounds.
+// Which season the page opens to when the visitor hasn't picked one via
+// the URL hash. Prefers the newest season that actually has a draft on
+// record — not strictly the newest *complete* season — since a current,
+// in-progress season's draft already happened before Week 1: a visitor
+// checking this page mid-season should land on this year's draft, not
+// last year's. Falls back further back in time only for a season that
+// genuinely has no draft picks logged yet (e.g. the upcoming season
+// before its draft has actually run), and ultimately to the newest
+// season in the chain if somehow none of them have draft data at all,
+// so the page always has something to select rather than nothing.
+function pickDefaultSeason(seasonChain) {
+  if (!seasonChain.length) return null;
+  const newestFirst = [...seasonChain].reverse();
+  const withDraft = newestFirst.find((e) => buildDraftBoard(e.league.season));
+  return (withDraft || seasonChain[seasonChain.length - 1]).league.season;
+}
+
 function buildDraftBoard(season) {
   const managersWithPicks = LEAGUE_STATS.managers
     .map((m) => {
@@ -164,6 +181,7 @@ function renderDraftBoardTable(board) {
     .map((r) => `<tr><td class="draft-round-label">Rd ${r.round}</td>${r.cells.map(renderDraftCell).join("")}</tr>`)
     .join("");
   return `
+    <div class="scroll-hint-caption">← Scroll to see every team's board →</div>
     <div class="draft-board-wrap">
       <table class="draft-board">
         <thead><tr><td class="draft-round-label"></td>${header}</tr></thead>

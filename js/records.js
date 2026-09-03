@@ -49,6 +49,20 @@ function card(label, value, detail, badge) {
     </div>`;
 }
 
+// Lightweight category dividers woven through the records grid. Mostly
+// matters on mobile, where 17+ cards stack into one long undifferentiated
+// list — a heading every few cards gives a visitor something to scan for
+// instead of reading the whole page top to bottom to find, say, the draft
+// records. Spans the full grid width (see .records-group-label in
+// styles.css) so it reads fine on the desktop 4-column grid too, not just
+// when stacked.
+// Cards are pushed in a fixed, deliberately-grouped order already (see
+// buildRecordCards below), so this only needs to know which group starts
+// at which push — not track membership card-by-card.
+function groupLabel(text) {
+  return `<h3 class="records-group-label">${escapeHtml(text)}</h3>`;
+}
+
 // A small generic table for a category's top 5 — #, Team/Player, Detail
 // (season/week/context), Value (the headline stat). Every category's
 // rows get shaped into this same {name, detail, value} form before
@@ -138,18 +152,29 @@ function top5RowsFor(stats, recordKey) {
 function buildRecordCards(stats) {
   const r = stats.records;
   const cards = [];
+  // Lazily flushes a pending group label the first time a card in that
+  // group actually gets pushed — so a group with every one of its cards
+  // conditionally skipped (e.g. no trades logged yet) never leaves an
+  // orphaned heading with nothing under it.
+  let pendingLabel = null;
+  const startGroup = (name) => { pendingLabel = name; };
+  const push = (html) => {
+    if (pendingLabel) { cards.push(groupLabel(pendingLabel)); pendingLabel = null; }
+    cards.push(html);
+  };
 
+  startGroup("Scoring & Matchups");
   if (r.highestWeekScore) {
     const x = r.highestWeekScore;
-    cards.push(expandableCard("Highest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "highestWeekScore")));
+    push(expandableCard("Highest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "highestWeekScore")));
   }
   if (r.lowestWeekScore) {
     const x = r.lowestWeekScore;
-    cards.push(expandableCard("Lowest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "lowestWeekScore")));
+    push(expandableCard("Lowest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "lowestWeekScore")));
   }
   if (r.biggestBlowout) {
     const x = r.biggestBlowout;
-    cards.push(
+    push(
       expandableCard(
         "Biggest Blowout",
         `${x.margin.toFixed(1)} pts`,
@@ -161,7 +186,7 @@ function buildRecordCards(stats) {
   }
   if (r.closestGame) {
     const x = r.closestGame;
-    cards.push(
+    push(
       expandableCard(
         "Closest Game",
         `${x.margin.toFixed(2)} pts`,
@@ -171,15 +196,16 @@ function buildRecordCards(stats) {
       )
     );
   }
+  startGroup("Streaks");
   if (r.longestWinStreak) {
     const x = r.longestWinStreak;
-    cards.push(
+    push(
       expandableCard("Longest Win Streak", `${x.length} games`, `${escapeHtml(x.teamName)} · through ${x.end.season} Wk ${x.end.week}`, null, top5RowsFor(stats, "longestWinStreak"))
     );
   }
   if (r.longestLoseStreak) {
     const x = r.longestLoseStreak;
-    cards.push(
+    push(
       expandableCard(
         "Longest Losing Streak",
         `${x.length} games`,
@@ -189,9 +215,10 @@ function buildRecordCards(stats) {
       )
     );
   }
+  startGroup("Draft");
   if (r.bestValuePick) {
     const x = r.bestValuePick;
-    cards.push(
+    push(
       expandableCard(
         "Best Late-Round Steal",
         playerLinkHtml(x.playerId, escapeHtml(x.player)),
@@ -203,7 +230,7 @@ function buildRecordCards(stats) {
   }
   if (r.worstValuePick) {
     const x = r.worstValuePick;
-    cards.push(
+    push(
       expandableCard(
         "Biggest Draft Bust",
         playerLinkHtml(x.playerId, escapeHtml(x.player)),
@@ -213,11 +240,12 @@ function buildRecordCards(stats) {
       )
     );
   }
+  startGroup("Roster Management");
   if (r.mostTrades) {
-    cards.push(expandableCard("Trade Machine", `${r.mostTrades.count}`, `${escapeHtml(r.mostTrades.teamName)} · most trades made`, null, top5RowsFor(stats, "mostTrades")));
+    push(expandableCard("Trade Machine", `${r.mostTrades.count}`, `${escapeHtml(r.mostTrades.teamName)} · most trades made`, null, top5RowsFor(stats, "mostTrades")));
   }
   if (r.mostWaiverAdds) {
-    cards.push(
+    push(
       expandableCard(
         "Waiver Wire Warrior",
         `${r.mostWaiverAdds.count}`,
@@ -229,7 +257,7 @@ function buildRecordCards(stats) {
   }
   if (r.mostBenchPointsLeft) {
     const x = r.mostBenchPointsLeft;
-    cards.push(
+    push(
       expandableCard(
         "Biggest Bench Blunder",
         `${x.left.toFixed(1)} pts left on bench`,
@@ -239,15 +267,16 @@ function buildRecordCards(stats) {
       )
     );
   }
+  startGroup("Consistency");
   if (r.mostConsistentSeason) {
     const x = r.mostConsistentSeason;
-    cards.push(
+    push(
       expandableCard("Mr. Reliable", `±${x.stdDev.toFixed(1)} pts`, `${escapeHtml(x.teamName)} · ${x.season} · lowest weekly score variance`, null, top5RowsFor(stats, "mostConsistentSeason"))
     );
   }
   if (r.leastConsistentSeason) {
     const x = r.leastConsistentSeason;
-    cards.push(
+    push(
       expandableCard(
         "Feast Or Famine",
         `±${x.stdDev.toFixed(1)} pts`,
@@ -257,9 +286,10 @@ function buildRecordCards(stats) {
       )
     );
   }
+  startGroup("Schedule");
   if (r.toughestSchedule) {
     const x = r.toughestSchedule;
-    cards.push(
+    push(
       expandableCard(
         "Toughest Schedule",
         `${x.avgOpponentPF.toFixed(1)} PPG faced`,
@@ -271,7 +301,7 @@ function buildRecordCards(stats) {
   }
   if (r.easiestSchedule) {
     const x = r.easiestSchedule;
-    cards.push(
+    push(
       expandableCard(
         "Easiest Schedule",
         `${x.avgOpponentPF.toFixed(1)} PPG faced`,
@@ -282,11 +312,12 @@ function buildRecordCards(stats) {
     );
   }
 
+  startGroup("Career & All-Time");
   // A few extra cards computed straight from career totals, no extra fetch needed.
   if (stats.managers.length) {
     const byChamps = [...stats.managers].sort((a, b) => b.championships - a.championships);
     if (byChamps[0].championships > 0) {
-      cards.push(
+      push(
         expandableCard(
           "Most Championships",
           `${byChamps[0].championships}`,
@@ -303,7 +334,7 @@ function buildRecordCards(stats) {
     const winPctOf = (m) => m.careerWins / (m.careerWins + m.careerLosses + m.careerTies || 1);
     const byWinPct = [...stats.managers].filter((m) => m.careerWins + m.careerLosses + m.careerTies >= 5).sort((a, b) => winPctOf(b) - winPctOf(a));
     if (byWinPct.length) {
-      cards.push(
+      push(
         expandableCard(
           "Best All-Time Win %",
           `${(winPctOf(byWinPct[0]) * 100).toFixed(1)}%`,
@@ -315,7 +346,7 @@ function buildRecordCards(stats) {
     }
 
     const byCareerPF = [...stats.managers].sort((a, b) => b.careerPF - a.careerPF);
-    cards.push(
+    push(
       expandableCard(
         "Most Career Points",
         byCareerPF[0].careerPF.toFixed(1),
@@ -327,7 +358,7 @@ function buildRecordCards(stats) {
 
     const byBenchWaste = [...stats.managers].sort((a, b) => b.careerBenchPointsLeft - a.careerBenchPointsLeft);
     if (byBenchWaste[0] && byBenchWaste[0].careerBenchPointsLeft > 0) {
-      cards.push(
+      push(
         expandableCard(
           "Career Bench Waste",
           byBenchWaste[0].careerBenchPointsLeft.toFixed(1),

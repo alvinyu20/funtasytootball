@@ -319,7 +319,14 @@ main { padding-bottom: 80px; }
   grid-template-columns: 1.3fr 1fr;
   gap: 24px;
 }
-@media (max-width: 800px) {
+@media (max-width: 920px) {
+  /* Widened from the original 800px: at 801-890px this 1.3fr/1fr split
+     left the narrower column (Matchups/Hot & Cold/Archives) too tight
+     for team names to fit on one line — e.g. "Macklin's Marauders"
+     wrapping mid-name right before the layout would've mercifully
+     stacked. Verified by rendering at 801/840/870/900px: wrapping
+     persists through ~870px and is clean by 900px, so 920px gives
+     comfortable margin either side of that crossover. */
   .section-grid { grid-template-columns: 1fr; }
 }
 
@@ -548,6 +555,29 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
 }
+/* Section dividers woven into the records grid itself (see groupLabel()
+   in records.js) — spans every column so it reads as a header, not just
+   another card. Mostly earns its keep on mobile, where 19 cards would
+   otherwise stack into one undifferentiated list with nothing to scan
+   for, but left on for desktop too rather than hidden there, since a
+   plain divider line does no harm to the 4-column view and keeps the
+   grouping consistent across breakpoints. */
+.records-group-label {
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 22px;
+  border-top: 1px solid var(--turf-line);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.records-group-label:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
 .record-card {
   background: var(--turf-mid);
   border: 1px solid var(--turf-line);
@@ -770,13 +800,31 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .player-high-value { font-family: var(--font-display); font-weight: var(--font-display-weight); font-size: 28px; color: var(--chalk); flex-shrink: 0; }
 
 .career-arc-wrap { width: 100%; }
-.career-arc-scroll { overflow-x: auto; }
-.career-arc-swipe-hint {
+.career-arc-scroll {
+  overflow-x: auto;
+  --scroll-fade-bg: var(--turf-mid);
+  --scroll-fade-image:
+    linear-gradient(to right, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to left, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to right, rgba(232, 178, 61, 0.3), transparent),
+    linear-gradient(to left, rgba(232, 178, 61, 0.3), transparent);
+  background-image: var(--scroll-fade-image);
+  background-repeat: no-repeat;
+  background-color: var(--scroll-fade-bg);
+  background-size: 28px 100%, 28px 100%, 12px 100%, 12px 100%;
+  background-position: left center, right center, left center, right center;
+  background-attachment: local, local, scroll, scroll;
+}
+/* Generic explicit scroll hint — pairs with the .scroll-fade-bg visual
+   cue above so wide, horizontally-scrolling content (career arc, draft
+   board) has both a visual and a textual "there's more" signal, not just
+   the gold sliver at the edge. */
+.scroll-hint-caption {
   font-family: var(--font-mono);
   font-size: 10px;
   text-align: center;
   color: var(--chalk-dim);
-  margin-top: 6px;
+  margin: 6px 0;
 }
 /* Ownership History tables: the Owner column stays put while the rest
    of the row scrolls underneath it, so scrolling right to see PPG
@@ -928,9 +976,42 @@ details.draft-details[open] summary::before { content: "▾ "; }
 .line-chart-wrap .lc-annotation-label.hovered { opacity: 1; }
 
 /* ==========================================================================
+   SCROLL-FADE HINT
+   A pure-CSS "there's more this way" cue for horizontally-scrolling
+   wrappers (this table, the draft board, the career arc chart, the
+   bracket). Two background layers per edge: a "cover" layer that scrolls
+   WITH the content (background-attachment: local) and blends into the
+   wrapper's own background near the true start/end, plus a gold-tinted
+   "shadow" layer fixed to the viewport (background-attachment: scroll)
+   that the cover layer only reveals once you've actually scrolled past
+   that edge. Net effect: the fade only shows on the side(s) that still
+   have unseen content, and disappears once there's nothing left to
+   scroll to — no JS or scroll-event listener needed.
+   Each wrapper sets --scroll-fade-bg to match the surface it sits on
+   (the gradient needs a real color to fade into/out of, not "transparent"
+   twice). Any mobile breakpoint that turns a wrapper's overflow off also
+   resets background-image back to none there, so it doesn't paint behind
+   a layout that no longer scrolls.
+   ========================================================================== */
+
+/* ==========================================================================
    HEATMAP TABLE (scoring by position, per season)
    ========================================================================== */
-.heatmap-table-wrap { overflow-x: auto; }
+.heatmap-table-wrap {
+  overflow-x: auto;
+  --scroll-fade-bg: var(--turf-mid);
+  --scroll-fade-image:
+    linear-gradient(to right, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to left, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to right, rgba(232, 178, 61, 0.3), transparent),
+    linear-gradient(to left, rgba(232, 178, 61, 0.3), transparent);
+  background-image: var(--scroll-fade-image);
+  background-repeat: no-repeat;
+  background-color: var(--scroll-fade-bg);
+  background-size: 28px 100%, 28px 100%, 12px 100%, 12px 100%;
+  background-position: left center, right center, left center, right center;
+  background-attachment: local, local, scroll, scroll;
+}
 table.stat-table td.heat-cell {
   text-align: center;
   font-weight: 600;
@@ -954,15 +1035,17 @@ table.stat-table td.heat-cell.empty {
    screens instead of requiring horizontal panning. Cards use flex rows
    with the column header injected as a label via ::before. */
 @media (max-width: 720px) {
-  .heatmap-table-wrap { overflow-x: visible; }
+  .heatmap-table-wrap { overflow-x: visible; background-image: none; background-color: transparent; }
 
   /* Compact-mobile: the alternative to responsive-stack for tables where
      card-per-row would cost too much vertical scrolling (Final Standings,
      the lineup-slot heatmap) — stays a normal, compact table and scrolls
      horizontally instead, just at a smaller size than desktop. More
      specific than the unconditional rule above (two classes beat one), so
-     this correctly wins regardless of source order. */
-  .heatmap-table-wrap.stay-scrollable { overflow-x: auto; }
+     this correctly wins regardless of source order. The scroll-fade from
+     the base rule above carries over unchanged, since this table is still
+     genuinely scrolling at this width. */
+  .heatmap-table-wrap.stay-scrollable { overflow-x: auto; background-image: var(--scroll-fade-image); background-color: var(--scroll-fade-bg); }
   table.stat-table.compact-mobile { font-size: 11px; }
   table.stat-table.compact-mobile th { font-size: 9px; padding: 5px 6px; white-space: nowrap; }
   table.stat-table.compact-mobile td { padding: 6px 6px; white-space: nowrap; }
@@ -1080,7 +1163,26 @@ details.rank-list-item .bracket-lineup-section { padding-bottom: 12px; }
    PLAYOFF BRACKET
    ========================================================================== */
 .bracket-wrap { display: flex; gap: 28px; align-items: flex-start; }
-.bracket { display: flex; gap: 28px; overflow-x: auto; padding: 8px 4px 16px; flex: 1; min-width: 0; }
+.bracket {
+  display: flex;
+  gap: 28px;
+  overflow-x: auto;
+  padding: 8px 4px 16px;
+  flex: 1;
+  min-width: 0;
+  --scroll-fade-bg: var(--turf-mid);
+  --scroll-fade-image:
+    linear-gradient(to right, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to left, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to right, rgba(232, 178, 61, 0.3), transparent),
+    linear-gradient(to left, rgba(232, 178, 61, 0.3), transparent);
+  background-image: var(--scroll-fade-image);
+  background-repeat: no-repeat;
+  background-color: var(--scroll-fade-bg);
+  background-size: 28px 100%, 28px 100%, 12px 100%, 12px 100%;
+  background-position: left center, right center, left center, right center;
+  background-attachment: local, local, scroll, scroll;
+}
 .bracket-round {
   display: flex;
   flex-direction: column;
@@ -1209,6 +1311,8 @@ details.bracket-game.championship {
     flex-direction: column;
     overflow-x: visible;
     gap: 24px;
+    background-image: none;
+    background-color: transparent;
   }
   .bracket-round {
     min-width: 0;
@@ -1873,7 +1977,24 @@ table.stat-table td.playoff-cutoff-label {
   box-shadow: 0 0 8px 1px rgba(232, 178, 61, 0.7);
 }
 
-.draft-board-wrap { overflow-x: auto; margin-bottom: 24px; }
+.draft-board-wrap {
+  overflow-x: auto;
+  margin-bottom: 24px;
+  /* Sits directly on the page background (.wrap-wide, not a .panel), so
+     the fade needs to match --turf-dark rather than the usual panel mid-tone. */
+  --scroll-fade-bg: var(--turf-dark);
+  --scroll-fade-image:
+    linear-gradient(to right, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to left, var(--scroll-fade-bg) 40%, transparent),
+    linear-gradient(to right, rgba(232, 178, 61, 0.3), transparent),
+    linear-gradient(to left, rgba(232, 178, 61, 0.3), transparent);
+  background-image: var(--scroll-fade-image);
+  background-repeat: no-repeat;
+  background-color: var(--scroll-fade-bg);
+  background-size: 28px 100%, 28px 100%, 12px 100%, 12px 100%;
+  background-position: left center, right center, left center, right center;
+  background-attachment: local, local, scroll, scroll;
+}
 .draft-board { border-collapse: separate; border-spacing: 4px; width: max-content; min-width: 100%; }
 .draft-round-label { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); white-space: nowrap; padding: 4px 8px; text-align: right; }
 .draft-board thead th {
