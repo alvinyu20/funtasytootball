@@ -451,23 +451,72 @@ test("renderOwnershipHistory: heat-cell colors on both PPG columns use a muted r
   cells.forEach((c) => assert.match(c.color, /^rgba\(\d+, \d+, \d+, 0\.\d+\)$/));
 });
 
-test("careerArcSvg: a short career (few data points) uses the 700px floor width, not a cramped fit-to-point-count width", () => {
+test("careerArcSvg: a short career fills the available desktop container width instead of sitting at a small, arbitrary size", () => {
   const ctx = setup();
-  const svg = ctx.careerArcSvg(fakePlayer(), "owned"); // 8 weekly entries in the fixture, well under the pannable threshold
-  const minWidthMatch = svg.match(/min-width:(\d+)px/);
+  const svg = ctx.careerArcSvg(fakePlayer(), "owned"); // 8 weekly entries in the fixture
+  const minWidthMatch = svg.match(/min-width:([\d.]+)px/);
   assert.ok(minWidthMatch, "should set an explicit min-width on the wrapping div");
-  assert.strictEqual(Number(minWidthMatch[1]), 700, "a short career should sit at the 700px floor, not shrink below it");
+  // No `window` or live DOM in this harness (see site-env.js), so
+  // estimateChartContainerWidth falls back to its viewport-based
+  // estimate: min(1080, 1080) - outer wrap (20*2) - this chart's own
+  // nested wrap+panel padding/border (20*2 + 22*2 + 1*2) = 954.
+  assert.strictEqual(Number(minWidthMatch[1]), 954, "should fill the estimated desktop container width, not a fixed floor");
 });
 
-test("careerArcSvg: a long career's width grows with the point count, past the 700px floor", () => {
+test("careerArcSvg: a long career's width stays pinned to the container rather than growing past it — desktop condenses to fit instead of needing to scroll", () => {
   const ctx = setup();
   const player = fakePlayer();
   player.weekly = Array.from({ length: 30 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
   const svg = ctx.careerArcSvg(player, "owned");
-  const minWidthMatch = svg.match(/min-width:(\d+)px/);
+  const minWidthMatch = svg.match(/min-width:([\d.]+)px/);
   assert.ok(minWidthMatch);
-  // padL(44) + padR(20) + (30-1)*32 = 64 + 928 = 992
-  assert.strictEqual(Number(minWidthMatch[1]), 992);
+  // Same 954px container as the short-career case above — width no longer
+  // scales with point count at all on desktop (no minimum-spacing floor
+  // there), so a much longer career still fits in exactly the same space.
+  // (Approximate: step*(n-1) round-trips through float division/
+  // multiplication, so this lands at 954 ± float noise, not exact.)
+  assert.ok(Math.abs(Number(minWidthMatch[1]) - 954) < 0.01, `expected ~954px, got ${minWidthMatch[1]}px`);
+});
+
+test("careerArcSvg: per-point spacing actually shrinks as a career gets longer — confirms the chart condenses to fit rather than just capping width", () => {
+  const ctx = setup();
+  const shortPlayer = fakePlayer(); // 8 points
+  const longPlayer = fakePlayer();
+  longPlayer.weekly = Array.from({ length: 30 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+
+  function firstStepFromDots(svg) {
+    const cxValues = [...svg.matchAll(/<circle cx="([\d.]+)"/g)].map((m) => Number(m[1]));
+    return cxValues[1] - cxValues[0];
+  }
+
+  const shortStep = firstStepFromDots(ctx.careerArcSvg(shortPlayer, "owned"));
+  const longStep = firstStepFromDots(ctx.careerArcSvg(longPlayer, "owned"));
+  assert.ok(longStep < shortStep, `spacing per point should shrink as the career gets longer (short: ${shortStep}px, long: ${longStep}px)`);
+});
+
+test("careerArcSvg: when a live #player-detail-view is measurable, its actual clientWidth drives the chart's width — not just the viewport-based fallback", () => {
+  const ctx = setup();
+  const detailView = ctx.document.getElementById("player-detail-view");
+  detailView.clientWidth = 500;
+  const svg = ctx.careerArcSvg(fakePlayer(), "owned"); // 8 points, desktop (no window set)
+  const minWidthMatch = svg.match(/min-width:([\d.]+)px/);
+  // containerW = 500 - ownWrapChrome(20*2 + 22*2 + 1*2 = 86) = 414
+  assert.ok(Math.abs(Number(minWidthMatch[1]) - 414) < 0.01, `expected ~414px from the measured container, got ${minWidthMatch[1]}px`);
+});
+
+test("careerArcSvg: DOM measurement and the mobile legibility floor work together correctly", () => {
+  const ctx = setup();
+  ctx.__MOBILE_WINDOW__ = { innerWidth: 390 };
+  runInLoadedContext(ctx, "window = __MOBILE_WINDOW__;");
+  const detailView = ctx.document.getElementById("player-detail-view");
+  detailView.clientWidth = 370; // a narrow real phone measurement
+
+  const player = fakePlayer();
+  player.weekly = Array.from({ length: 40 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+  const svg = ctx.careerArcSvg(player, "owned");
+  const cxValues = [...svg.matchAll(/<circle cx="([\d.]+)"/g)].map((m) => Number(m[1]));
+  const step = cxValues[1] - cxValues[0];
+  assert.ok(step >= 11, `should still respect the mobile floor even when width comes from DOM measurement (got ${step}px)`);
 });
 
 test("careerArcSvg: the chart is wrapped in a horizontally-scrollable container", () => {
@@ -476,16 +525,47 @@ test("careerArcSvg: the chart is wrapped in a horizontally-scrollable container"
   assert.ok(svg.includes('class="career-arc-scroll"'));
 });
 
-test("careerArcSvg: the 'swipe to explore' hint only appears for a career long enough to actually need panning", () => {
+test("careerArcSvg: on desktop, the 'swipe to explore' hint never appears — even a very long career condenses to fit rather than needing to scroll", () => {
   const ctx = setup();
   const shortSvg = ctx.careerArcSvg(fakePlayer(), "owned"); // 8 points
-  assert.ok(!shortSvg.includes("Swipe to explore"), "a short career that already fits shouldn't show the hint");
+  assert.ok(!shortSvg.includes("Swipe to explore"));
 
   const longPlayer = fakePlayer();
-  longPlayer.weekly = Array.from({ length: 20 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+  longPlayer.weekly = Array.from({ length: 110 }, (_, i) => ({ season: String(2015 + Math.floor(i / 17)), week: (i % 17) + 1, points: 10, started: 1 }));
   const longSvg = ctx.careerArcSvg(longPlayer, "owned");
-  assert.ok(longSvg.includes("Swipe to explore"), "a long career that needs panning should show the hint");
+  assert.ok(!longSvg.includes("Swipe to explore"), "even a 110-game career shouldn't need scrolling on desktop");
 });
+
+test("careerArcSvg: on a mobile-width viewport, only a career long enough to hit the legibility floor still needs to scroll — a moderate career now fits where it wouldn't have before", () => {
+  const ctx = setup();
+  ctx.__MOBILE_WINDOW__ = { innerWidth: 390 };
+  runInLoadedContext(ctx, "window = __MOBILE_WINDOW__;");
+
+  const moderatePlayer = fakePlayer();
+  moderatePlayer.weekly = Array.from({ length: 20 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+  const moderateSvg = ctx.careerArcSvg(moderatePlayer, "owned");
+  assert.ok(!moderateSvg.includes("Swipe to explore"), "20 points should now fit on mobile without scrolling (it wouldn't have before)");
+
+  const longPlayer = fakePlayer();
+  longPlayer.weekly = Array.from({ length: 40 }, (_, i) => ({ season: "2021", week: i + 1, points: 10, started: 1 }));
+  const longSvg = ctx.careerArcSvg(longPlayer, "owned");
+  assert.ok(longSvg.includes("Swipe to explore"), "a genuinely long career should still scroll on mobile, once it hits the legibility floor");
+});
+
+test("careerArcSvg: on mobile, per-point spacing never shrinks below the legibility floor, even for a very long career", () => {
+  const ctx = setup();
+  ctx.__MOBILE_WINDOW__ = { innerWidth: 390 };
+  runInLoadedContext(ctx, "window = __MOBILE_WINDOW__;");
+
+  const player = fakePlayer();
+  player.weekly = Array.from({ length: 110 }, (_, i) => ({ season: String(2015 + Math.floor(i / 17)), week: (i % 17) + 1, points: 10, started: 1 }));
+  const svg = ctx.careerArcSvg(player, "owned");
+  const cxValues = [...svg.matchAll(/<circle cx="([\d.]+)"/g)].map((m) => Number(m[1]));
+  const step = cxValues[1] - cxValues[0];
+  assert.ok(step >= 11, `per-point spacing (${step}px) should never drop below the 11px mobile legibility floor`);
+});
+
+
 
 test("renderOwnershipHistory: both tables carry the ownership-table class (for the sticky-Owner-column CSS) and abbreviated mobile header labels for Games Owned/Games Started", () => {
   const ctx = setup();

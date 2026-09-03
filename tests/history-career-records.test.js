@@ -296,6 +296,17 @@ test("renderChampionshipRings: a player rostered by the champion at ANY point th
   assert.ok(!html.includes("Player Three"), "only ever on the non-champion roster");
 });
 
+test("renderChampionshipRings: the 'Won With' cell carries its own class so it can be styled smaller/lighter than its sibling columns", () => {
+  const ctx = setup();
+  const seasons = [fakeSeason("2021")];
+  ctx.__FAKE_DEEP__ = [{ weeks: [{ week: 1, matchups: [{ roster_id: 1, players: ["P1"], starters: ["P1"] }] }] }];
+  runInLoadedContext(ctx, `SleeperAPI.findChampionRosterId = () => 1; DeepHistory.buildAll = async () => __FAKE_DEEP__;`);
+  return ctx.renderChampionshipRings(seasons, { P1: { full_name: "Player One", position: "RB" } }).then(() => {
+    const html = ctx.document.getElementById("rings-body").innerHTML;
+    assert.ok(html.includes('class="rings-won-with"'), "the Won With cell should carry its own class for size/line-height styling");
+  });
+});
+
 test("renderChampionshipRings: each row includes a small player photo alongside the name", () => {
   const ctx = setup();
   const seasons = [fakeSeason("2021")];

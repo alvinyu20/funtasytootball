@@ -191,7 +191,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
         <td class="team-cell player-cell" data-label="Player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.name))}</span></td>
         <td data-label="Rings">${p.rings.length}</td>
         <td data-label="Games Started">${p.totalGamesStarted}</td>
-        <td data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${r.ownerId ? `<a href="teams.html#${encodeURIComponent(r.ownerId)}" class="subtle-link">${escapeHtml(r.ownerName)}</a>` : escapeHtml(r.ownerName)})`).join(", ")}</td>
+        <td class="rings-won-with" data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${r.ownerId ? `<a href="teams.html#${encodeURIComponent(r.ownerId)}" class="subtle-link">${escapeHtml(r.ownerName)}</a>` : escapeHtml(r.ownerName)})`).join(", ")}</td>
       </tr>`
           )
           .join("")

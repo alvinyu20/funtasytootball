@@ -393,6 +393,18 @@ table.stat-table td.player-cell {
   align-items: center;
   gap: 8px;
 }
+/* Championship Rings' "Won With" cell holds several comma-separated
+   "season (team)" entries per row — at the table's normal 13px/1.5
+   line-height (fine for a bare number or a single name next door), a
+   multi-ring player's entry reads noticeably heavier than its sibling
+   columns just from sheer text density, and wraps to a tall, loose
+   two-line block for anyone with 3+ rings. Slightly smaller and
+   tighter here keeps it legible while sitting proportionate to the
+   Rings/Games Started columns beside it. */
+table.stat-table td.rings-won-with {
+  font-size: 0.92em;
+  line-height: 1.4;
+}
 table.stat-table tr.is-you { background: rgba(232,178,61,0.06); }
 
 /* Two-tier sortable header (e.g. Career Records: Titles / Playoffs /

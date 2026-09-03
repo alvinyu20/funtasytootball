@@ -356,6 +356,52 @@ function renderCareerArc(player) {
   bands, per-point dot styling, and a single highlighted point in ways
   that don't fit the shared multi-series line chart's model.
 */
+/*
+  Approximates the actual rendered width available to the Career Arc
+  chart, from the viewport alone — this runs before the chart's own
+  markup exists in the DOM, so there's nothing to directly measure yet.
+  Subtracts the site's own known chrome (the .wrap max-width cap and
+  padding, plus the .panel's own padding) at whichever breakpoint
+  applies, matching the values in styles.css. Not pixel-perfect for
+  every edge case (a mid-resize this doesn't re-run for, an unusually
+  narrow custom zoom level), but close enough that the chart fits its
+  panel without scrolling in the common case, which is the goal.
+*/
+/*
+  Approximates the actual rendered width available to the Career Arc
+  chart. Where possible this measures the real DOM directly rather than
+  guessing from CSS constants: #player-detail-view is already laid out
+  (visible, at its final width) by the time this runs — see
+  renderFromHash, which sets its display before building this chart's
+  markup — so its clientWidth reliably reflects the page's own <main
+  class="wrap"> padding without this function needing to know or guess
+  that value itself. The only thing still hand-subtracted is the chrome
+  this function's OWN caller adds around the chart (renderCareerArc
+  wraps it in a second, nested <div class="wrap"><div class="panel">),
+  since that markup doesn't exist in the DOM yet at measurement time.
+  Falls back to a viewport-based estimate (including BOTH wrap layers)
+  when there's no live DOM to measure — the test harness, or if this
+  ever runs before #player-detail-view exists.
+*/
+function estimateChartContainerWidth(isMobileViewport) {
+  const MAX_CONTENT_W = 1080; // matches --max-width in styles.css
+  // This function's own <div class="wrap"><div class="panel"> around
+  // the chart (see renderCareerArc) — padding + 1px border, both sides.
+  const ownWrapChrome = isMobileViewport ? 10 * 2 + 14 * 2 + 1 * 2 : 20 * 2 + 22 * 2 + 1 * 2;
+
+  const detailView = typeof document !== "undefined" && document.getElementById && document.getElementById("player-detail-view");
+  if (detailView && detailView.clientWidth) {
+    return Math.max(200, detailView.clientWidth - ownWrapChrome);
+  }
+
+  // Fallback: no live DOM to measure, so approximate from the viewport
+  // instead, including the outer page wrap's own padding too (normally
+  // covered for free by measuring #player-detail-view above).
+  const outerWrapChrome = isMobileViewport ? 10 * 2 : 20 * 2;
+  const viewportW = (typeof window !== "undefined" && window.innerWidth) || MAX_CONTENT_W;
+  return Math.max(200, Math.min(MAX_CONTENT_W, viewportW) - outerWrapChrome - ownWrapChrome);
+}
+
 function careerArcSvg(player, mode) {
   const weekly = player.weekly || [];
   if (!weekly.length) return `<div class="empty-state">No weekly data on record.</div>`;
@@ -388,27 +434,35 @@ function careerArcSvg(player, mode) {
     padT = 34,
     padB = 26,
     H = 316;
-  // The chart's width is driven by how many points there are, not
-  // squeezed to fit whatever container it's in — a long career on a
-  // narrow phone screen used to mean every dot, band label, and axis
-  // tick shrank down together until they were illegible. Instead, each
-  // point gets a fixed, always-legible amount of space; a career long
-  // enough to need more room than the panel has just becomes wider
-  // than it, and the wrapping div (see below) lets that be explored by
-  // scrolling sideways rather than shrinking to fit. The 700 floor
-  // matches roughly what a short career already filled comfortably, so
-  // this doesn't change anything for the common case.
-  const minPxPerPoint = 32;
-  const W = Math.max(700, padL + padR + (visible.length - 1) * minPxPerPoint);
-  const innerW = W - padL - padR,
-    innerH = H - padT - padB;
-  const step = visible.length > 1 ? innerW / (visible.length - 1) : 0;
+  // The chart's width now targets "the whole career visible at once,
+  // no scrolling" over the previous approach of giving every point a
+  // fixed 32px regardless of how many there were — on a 100+ game
+  // career that meant a chart several screens wide. estimateChartWidth()
+  // below approximates the actual rendered width of this panel from the
+  // viewport, so the available space is used fully rather than picking
+  // an arbitrary constant.
+  // Desktop gets no minimum spacing floor at all: even the longest
+  // career on record should compress down to fit rather than scroll.
+  // Mobile keeps a small legibility floor (dots start touching below
+  // this) — on the rare career long enough to hit it, that's the only
+  // remaining case that still scrolls, and only by however much the
+  // floor demands, not by the old fixed-32px-per-point amount.
+  const isMobileViewport = typeof window !== "undefined" && window.innerWidth <= 720; // matches the site's own mobile breakpoint
+  const containerW = estimateChartContainerWidth(isMobileViewport);
+  const minStep = isMobileViewport ? 11 : 0;
+  const targetInnerW = containerW - padL - padR;
+  const naiveStep = visible.length > 1 ? targetInnerW / (visible.length - 1) : targetInnerW;
+  const step = Math.max(minStep, naiveStep);
+  const innerW = step * Math.max(1, visible.length - 1);
+  const W = innerW + padL + padR;
+  const innerH = H - padT - padB;
   const x = (i) => padL + i * step;
   const y = (v) => padT + innerH - (v / yMax) * innerH;
-  // Only worth telling someone to scroll when the chart could plausibly
-  // be wider than a typical phone screen -- a short career already
-  // fits comfortably and doesn't need the hint.
-  const isPannable = visible.length > 12;
+  // Only worth telling someone to scroll when this chart actually ended
+  // up wider than its container (i.e. the mobile floor above kicked in
+  // and won) — with the container-fit sizing above, that's now a rare
+  // case (a very long career on a narrow phone) rather than the default.
+  const isPannable = W > containerW + 1;
 
   // Bands are computed against the currently-VISIBLE (filtered)
   // sequence, so switching to "Starts" naturally narrows — or, for a
