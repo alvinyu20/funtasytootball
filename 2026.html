@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NFL Players</title>
+  <title>2026 Teams</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -26,54 +26,40 @@
       <li><a class="nav-link" href="teams.html">Teams</a></li>
       <li><a class="nav-link" href="season.html">Seasons</a></li>
       <li><a class="nav-link" href="draft.html">Draft</a></li>
-      <li><a class="nav-link" href="2026.html">2026</a></li>
+      <li><a class="nav-link active" href="2026.html">2026</a></li>
       <li><a class="nav-link" href="power-rankings.html">Power Rankings</a></li>
       <li><a class="nav-link" href="trades.html">Trades</a></li>
       <li><a class="nav-link" href="rivalries.html">Rivalries</a></li>
       <li><a class="nav-link" href="records.html">Records</a></li>
-      <li><a class="nav-link active" href="player.html">Players</a></li>
+      <li><a class="nav-link" href="player.html">Players</a></li>
       <li><a class="nav-link" href="newsletters.html">Newsletters</a></li>
     </ul>
   </nav>
 
   <section class="scoreboard">
-    <p class="scoreboard-eyebrow">SCOUTING REPORT</p>
-    <h1 class="scoreboard-title">NFL Players</h1>
-    <p class="scoreboard-sub" id="sb-sub">Loading…</p>
+    <p class="scoreboard-eyebrow">MEET YOUR TEAMS</p>
+    <h1 class="scoreboard-title" id="sb-title">Loading…</h1>
+    <p class="scoreboard-sub" id="sb-sub"></p>
   </section>
 
   <div class="wrap">
-    <div class="player-search-row">
-      <div class="player-search-wrap">
-        <input type="text" id="player-search" class="player-search-input" placeholder="Search any player who's started for a team…" autocomplete="off" />
-        <div id="player-search-results" class="player-search-results" style="display:none;"></div>
-      </div>
-      <button type="button" id="player-random-btn" class="player-random-btn">🎲 Random Player</button>
-    </div>
+    <div id="page-error" class="error-state" style="display:none;"></div>
   </div>
 
-  <div class="wrap">
-    <div id="player-error" class="error-state" style="display:none;"></div>
-    <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
-  </div>
-
-  <main class="wrap">
-    <div class="panel" id="player-empty-view">
-      <div class="empty-state">Search for a player above to see their ownership history — only players who've started for a team in this league's Sleeper-era history are searchable.</div>
-    </div>
-    <div id="player-detail-view" style="display:none;"></div>
+  <main class="wrap-wide">
+    <div class="team-jump-nav" id="team-jump-nav"></div>
+    <div id="teams-2026-root"></div>
   </main>
 
   <footer class="site-footer">
-    Sleeper era only — this league's pre-Sleeper (ESPN-era) seasons don't have player-level data on record.
+    Every roster here comes straight from Sleeper, live — refresh any time after a trade or waiver move to see it reflected.
   </footer>
 
   <script src="js/nav.js"></script>
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/sleeper-api.js"></script>
-  <script src="js/charts.js"></script>
   <script src="js/animations.js"></script>
-  <script src="js/player.js"></script>
+  <script src="js/2026.js"></script>
 </body>
 </html>
