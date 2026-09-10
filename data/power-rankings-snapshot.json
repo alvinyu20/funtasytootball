@@ -1,0 +1,70 @@
+{
+  "_instructions": "The Power Rankings page reads directly from this file -- it does NOT calculate anything live. This keeps it a once-a-week, manually-triggered thing rather than recalculating (using incomplete/in-progress data) every time someone loads the page. To update it: 1) update data/team-strength.json with this week's FantasyPros ROS ranks (see that file's own instructions), then 2) once the week's games are ALL finished, run `node scripts/update-power-rankings.js` from the project root. That script fetches the now-final week from Sleeper, computes the full rankings/playoff-odds table, and overwrites this file -- see the script itself for exactly what it does. Never edit the 'rows' below by hand once the season starts; let the script generate them.",
+  "_preseasonNote": "This file currently holds the PRESEASON rankings, entered by hand from FantasyPros ROS ranks since there's no game data yet. The Power Rankings page shows this as a simple rank + team list with no other columns (record, PR score, etc. don't exist yet). Running the update script for the first time, any time after Week 1's games are all final, replaces this with the real computed table and flips 'preseason' to false.",
+  "generatedAt": "2026-09-09T00:00:00Z",
+  "season": "2026",
+  "week": 0,
+  "preseason": true,
+  "rows": [
+    {
+      "rank": 1,
+      "username": "mayshisha",
+      "teamName": "The JAIL BLAZERS"
+    },
+    {
+      "rank": 2,
+      "username": "evangonnerman",
+      "teamName": "Big Vibes"
+    },
+    {
+      "rank": 3,
+      "username": "YuWillLose",
+      "teamName": "Big Ole Penix"
+    },
+    {
+      "rank": 4,
+      "username": "LyDaniel",
+      "teamName": "Daniel"
+    },
+    {
+      "rank": 5,
+      "username": "hmart92",
+      "teamName": "Count Pukula's Castle"
+    },
+    {
+      "rank": 6,
+      "username": "yulovesyou",
+      "teamName": "Brock Hard"
+    },
+    {
+      "rank": 7,
+      "username": "jspar279879",
+      "teamName": null
+    },
+    {
+      "rank": 8,
+      "username": "sofarrsogood",
+      "teamName": "Big Bo Nix Found his Lamb"
+    },
+    {
+      "rank": 9,
+      "username": "JoeSifBoreDough",
+      "teamName": "Cooking With Love(land)"
+    },
+    {
+      "rank": 10,
+      "username": "tduchow",
+      "teamName": "Etienne some Rice"
+    },
+    {
+      "rank": 11,
+      "username": "paty23",
+      "teamName": "Hu Dat"
+    },
+    {
+      "rank": 12,
+      "username": "artmane",
+      "teamName": "Kirko's Chain"
+    }
+  ]
+}

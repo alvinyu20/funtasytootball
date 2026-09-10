@@ -71,6 +71,18 @@ const TEAM_STRENGTH_FILE = "data/team-strength.json";
 const POWER_RANK_HISTORY_FILE = "data/power-rank-history.json";
 
 /*
+  POWER_RANKINGS_SNAPSHOT_FILE
+  --------------------
+  The actual Power Rankings + Playoff Odds table the Power Rankings
+  page displays — see data/power-rankings-snapshot.json. This is a
+  saved snapshot, not something the page calculates itself: run
+  `node scripts/update-power-rankings.js` (after updating
+  TEAM_STRENGTH_FILE with fresh ROS ranks) to regenerate it, once a
+  week's games are all done. See that script's own comments for why.
+*/
+const POWER_RANKINGS_SNAPSHOT_FILE = "data/power-rankings-snapshot.json";
+
+/*
   POWER_RANK_CSV_HISTORY_FILE
   --------------------
   Historical Power Rank (and, for 2024+, PR Score) data recovered from

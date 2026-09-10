@@ -26,7 +26,6 @@
       <li><a class="nav-link" href="teams.html">Teams</a></li>
       <li><a class="nav-link" href="season.html">Seasons</a></li>
       <li><a class="nav-link" href="draft.html">Draft</a></li>
-      <li><a class="nav-link" href="2026.html">2026</a></li>
       <li><a class="nav-link active" href="power-rankings.html">Power Rankings</a></li>
       <li><a class="nav-link" href="trades.html">Trades</a></li>
       <li><a class="nav-link" href="rivalries.html">Rivalries</a></li>
@@ -44,7 +43,6 @@
 
   <div class="wrap">
     <div id="pr-error" class="error-state" style="display:none;"></div>
-    <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
   </div>
 
   <main>
@@ -52,14 +50,12 @@
   </main>
 
   <footer class="site-footer">
-    Playoff odds come from a 1,000-run Monte Carlo simulation of the remaining schedule, weighted by ROS team strength.
+    Power Rankings and Playoff Odds are a once-a-week snapshot, not live — see data/power-rankings-snapshot.json and scripts/update-power-rankings.js to update them.
   </footer>
 
   <script src="js/nav.js"></script>
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
-  <script src="js/sleeper-api.js"></script>
-  <script src="js/deep-history.js"></script>
   <script src="js/power-rankings.js"></script>
 </body>
 </html>

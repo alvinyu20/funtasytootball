@@ -1,53 +1,44 @@
+/*
+  Power Rankings page. Deliberately does NOT calculate anything here —
+  it just reads and displays data/power-rankings-snapshot.json, which
+  scripts/update-power-rankings.js writes. See that script's own
+  comments for why this page isn't live: the ROS component needs
+  FantasyPros data typed in by hand (there's no API for it), and
+  recalculating on every page load risked doing so mid-week, using a
+  partially-played week as if it were a finished one.
+*/
+
 async function renderPowerRankings() {
   const errorBox = document.getElementById("pr-error");
-  const progressBox = document.getElementById("progress-status");
   const content = document.getElementById("pr-content");
 
   try {
-    const [seasonChain, playerDirectory, teamStrength, powerRankHistory] = await Promise.all([
-      SleeperAPI.getSeasonChain(LEAGUE_ID),
-      SleeperAPI.getPlayerDirectory(),
-      fetchJsonSafe(TEAM_STRENGTH_FILE, { teams: {} }),
-      fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} }),
-    ]);
-
-    if (seasonChain.length === 0) {
-      throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
+    const snapshot = await fetchJsonSafe(POWER_RANKINGS_SNAPSHOT_FILE, null);
+    if (!snapshot || !snapshot.rows || !snapshot.rows.length) {
+      throw new Error(`No data in ${POWER_RANKINGS_SNAPSHOT_FILE} yet — run node scripts/update-power-rankings.js first.`);
     }
 
-    const currentSeasonEntry = seasonChain[seasonChain.length - 1];
-    const leagueName = currentSeasonEntry.league.name;
-    document.title = (SITE_TITLE || leagueName || "League") + " — Power Rankings";
+    document.title = (SITE_TITLE || "League") + " — Power Rankings";
 
-    progressBox.style.display = "block";
-    progressBox.textContent = `Loading ${currentSeasonEntry.league.season}…`;
-    const deep = await DeepHistory.fetchSeasonDeep(currentSeasonEntry, (season, status) => {
-      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
-    });
-    progressBox.style.display = "none";
-
-    if (!deep.weeks.length) {
-      document.getElementById("sb-title").textContent = `${currentSeasonEntry.league.season} Season`;
-      document.getElementById("sb-sub").textContent = "No games played yet";
+    if (snapshot.preseason) {
+      document.getElementById("sb-title").textContent = `${snapshot.season} Preseason`;
+      document.getElementById("sb-sub").textContent = "Based on FantasyPros ROS ranks — the real table replaces this once Week 1 is done";
       content.style.display = "";
-      content.innerHTML = `<div class="wrap"><div class="empty-state">Power Rankings need at least one played week — check back once the season's underway.</div></div>`;
+      content.innerHTML = renderPreseasonContent(snapshot);
       return;
     }
 
-    const teamStrengthTeams = teamStrength && teamStrength.teams ? teamStrength.teams : {};
-    const pr = DeepHistory.computePowerRankings(currentSeasonEntry, deep, playerDirectory, teamStrengthTeams, 1000);
+    document.getElementById("sb-title").textContent = `${snapshot.season} · Week ${snapshot.week}`;
+    document.getElementById("sb-sub").textContent = `${snapshot.rows.length} teams · ${snapshot.playoffTeams} make the playoffs${snapshot.byeTeams ? `, top ${snapshot.byeTeams} get a bye` : ""}`;
 
-    document.getElementById("sb-title").textContent = `${pr.season} · Week ${pr.week}`;
-    document.getElementById("sb-sub").textContent = `${pr.rows.length} teams · ${pr.playoffTeams} make the playoffs${pr.byeTeams ? `, top ${pr.byeTeams} get a bye` : ""}`;
-
-    const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(pr.season)]) || {};
-    const lastWeekRanks = seasonHistory[String(pr.week - 1)] || null;
+    const powerRankHistory = await fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} });
+    const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(snapshot.season)]) || {};
+    const lastWeekRanks = seasonHistory[String(snapshot.week - 1)] || null;
 
     content.style.display = "";
-    content.innerHTML = renderContent(pr, lastWeekRanks);
+    content.innerHTML = renderContent(snapshot, lastWeekRanks);
   } catch (err) {
     console.error(err);
-    progressBox.style.display = "none";
     errorBox.textContent = "Couldn't load power rankings — " + err.message;
     errorBox.style.display = "block";
   }
@@ -55,6 +46,13 @@ async function renderPowerRankings() {
 
 function formatRank(n) {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+function formatGeneratedAt(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function deltaBadge(row, lastWeekRanks) {
@@ -67,8 +65,8 @@ function deltaBadge(row, lastWeekRanks) {
   return `<span class="muted-inline">–</span>`;
 }
 
-function renderPowerTable(pr, lastWeekRanks) {
-  const rows = pr.rows
+function renderPowerTable(snapshot, lastWeekRanks) {
+  const rows = snapshot.rows
     .map(
       (r) => `
     <tr>
@@ -117,11 +115,11 @@ function probCell(pct, rank) {
   return `<td class="heat-cell" data-label="${label}" style="background:${bg}">${pct.toFixed(1)}%</td>`;
 }
 
-function renderOddsTable(pr) {
-  const n = pr.rows.length;
+function renderOddsTable(snapshot) {
+  const n = snapshot.rows.length;
   const header = Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("");
-  const rows = pr.rows
-    .map((r) => `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${r.finishDistribution.map((pct, i) => probCell(pct, i + 1)).join("")}</tr>`)
+  const rows = snapshot.rows
+    .map((r) => `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${(r.finishDistribution || []).map((pct, i) => probCell(pct, i + 1)).join("")}</tr>`)
     .join("");
   return `
     <div class="heatmap-table-wrap">
@@ -130,29 +128,15 @@ function renderOddsTable(pr) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="heatmap-note">Probability of finishing in each final position, from 1,000 simulated seasons — columns are final rank (1st, 2nd, …).</p>`;
+    <p class="heatmap-note">Probability of finishing in each final position, from a 1,000-run simulation as of the last update — columns are final rank (1st, 2nd, …).</p>`;
 }
 
-function renderHistorySnippet(pr) {
-  const obj = {};
-  pr.rows.forEach((r) => {
-    obj[r.teamName] = formatRank(r.powerRank);
-  });
-  const snippet = JSON.stringify(obj, null, 2);
-  return `
-    <div class="panel">
-      <h2>Save This Week's Ranks</h2>
-      <p class="heatmap-note">To track week-over-week movement (the Δ column), add this under <code>seasons["${pr.season}"]["${pr.week}"]</code> in <code>data/power-rank-history.json</code> — or just ask Claude to do it.</p>
-      <pre class="code-snippet">${escapeHtml(snippet)}</pre>
-    </div>`;
-}
-
-function renderContent(pr, lastWeekRanks) {
+function renderContent(snapshot, lastWeekRanks) {
   return `
     <div class="wrap"><div class="panel">
       <h2>Power Rankings</h2>
-      ${renderPowerTable(pr, lastWeekRanks)}
-      <p class="heatmap-note">Weighted composite of record, all-play record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better.</p>
+      ${renderPowerTable(snapshot, lastWeekRanks)}
+      <p class="heatmap-note">Weighted composite of record, all-play record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better. Updated ${escapeHtml(formatGeneratedAt(snapshot.generatedAt))} — see the footer for how to refresh this.</p>
     </div></div>
 
     <div class="yard-divider">
@@ -162,15 +146,33 @@ function renderContent(pr, lastWeekRanks) {
     </div>
     <div class="wrap"><div class="panel">
       <h2>Finish Probability By Rank</h2>
-      ${renderOddsTable(pr)}
+      ${renderOddsTable(snapshot)}
     </div></div>
+  `;
+}
 
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Keep History</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap">${renderHistorySnippet(pr)}</div>
+function renderPreseasonContent(snapshot) {
+  const rows = snapshot.rows
+    .map(
+      (r) => `
+    <tr>
+      <td class="rank" data-label="Rank">#${r.rank}</td>
+      <td class="team-cell">${escapeHtml(r.username)}</td>
+      <td data-label="Team Name">${escapeHtml(r.teamName || "—")}</td>
+    </tr>`
+    )
+    .join("");
+  return `
+    <div class="wrap"><div class="panel">
+      <h2>Preseason Power Rankings</h2>
+      <div class="heatmap-table-wrap">
+        <table class="stat-table responsive-stack">
+          <thead><tr><th>Rank</th><th>Team</th><th>Team Name</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p class="heatmap-note">Based on FantasyPros Rest-of-Season expert consensus ranks — no games played yet, so there's nothing else (record, PR score, playoff odds) to show. This updates to the full table once Week 1 is complete.</p>
+    </div></div>
   `;
 }
 
