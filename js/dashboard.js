@@ -58,14 +58,14 @@ async function renderDashboard() {
     if (week) {
       rawMatchups = await SleeperAPI.getMatchups(LEAGUE_ID, week).catch(() => []);
     }
-    const { topScore } = renderMatchupsAndFeatured(rawMatchups, standings, week);
+    renderMatchupsAndFeatured(rawMatchups, standings, week);
     initScrollAnimations();
 
     fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
 
     // ---- Phase 2: heavier data (full-season fetch), doesn't block the above ----
     if (league.status !== "pre_draft" && week) {
-      renderStreaksAndPowerRankings(league, rosters, users, playerDirectory, teamStrength, topScore);
+      renderStreaksAndPowerRankings(league, rosters, users, week);
       renderRecentActivity(LEAGUE_ID, week, rosters, users, playerDirectory);
     } else {
       document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Check back once the season starts.</div>`;
@@ -217,9 +217,18 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
 // most dramatic first, so the page always leads with its single best
 // fact instead of giving every fact equal weight. Returns null when
 // nothing qualifies (e.g. week 1, before any streak or clinch is
-// possible), in which case the hero section simply doesn't render.
-function pickHeroStory({ streaks, prRows, topScore, week, playoffTeams }) {
-  if (!week) return null;
+// possible, or simply a quiet week), in which case the hero section
+// simply doesn't render.
+//
+// prWeek and liveWeek are deliberately separate: prRows (clinch/
+// eliminate) comes from the saved Power Rankings snapshot, which is
+// only ever as fresh as its last manual update — prWeek is whichever
+// week THAT reflects. streaks are computed live from the current
+// season's actual results, so liveWeek (this week, per Sleeper) is the
+// accurate label for those. Using one week number for both would
+// mislabel whichever story didn't match it.
+function pickHeroStory({ streaks, prRows, prWeek, liveWeek, playoffTeams }) {
+  if (!liveWeek) return null;
 
   // 1. Clinched or eliminated — the biggest possible story. Checked
   // first since making or missing the playoffs outweighs anything else
@@ -228,7 +237,7 @@ function pickHeroStory({ streaks, prRows, topScore, week, playoffTeams }) {
     const clinched = prRows.find((r) => r.playoffPct >= 99.5);
     if (clinched) {
       return {
-        eyebrow: `Playoff Watch · Week ${week}`,
+        eyebrow: `Playoff Watch · Week ${prWeek}`,
         headline: `${clinched.teamName} clinches a playoff spot`,
         sub: playoffTeams ? `First team to lock up one of the ${playoffTeams} playoff spots.` : "First team to lock up a playoff spot.",
       };
@@ -236,7 +245,7 @@ function pickHeroStory({ streaks, prRows, topScore, week, playoffTeams }) {
     const eliminated = prRows.find((r) => r.playoffPct <= 0.5);
     if (eliminated) {
       return {
-        eyebrow: `Playoff Watch · Week ${week}`,
+        eyebrow: `Playoff Watch · Week ${prWeek}`,
         headline: `${eliminated.teamName} has been eliminated`,
         sub: "Their playoff odds have dropped to zero.",
       };
@@ -248,7 +257,7 @@ function pickHeroStory({ streaks, prRows, topScore, week, playoffTeams }) {
   const hottest = (streaks || []).filter((s) => s.result === "W").sort((a, b) => b.length - a.length)[0];
   if (hottest && hottest.length >= 4) {
     return {
-      eyebrow: `Hot Streak · Week ${week}`,
+      eyebrow: `Hot Streak · Week ${liveWeek}`,
       headline: `${hottest.teamName} is riding a ${hottest.length}-game win streak`,
       sub: "Nobody else in the league is hotter right now.",
     };
@@ -256,23 +265,18 @@ function pickHeroStory({ streaks, prRows, topScore, week, playoffTeams }) {
   const coldest = (streaks || []).filter((s) => s.result === "L").sort((a, b) => b.length - a.length)[0];
   if (coldest && coldest.length >= 4) {
     return {
-      eyebrow: `Cold Streak · Week ${week}`,
+      eyebrow: `Cold Streak · Week ${liveWeek}`,
       headline: `${coldest.teamName} has dropped ${coldest.length} straight`,
       sub: "Their longest losing skid of the season.",
     };
   }
 
-  // 4. Fallback: last week's high score — always available once at
-  // least one week has been played, so the section still has something
-  // to say even in a quiet week without a streak or clinch.
-  if (topScore) {
-    return {
-      eyebrow: `Week ${week}`,
-      headline: `${topScore.name} posted the week's high score`,
-      sub: `${topScore.pts.toFixed(1)} points led all teams.`,
-    };
-  }
-
+  // No "week's high score" fallback here on purpose — that used to be
+  // case 4, but "posted the week's high score" was showing up while
+  // that week's matchups were still in progress (a partial, ongoing
+  // score isn't a final result worth declaring a headline over). A
+  // quiet week with no clinch/eliminate/streak story now just shows no
+  // hero section at all, rather than a misleading one.
   return null;
 }
 
@@ -388,10 +392,35 @@ function renderStreaksPanel(streaks) {
     .join("");
 }
 
-function renderPowerRankingsSnapshot(pr, lastWeekRanks) {
+function renderPowerRankingsSnapshot(snapshot, lastWeekRanks) {
   const el = document.getElementById("power-rankings-snapshot");
-  const top3 = pr.rows.slice(0, 3);
+  if (!snapshot || !snapshot.rows || !snapshot.rows.length) {
+    el.innerHTML = `<div class="empty-state">No power rankings yet.</div>`;
+    return;
+  }
   const fmtRank = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+  // Preseason rows are just {rank, username, teamName} — there's no PR
+  // Score/record/playoff odds yet to build a real ranking from, so this
+  // is a plain top-3 list with no delta column rather than trying to
+  // force the full-season row shape onto data that doesn't have it.
+  if (snapshot.preseason) {
+    const rows = snapshot.rows
+      .slice(0, 3)
+      .map(
+        (r) => `
+      <div class="pr-mini-row">
+        <span class="pr-mini-rank">#${r.rank}</span>
+        <span class="pr-mini-name">${escapeHtml(r.username)}</span>
+        <span class="pr-mini-delta muted-inline">PRESEASON</span>
+      </div>`
+      )
+      .join("");
+    el.innerHTML = rows + `<a class="dash-more-link" href="power-rankings.html">See Full Power Rankings →</a>`;
+    return;
+  }
+
+  const top3 = snapshot.rows.slice(0, 3);
   const rows = top3
     .map((r) => {
       let deltaHtml = `<span class="pr-mini-delta muted-inline">NEW</span>`;
@@ -412,35 +441,51 @@ function renderPowerRankingsSnapshot(pr, lastWeekRanks) {
   el.innerHTML = rows + `<a class="dash-more-link" href="power-rankings.html">See Full Power Rankings →</a>`;
 }
 
-async function renderStreaksAndPowerRankings(league, rosters, users, playerDirectory, teamStrength, topScore) {
+// Streaks are computed live (deterministic from actual results — no
+// randomness involved, so there's nothing to gain from freezing them
+// into a snapshot the way Power Rankings needed). Power Rankings and
+// the clinch/eliminate hero story, though, both come from
+// data/power-rankings-snapshot.json — the same saved-not-live snapshot
+// scripts/update-power-rankings.js writes, exactly as on the dedicated
+// Power Rankings page. This used to call DeepHistory.computePowerRankings
+// directly here too, which re-ran an unseeded Monte Carlo simulation on
+// every single page load — different random playoff odds (and
+// therefore a different top-3 order) on every refresh. Reading the same
+// saved snapshot this page's dedicated view uses fixes that by
+// construction: both places now show the exact same numbers, updated
+// only when someone actually runs the update script.
+async function renderStreaksAndPowerRankings(league, rosters, users, week) {
   try {
     const seasonEntry = { league, rosters, users, bracket: [] };
-    const deep = await DeepHistory.fetchSeasonDeep(seasonEntry, () => {});
+    const [deep, snapshot, powerRankHistory] = await Promise.all([
+      DeepHistory.fetchSeasonDeep(seasonEntry, () => {}),
+      fetchJsonSafe(POWER_RANKINGS_SNAPSHOT_FILE, null),
+      fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} }),
+    ]);
 
-    if (!deep.weeks.length) {
+    let streaks = [];
+    if (deep.weeks.length) {
+      const usersById = new Map(users.map((u) => [u.user_id, u]));
+      const rosterInfo = new Map();
+      rosters.forEach((r) => {
+        const user = usersById.get(r.owner_id);
+        rosterInfo.set(r.roster_id, { teamName: SleeperAPI.teamName(user, r.roster_id), username: user ? user.display_name : null });
+      });
+      streaks = computeCurrentStreaks(deep.weeks, rosterInfo);
+      renderStreaksPanel(streaks);
+    } else {
       document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">No games played yet.</div>`;
-      document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">No games played yet.</div>`;
-      renderHeroThesis(null);
-      return;
     }
 
-    const usersById = new Map(users.map((u) => [u.user_id, u]));
-    const rosterInfo = new Map();
-    rosters.forEach((r) => {
-      const user = usersById.get(r.owner_id);
-      rosterInfo.set(r.roster_id, { teamName: SleeperAPI.teamName(user, r.roster_id), username: user ? user.display_name : null });
-    });
-    const streaks = computeCurrentStreaks(deep.weeks, rosterInfo);
-    renderStreaksPanel(streaks);
+    const prRows = snapshot && !snapshot.preseason ? snapshot.rows : null;
+    let lastWeekRanks = null;
+    if (prRows) {
+      const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(snapshot.season)]) || {};
+      lastWeekRanks = seasonHistory[String(snapshot.week - 1)] || null;
+    }
+    renderPowerRankingsSnapshot(snapshot, lastWeekRanks);
 
-    const teamStrengthTeams = (teamStrength && teamStrength.teams) || {};
-    const pr = DeepHistory.computePowerRankings(seasonEntry, deep, playerDirectory, teamStrengthTeams, 1000);
-    const powerRankHistory = await fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} });
-    const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(pr.season)]) || {};
-    const lastWeekRanks = seasonHistory[String(pr.week - 1)] || null;
-    renderPowerRankingsSnapshot(pr, lastWeekRanks);
-
-    renderHeroThesis(pickHeroStory({ streaks, prRows: pr.rows, topScore, week: pr.week, playoffTeams: pr.playoffTeams }));
+    renderHeroThesis(pickHeroStory({ streaks, prRows, prWeek: snapshot ? snapshot.week : null, liveWeek: week, playoffTeams: snapshot ? snapshot.playoffTeams : null }));
   } catch (err) {
     console.error(err);
     document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Couldn't load streak data.</div>`;

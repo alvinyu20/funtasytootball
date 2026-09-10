@@ -8,7 +8,7 @@ function setup() {
 
 test("pickHeroStory: returns null with no week (preseason, nothing to say yet)", () => {
   const ctx = setup();
-  const story = ctx.pickHeroStory({ streaks: [], prRows: [], topScore: null, week: null, playoffTeams: 6 });
+  const story = ctx.pickHeroStory({ streaks: [], prRows: [], prWeek: null, liveWeek: null, playoffTeams: 6 });
   assert.strictEqual(story, null);
 });
 
@@ -20,8 +20,8 @@ test("pickHeroStory: a clinched team is the top-priority story, even with a hot 
       { teamName: "yulovesyou", playoffPct: 100 },
       { teamName: "someone-else", playoffPct: 40 },
     ],
-    topScore: { name: "someone-else", pts: 150 },
-    week: 12,
+    prWeek: 12,
+    liveWeek: 12,
     playoffTeams: 6,
   });
   assert.ok(story);
@@ -37,8 +37,8 @@ test("pickHeroStory: an eliminated team is the story when nobody has clinched ye
       { teamName: "jerbear3", playoffPct: 0 },
       { teamName: "someone-else", playoffPct: 40 },
     ],
-    topScore: null,
-    week: 9,
+    prWeek: 9,
+    liveWeek: 9,
     playoffTeams: 6,
   });
   assert.ok(story);
@@ -53,8 +53,8 @@ test("pickHeroStory: a 4+ game win streak is the story when no clinch/eliminatio
       { teamName: "hotteam", result: "W", length: 5 },
     ],
     prRows: [{ teamName: "someone", playoffPct: 55 }],
-    topScore: { name: "someone", pts: 130 },
-    week: 6,
+    prWeek: 6,
+    liveWeek: 6,
     playoffTeams: 6,
   });
   assert.ok(story);
@@ -66,31 +66,29 @@ test("pickHeroStory: a 4+ game losing streak is the story when there's no qualif
   const story = ctx.pickHeroStory({
     streaks: [{ teamName: "coldteam", result: "L", length: 4 }],
     prRows: [],
-    topScore: { name: "someone", pts: 100 },
-    week: 6,
+    prWeek: 6,
+    liveWeek: 6,
     playoffTeams: 6,
   });
   assert.ok(story);
   assert.match(story.headline, /coldteam has dropped 4 straight/);
 });
 
-test("pickHeroStory: a streak below the 4-game threshold doesn't qualify — falls through to the top-score fallback", () => {
+test("pickHeroStory: a streak below the 4-game threshold doesn't qualify, and there's no other story either — returns null rather than forcing a weak headline", () => {
   const ctx = setup();
   const story = ctx.pickHeroStory({
     streaks: [{ teamName: "mildteam", result: "W", length: 3 }],
     prRows: [],
-    topScore: { name: "scorer", pts: 142.6 },
-    week: 4,
+    prWeek: 4,
+    liveWeek: 4,
     playoffTeams: 6,
   });
-  assert.ok(story);
-  assert.match(story.headline, /scorer posted the week's high score/);
-  assert.match(story.sub, /142\.6 points/);
+  assert.strictEqual(story, null);
 });
 
 test("pickHeroStory: returns null when nothing at all qualifies, rather than forcing a weak story", () => {
   const ctx = setup();
-  const story = ctx.pickHeroStory({ streaks: [], prRows: [], topScore: null, week: 1, playoffTeams: 6 });
+  const story = ctx.pickHeroStory({ streaks: [], prRows: [], prWeek: 1, liveWeek: 1, playoffTeams: 6 });
   assert.strictEqual(story, null);
 });
 
