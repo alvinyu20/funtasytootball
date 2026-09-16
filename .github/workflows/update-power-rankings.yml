@@ -1,0 +1,49 @@
+name: Power Rankings Update
+
+# Runs automatically whenever data/team-strength.json changes (i.e. you
+# type in that week's FantasyPros ROS ranks and commit) — so updating ROS
+# *is* the trigger, no separate step needed. Also runs Tuesday mornings as
+# a safety net for weeks where team-strength.json doesn't change but a
+# game week still completed. update-power-rankings.js is safe to run any
+# time: if the current week isn't complete yet per Sleeper, it exits
+# without touching either output file.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/team-strength.json"
+  schedule:
+    - cron: "0 11 * * 2" # Tuesdays, after the injuries pipeline (update-injuries.yml runs at 9:00)
+  workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
+
+permissions:
+  contents: write # needed to commit the regenerated snapshot/history files back to the repo
+
+jobs:
+  update-power-rankings:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Update power rankings
+        run: node scripts/update-power-rankings.js
+
+      - name: Commit and push if power rankings data changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/power-rankings-snapshot.json data/power-rank-history.json
+          if git diff --staged --quiet; then
+            echo "No changes to power rankings data — nothing to commit."
+          else
+            git commit -m "Update power rankings [automated]"
+            git push
+          fi
