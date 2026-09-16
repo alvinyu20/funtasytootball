@@ -1,5 +1,21 @@
 {
   "_instructions": "Weekly snapshots of Power Rank, used to show week-over-week movement (the up/down arrows) on the Power Rankings page. After checking the Power Rankings page each week, come back here (or ask Claude to do it) and add that week's ranks under the current season. Keyed by season, then week number, then Sleeper username -> that week's Power Rank (1 = best). If a week is missing, the site just shows 'NEW' instead of an arrow for that week — nothing breaks.",
-
-  "seasons": {}
+  "seasons": {
+    "2026": {
+      "1": {
+        "YuWillLose": 1,
+        "mayshisha": 2,
+        "sofarrsogood": 3,
+        "hmart92": 4,
+        "paty23": 5,
+        "jspar279879": 6.5,
+        "evangonnerman": 6.5,
+        "yulovesyou": 8,
+        "LyDaniel": 9,
+        "JoeSifBoreDough": 10,
+        "tduchow": 11,
+        "artmane": 12
+      }
+    }
+  }
 }
