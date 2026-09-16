@@ -4,39 +4,51 @@
   "teams": {
     "mayshisha": {
       "rank": 1
+      "pt": 100
     },
     "evangonnerman": {
       "rank": 2
+      "pt": 98
     },
     "YuWillLose": {
       "rank": 3
+      "pt": 98
     },
     "LyDaniel": {
-      "rank": 4
+      "rank": 6
+      "pt": 94
     },
     "hmart92": {
-      "rank": 5
+      "rank": 4
+      "pt": 96
     },
     "yulovesyou": {
-      "rank": 6
+      "rank": 11
+      "pt": 88
     },
     "jspar279879": {
-      "rank": 7
+      "rank": 8
+      "pt": 93
     },
     "sofarrsogood": {
-      "rank": 8
+      "rank": 7
+      "pt": 93
     },
     "JoeSifBoreDough": {
-      "rank": 9
+      "rank": 5
+      "pt": 95
     },
     "tduchow": {
       "rank": 10
+      "pt": 89
     },
     "paty23": {
-      "rank": 11
+      "rank": 9
+      "pt": 91
     },
     "artmane": {
       "rank": 12
+      "pt": 73
     }
   }
 }
