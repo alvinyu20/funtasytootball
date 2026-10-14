@@ -1,33 +1,15 @@
 async function renderDashboard() {
   const errorBox = document.getElementById("dash-error");
 
-  function renderLatestNewsletterCallout(newsletters) {
-    const el = document.getElementById("latest-newsletter-callout");
-    if (!el) return;
-    if (!Array.isArray(newsletters) || !newsletters.length) return; // no newsletters yet -- render nothing, not an empty box
-    const latest = newsletters[0]; // newsletters.json keeps the newest issue first
-    el.innerHTML = `
-      <a class="panel latest-newsletter-link" href="newsletters.html#${encodeURIComponent(latest.slug)}">
-        <div class="history-callout-inner">
-          <span class="history-callout-icon">📰</span>
-          <div>
-            <div class="history-callout-eyebrow">Latest Newsletter · ${escapeHtml(latest.issue || "")}</div>
-            <div class="history-callout-text"><strong>${escapeHtml(latest.title)}</strong></div>
-          </div>
-        </div>
-      </a>`;
-  }
-
   try {
     // ---- Phase 1: fast, essential data (standings, matchups, ROS) ----
-    const [league, rosters, users, nflState, teamStrength, playerDirectory, newsletters] = await Promise.all([
+    const [league, rosters, users, nflState, teamStrength, playerDirectory] = await Promise.all([
       SleeperAPI.getLeague(LEAGUE_ID),
       SleeperAPI.getRosters(LEAGUE_ID),
       SleeperAPI.getUsers(LEAGUE_ID),
       SleeperAPI.getNflState(),
       fetchJsonSafe(TEAM_STRENGTH_FILE, { teams: {} }),
       SleeperAPI.getPlayerDirectory(),
-      fetchJsonSafe(NEWSLETTERS_FILE, []),
     ]);
 
     if (!league || league.detail === "not found") {
@@ -37,7 +19,6 @@ async function renderDashboard() {
     document.title = (SITE_TITLE || league.name || "League") + " — Home";
     document.getElementById("sb-eyebrow").textContent = `${league.season} SEASON`;
     document.getElementById("sb-title").textContent = league.name || "Fantasy League";
-    renderLatestNewsletterCallout(newsletters);
 
     let week = null;
     if (league.status === "in_season" && String(league.season) === String(nflState.season)) {
@@ -58,7 +39,7 @@ async function renderDashboard() {
     if (week) {
       rawMatchups = await SleeperAPI.getMatchups(LEAGUE_ID, week).catch(() => []);
     }
-    renderMatchupsAndFeatured(rawMatchups, standings, week);
+    const { pairs: matchupPairs } = renderMatchupsAndFeatured(rawMatchups, standings, week);
     initScrollAnimations();
 
     fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
@@ -67,6 +48,9 @@ async function renderDashboard() {
     if (league.status !== "pre_draft" && week) {
       renderStreaksAndPowerRankings(league, rosters, users, week);
       renderRecentActivity(LEAGUE_ID, week, rosters, users, playerDirectory);
+      if (matchupPairs && matchupPairs.length) {
+        renderMatchupHeadToHead(matchupPairs, playerDirectory);
+      }
     } else {
       document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Check back once the season starts.</div>`;
       document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">Check back once the season starts.</div>`;
@@ -118,12 +102,12 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
   if (!week) {
     matchupsEl.innerHTML = `<div class="empty-state">No matchups to show right now.</div>`;
     featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
-    return { topScore: null, closest: null };
+    return { topScore: null, closest: null, pairs: [] };
   }
   if (!rawMatchups || rawMatchups.length === 0) {
     matchupsEl.innerHTML = `<div class="empty-state">Matchups for week ${week} aren't posted yet.</div>`;
     featuredEl.innerHTML = `<div class="empty-state">Matchups for week ${week} aren't posted yet.</div>`;
-    return { topScore: null, closest: null };
+    return { topScore: null, closest: null, pairs: [] };
   }
 
   const nameByRoster = new Map(standings.map((t) => [t.rosterId, t.teamName]));
@@ -140,6 +124,7 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
   let featuredWins = -1;
 
   const cards = [];
+  const pairs = []; // {rosterA, rosterB, userIdA, userIdB} -- for the head-to-head enrichment pass (Phase 2)
   byMatchupId.forEach((pair) => {
     if (pair.length < 2) return; // bye week / odd roster count
     const [a, b] = pair.sort((x, y) => (y.points || 0) - (x.points || 0));
@@ -160,17 +145,29 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
       featuredPair = { a, b, aName, bName, sa, sb };
     }
 
+    pairs.push({
+      rosterA: a.roster_id,
+      rosterB: b.roster_id,
+      userIdA: sa ? sa.userId : null,
+      userIdB: sb ? sb.userId : null,
+      aName,
+      bName,
+    });
+
     cards.push(`
       <div class="matchup">
-        <div class="side">
-          <span class="name">${escapeHtml(aName)}</span>
-          <span class="pts lead">${(a.points || 0).toFixed(1)}</span>
+        <div class="matchup-row">
+          <div class="side">
+            <span class="name">${escapeHtml(aName)}</span>
+            <span class="pts lead">${(a.points || 0).toFixed(1)}</span>
+          </div>
+          <span class="vs">VS</span>
+          <div class="side right">
+            <span class="name">${escapeHtml(bName)}</span>
+            <span class="pts trail">${(b.points || 0).toFixed(1)}</span>
+          </div>
         </div>
-        <span class="vs">VS</span>
-        <div class="side right">
-          <span class="name">${escapeHtml(bName)}</span>
-          <span class="pts trail">${(b.points || 0).toFixed(1)}</span>
-        </div>
+        <div class="matchup-h2h" id="h2h-${a.roster_id}-${b.roster_id}"></div>
       </div>`);
   });
 
@@ -209,7 +206,53 @@ function renderMatchupsAndFeatured(rawMatchups, standings, week) {
     featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
   }
 
-  return { topScore: topScore.pts > -Infinity ? topScore : null, closest: closest.diff < Infinity ? closest : null };
+  return { topScore: topScore.pts > -Infinity ? topScore : null, closest: closest.diff < Infinity ? closest : null, pairs };
+}
+
+// Fills in each matchup card's all-time head-to-head line, once the full
+// season history is available. Deliberately separate from (and run after)
+// renderMatchupsAndFeatured: that function's whole job is to get this
+// week's matchups on screen from the fast, single-call standings/matchups
+// data, with no multi-season fetch blocking it. Head-to-head needs a
+// manager's full career record against each opponent, which only exists
+// after walking the entire season chain (the same fetchSeasonChain ->
+// buildAll -> computeStats pipeline Teams/Records/Rivalries already use) --
+// a real network-and-compute cost best paid in the background, after the
+// matchups the person actually came here to see are already on screen.
+// Uses team names (not usernames) throughout, matching the rest of the
+// Home page's matchup cards.
+async function renderMatchupHeadToHead(pairs, playerDirectory) {
+  try {
+    const seasonChain = await SleeperAPI.getSeasonChain(LEAGUE_ID);
+    if (seasonChain.length === 0) return;
+    const deepSeasons = await DeepHistory.buildAll(seasonChain, () => {});
+    const { managers } = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
+    const h2hByUserId = new Map(managers.map((m) => [m.userId, m.headToHead]));
+
+    pairs.forEach(({ rosterA, rosterB, userIdA, userIdB, aName, bName }) => {
+      const el = document.getElementById(`h2h-${rosterA}-${rosterB}`);
+      if (!el || !userIdA || !userIdB) return;
+      const list = h2hByUserId.get(userIdA) || [];
+      const rec = list.find((h) => h.opponentUserId === userIdB);
+      if (!rec) {
+        el.textContent = "First-ever meeting";
+        return;
+      }
+      const total = rec.wins + rec.losses + rec.ties;
+      if (!total) {
+        el.textContent = "First-ever meeting";
+        return;
+      }
+      const tieStr = rec.ties ? `-${rec.ties}` : "";
+      el.textContent = `All-Time: ${aName} ${rec.wins}-${rec.losses}${tieStr} ${bName}`;
+    });
+  } catch (err) {
+    // Best-effort enhancement -- the matchup cards above already rendered
+    // fine without this, so a failure here (e.g. a season in the chain
+    // failing to fetch) just means the h2h line stays empty, not an error
+    // banner over working matchup data.
+    console.warn("Couldn't load head-to-head history for this week's matchups:", err);
+  }
 }
 
 // Picks the single biggest storyline of the week from whatever's already

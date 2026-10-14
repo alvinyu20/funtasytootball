@@ -142,7 +142,7 @@ async function renderChampionshipRings(seasons, playerDirectory) {
 
       const roster = rosters.find((r) => r.roster_id === championRosterId);
       const user = users.find((u) => u.user_id === (roster && roster.owner_id));
-      const ownerName = SleeperAPI.teamName(user, championRosterId);
+      const ownerName = (user && user.display_name) || SleeperAPI.teamName(user, championRosterId);
       const ownerId = roster ? roster.owner_id : null;
 
       // playerId -> weeks started for the champion roster this season.

@@ -115,12 +115,20 @@ function expandableCard(label, value, detail, badge, top5Rows) {
 // matching the wording each category's single-value card already uses
 // above, just split into separate columns instead of one detail string.
 const TOP5_ROW_FORMATTERS = {
-  highestWeekScore: (x) => ({ name: x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.points.toFixed(1)} pts` }),
-  lowestWeekScore: (x) => ({ name: x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.points.toFixed(1)} pts` }),
-  biggestBlowout: (x) => ({ name: `${x.winner} over ${x.loser}`, detail: `${x.season} Wk ${x.week}`, value: `${x.margin.toFixed(1)} pts` }),
-  closestGame: (x) => ({ name: `${x.winner} over ${x.loser}`, detail: `${x.season} Wk ${x.week}`, value: `${x.margin.toFixed(2)} pts` }),
-  longestWinStreak: (x) => ({ name: x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
-  longestLoseStreak: (x) => ({ name: x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
+  highestWeekScore: (x) => ({ name: x.username || x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.points.toFixed(1)} pts` }),
+  lowestWeekScore: (x) => ({ name: x.username || x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.points.toFixed(1)} pts` }),
+  biggestBlowout: (x) => ({
+    name: `${x.winnerUsername || x.winner} over ${x.loserUsername || x.loser}`,
+    detail: `${x.season} Wk ${x.week}`,
+    value: `${x.margin.toFixed(1)} pts`,
+  }),
+  closestGame: (x) => ({
+    name: `${x.winnerUsername || x.winner} over ${x.loserUsername || x.loser}`,
+    detail: `${x.season} Wk ${x.week}`,
+    value: `${x.margin.toFixed(2)} pts`,
+  }),
+  longestWinStreak: (x) => ({ name: x.username || x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
+  longestLoseStreak: (x) => ({ name: x.username || x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
   bestValuePick: (x) => ({
     name: x.player,
     playerId: x.playerId,
@@ -133,13 +141,13 @@ const TOP5_ROW_FORMATTERS = {
     detail: `${x.round}.${x.pickInRound} by ${x.username || x.teamName} (${x.season})`,
     value: x.vbd != null ? `${x.vbd.toFixed(1)} VBD` : `${x.points.toFixed(1)} pts`,
   }),
-  mostTrades: (x) => ({ name: x.teamName, detail: "most trades made", value: `${x.count}` }),
-  mostWaiverAdds: (x) => ({ name: x.teamName, detail: "adds off waivers/free agency", value: `${x.count}` }),
-  mostBenchPointsLeft: (x) => ({ name: x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.left.toFixed(1)} pts left` }),
-  mostConsistentSeason: (x) => ({ name: x.teamName, detail: `${x.season}`, value: `±${x.stdDev.toFixed(1)} pts` }),
-  leastConsistentSeason: (x) => ({ name: x.teamName, detail: `${x.season}`, value: `±${x.stdDev.toFixed(1)} pts` }),
-  toughestSchedule: (x) => ({ name: x.teamName, detail: `${x.season} · avg. opponent score`, value: `${x.avgOpponentPF.toFixed(1)} PPG` }),
-  easiestSchedule: (x) => ({ name: x.teamName, detail: `${x.season} · avg. opponent score`, value: `${x.avgOpponentPF.toFixed(1)} PPG` }),
+  mostTrades: (x) => ({ name: x.username || x.teamName, detail: "most trades made", value: `${x.count}` }),
+  mostWaiverAdds: (x) => ({ name: x.username || x.teamName, detail: "adds off waivers/free agency", value: `${x.count}` }),
+  mostBenchPointsLeft: (x) => ({ name: x.username || x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.left.toFixed(1)} pts left` }),
+  mostConsistentSeason: (x) => ({ name: x.username || x.teamName, detail: `${x.season}`, value: `±${x.stdDev.toFixed(1)} pts` }),
+  leastConsistentSeason: (x) => ({ name: x.username || x.teamName, detail: `${x.season}`, value: `±${x.stdDev.toFixed(1)} pts` }),
+  toughestSchedule: (x) => ({ name: x.username || x.teamName, detail: `${x.season} · avg. opponent score`, value: `${x.avgOpponentPF.toFixed(1)} PPG` }),
+  easiestSchedule: (x) => ({ name: x.username || x.teamName, detail: `${x.season} · avg. opponent score`, value: `${x.avgOpponentPF.toFixed(1)} PPG` }),
 };
 
 function top5RowsFor(stats, recordKey) {
@@ -166,11 +174,11 @@ function buildRecordCards(stats) {
   startGroup("Scoring & Matchups");
   if (r.highestWeekScore) {
     const x = r.highestWeekScore;
-    push(expandableCard("Highest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "highestWeekScore")));
+    push(expandableCard("Highest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.username || x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "highestWeekScore")));
   }
   if (r.lowestWeekScore) {
     const x = r.lowestWeekScore;
-    push(expandableCard("Lowest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "lowestWeekScore")));
+    push(expandableCard("Lowest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.username || x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "lowestWeekScore")));
   }
   if (r.biggestBlowout) {
     const x = r.biggestBlowout;
@@ -178,7 +186,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Biggest Blowout",
         `${x.margin.toFixed(1)} pts`,
-        `${escapeHtml(x.winner)} over ${escapeHtml(x.loser)} · ${x.season} Wk ${x.week}`,
+        `${escapeHtml(x.winnerUsername || x.winner)} over ${escapeHtml(x.loserUsername || x.loser)} · ${x.season} Wk ${x.week}`,
         null,
         top5RowsFor(stats, "biggestBlowout")
       )
@@ -190,7 +198,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Closest Game",
         `${x.margin.toFixed(2)} pts`,
-        `${escapeHtml(x.winner)} over ${escapeHtml(x.loser)} · ${x.season} Wk ${x.week}`,
+        `${escapeHtml(x.winnerUsername || x.winner)} over ${escapeHtml(x.loserUsername || x.loser)} · ${x.season} Wk ${x.week}`,
         null,
         top5RowsFor(stats, "closestGame")
       )
@@ -200,7 +208,7 @@ function buildRecordCards(stats) {
   if (r.longestWinStreak) {
     const x = r.longestWinStreak;
     push(
-      expandableCard("Longest Win Streak", `${x.length} games`, `${escapeHtml(x.teamName)} · through ${x.end.season} Wk ${x.end.week}`, null, top5RowsFor(stats, "longestWinStreak"))
+      expandableCard("Longest Win Streak", `${x.length} games`, `${escapeHtml(x.username || x.teamName)} · through ${x.end.season} Wk ${x.end.week}`, null, top5RowsFor(stats, "longestWinStreak"))
     );
   }
   if (r.longestLoseStreak) {
@@ -209,7 +217,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Longest Losing Streak",
         `${x.length} games`,
-        `${escapeHtml(x.teamName)} · through ${x.end.season} Wk ${x.end.week}`,
+        `${escapeHtml(x.username || x.teamName)} · through ${x.end.season} Wk ${x.end.week}`,
         null,
         top5RowsFor(stats, "longestLoseStreak")
       )
@@ -242,14 +250,14 @@ function buildRecordCards(stats) {
   }
   startGroup("Roster Management");
   if (r.mostTrades) {
-    push(expandableCard("Trade Machine", `${r.mostTrades.count}`, `${escapeHtml(r.mostTrades.teamName)} · most trades made`, null, top5RowsFor(stats, "mostTrades")));
+    push(expandableCard("Trade Machine", `${r.mostTrades.count}`, `${escapeHtml(r.mostTrades.username || r.mostTrades.teamName)} · most trades made`, null, top5RowsFor(stats, "mostTrades")));
   }
   if (r.mostWaiverAdds) {
     push(
       expandableCard(
         "Waiver Wire Warrior",
         `${r.mostWaiverAdds.count}`,
-        `${escapeHtml(r.mostWaiverAdds.teamName)} · most adds off waivers/free agency`,
+        `${escapeHtml(r.mostWaiverAdds.username || r.mostWaiverAdds.teamName)} · most adds off waivers/free agency`,
         null,
         top5RowsFor(stats, "mostWaiverAdds")
       )
@@ -261,7 +269,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Biggest Bench Blunder",
         `${x.left.toFixed(1)} pts left on bench`,
-        `${escapeHtml(x.teamName)} scored ${x.actual.toFixed(1)} of a possible ${x.optimal.toFixed(1)} · ${x.season} Wk ${x.week}`,
+        `${escapeHtml(x.username || x.teamName)} scored ${x.actual.toFixed(1)} of a possible ${x.optimal.toFixed(1)} · ${x.season} Wk ${x.week}`,
         null,
         top5RowsFor(stats, "mostBenchPointsLeft")
       )
@@ -271,7 +279,7 @@ function buildRecordCards(stats) {
   if (r.mostConsistentSeason) {
     const x = r.mostConsistentSeason;
     push(
-      expandableCard("Mr. Reliable", `±${x.stdDev.toFixed(1)} pts`, `${escapeHtml(x.teamName)} · ${x.season} · lowest weekly score variance`, null, top5RowsFor(stats, "mostConsistentSeason"))
+      expandableCard("Mr. Reliable", `±${x.stdDev.toFixed(1)} pts`, `${escapeHtml(x.username || x.teamName)} · ${x.season} · lowest weekly score variance`, null, top5RowsFor(stats, "mostConsistentSeason"))
     );
   }
   if (r.leastConsistentSeason) {
@@ -280,7 +288,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Feast Or Famine",
         `±${x.stdDev.toFixed(1)} pts`,
-        `${escapeHtml(x.teamName)} · ${x.season} · highest weekly score variance`,
+        `${escapeHtml(x.username || x.teamName)} · ${x.season} · highest weekly score variance`,
         null,
         top5RowsFor(stats, "leastConsistentSeason")
       )
@@ -293,7 +301,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Toughest Schedule",
         `${x.avgOpponentPF.toFixed(1)} PPG faced`,
-        `${escapeHtml(x.teamName)} · ${x.season} · avg. regular-season opponent score`,
+        `${escapeHtml(x.username || x.teamName)} · ${x.season} · avg. regular-season opponent score`,
         null,
         top5RowsFor(stats, "toughestSchedule")
       )
@@ -305,7 +313,7 @@ function buildRecordCards(stats) {
       expandableCard(
         "Easiest Schedule",
         `${x.avgOpponentPF.toFixed(1)} PPG faced`,
-        `${escapeHtml(x.teamName)} · ${x.season} · average opponent score`,
+        `${escapeHtml(x.username || x.teamName)} · ${x.season} · average opponent score`,
         null,
         top5RowsFor(stats, "easiestSchedule")
       )
@@ -321,12 +329,12 @@ function buildRecordCards(stats) {
         expandableCard(
           "Most Championships",
           `${byChamps[0].championships}`,
-          escapeHtml(byChamps[0].teamName),
+          escapeHtml(byChamps[0].username || byChamps[0].teamName),
           null,
           byChamps
             .filter((m) => m.championships > 0)
             .slice(0, 5)
-            .map((m) => ({ name: m.teamName, detail: "championships", value: `${m.championships}` }))
+            .map((m) => ({ name: m.username || m.teamName, detail: "championships", value: `${m.championships}` }))
         )
       );
     }
@@ -338,9 +346,9 @@ function buildRecordCards(stats) {
         expandableCard(
           "Best All-Time Win %",
           `${(winPctOf(byWinPct[0]) * 100).toFixed(1)}%`,
-          escapeHtml(byWinPct[0].teamName),
+          escapeHtml(byWinPct[0].username || byWinPct[0].teamName),
           null,
-          byWinPct.slice(0, 5).map((m) => ({ name: m.teamName, detail: "career win %", value: `${(winPctOf(m) * 100).toFixed(1)}%` }))
+          byWinPct.slice(0, 5).map((m) => ({ name: m.username || m.teamName, detail: "career win %", value: `${(winPctOf(m) * 100).toFixed(1)}%` }))
         )
       );
     }
@@ -350,9 +358,9 @@ function buildRecordCards(stats) {
       expandableCard(
         "Most Career Points",
         byCareerPF[0].careerPF.toFixed(1),
-        escapeHtml(byCareerPF[0].teamName),
+        escapeHtml(byCareerPF[0].username || byCareerPF[0].teamName),
         null,
-        byCareerPF.slice(0, 5).map((m) => ({ name: m.teamName, detail: "career points for", value: m.careerPF.toFixed(1) }))
+        byCareerPF.slice(0, 5).map((m) => ({ name: m.username || m.teamName, detail: "career points for", value: m.careerPF.toFixed(1) }))
       )
     );
 
@@ -362,12 +370,12 @@ function buildRecordCards(stats) {
         expandableCard(
           "Career Bench Waste",
           byBenchWaste[0].careerBenchPointsLeft.toFixed(1),
-          `${escapeHtml(byBenchWaste[0].teamName)} · total points left on the bench, all-time`,
+          `${escapeHtml(byBenchWaste[0].username || byBenchWaste[0].teamName)} · total points left on the bench, all-time`,
           null,
           byBenchWaste
             .filter((m) => m.careerBenchPointsLeft > 0)
             .slice(0, 5)
-            .map((m) => ({ name: m.teamName, detail: "career points left on bench", value: m.careerBenchPointsLeft.toFixed(1) }))
+            .map((m) => ({ name: m.username || m.teamName, detail: "career points left on bench", value: m.careerBenchPointsLeft.toFixed(1) }))
         )
       );
     }

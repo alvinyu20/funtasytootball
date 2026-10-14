@@ -890,10 +890,10 @@ const DeepHistory = {
           streakStart = g;
         }
         if (curResult === "W" && curLen > bestWin.length) {
-          bestWin = { length: curLen, teamName: m.teamName, start: streakStart, end: g };
+          bestWin = { length: curLen, teamName: m.teamName, username: m.username, start: streakStart, end: g };
         }
         if (curResult === "L" && curLen > bestLose.length) {
-          bestLose = { length: curLen, teamName: m.teamName, start: streakStart, end: g };
+          bestLose = { length: curLen, teamName: m.teamName, username: m.username, start: streakStart, end: g };
         }
       });
 
@@ -903,13 +903,13 @@ const DeepHistory = {
       if (m.transactionCounts.trades > 0) {
         consider(
           "mostTrades",
-          { teamName: m.teamName, count: m.transactionCounts.trades },
+          { teamName: m.teamName, username: m.username, count: m.transactionCounts.trades },
           (a, b) => a.count > b.count
         );
       }
       const waiverTotal = m.transactionCounts.waiver + m.transactionCounts.freeAgent;
       if (waiverTotal > 0) {
-        consider("mostWaiverAdds", { teamName: m.teamName, count: waiverTotal }, (a, b) => a.count > b.count);
+        consider("mostWaiverAdds", { teamName: m.teamName, username: m.username, count: waiverTotal }, (a, b) => a.count > b.count);
       }
     });
 
@@ -3120,17 +3120,20 @@ const DeepHistory = {
     const playoffOddsRank = DeepHistory.rankData(rows.map((r) => r.playoffPct), false);
     const rosRankValues = rows.map((r) => (r.rosRank != null ? r.rosRank : fallbackRank));
 
-    const WEIGHTS = { record: 4, overall: 4, ppg: 5, playoffOdds: 3, ros: 4 };
-    const weightSum = WEIGHTS.record + WEIGHTS.overall + WEIGHTS.ppg + WEIGHTS.playoffOdds + WEIGHTS.ros;
+    const WEIGHTS = { record: 3, overall: 4, ppg: 5, playoffOdds: 3, ros: 4 }; // record weight restored to the original 3 (was 4)
+    const weightSum = WEIGHTS.record + WEIGHTS.overall + WEIGHTS.ppg + WEIGHTS.playoffOdds + WEIGHTS.ros; // 19
 
     rows.forEach((row, i) => {
       row.prScore =
-        (recordRank[i] * WEIGHTS.record +
-          overallRank[i] * WEIGHTS.overall +
-          ppgRank[i] * WEIGHTS.ppg +
-          playoffOddsRank[i] * WEIGHTS.playoffOdds +
-          rosRankValues[i] * WEIGHTS.ros) /
-        weightSum;
+        Math.round(
+          ((recordRank[i] * WEIGHTS.record +
+            overallRank[i] * WEIGHTS.overall +
+            ppgRank[i] * WEIGHTS.ppg +
+            playoffOddsRank[i] * WEIGHTS.playoffOdds +
+            rosRankValues[i] * WEIGHTS.ros) /
+            weightSum) *
+            100
+        ) / 100; // rounded to 2 decimals, same as the original script
     });
 
     const powerRank = DeepHistory.rankData(rows.map((r) => r.prScore), true); // lower score = better = rank 1

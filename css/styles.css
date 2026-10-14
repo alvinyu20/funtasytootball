@@ -437,8 +437,8 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
 .matchup-list { display: flex; flex-direction: column; gap: 10px; }
 .matchup {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 6px;
   background: rgba(255,255,255,0.02);
   border: 1px solid var(--turf-line);
   border-radius: 6px;
@@ -446,6 +446,7 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
   font-family: var(--font-mono);
   font-size: 13px;
 }
+.matchup-row { display: flex; align-items: center; justify-content: space-between; }
 .matchup .side { display: flex; flex-direction: column; gap: 2px; width: 42%; }
 .matchup .side.right { text-align: right; align-items: flex-end; }
 .matchup .name { font-family: var(--font-body); font-size: 13px; color: var(--chalk); }
@@ -453,6 +454,19 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
 .matchup .pts.lead { color: var(--gold); }
 .matchup .pts.trail { color: var(--chalk-dim); }
 .matchup .vs { font-size: 11px; color: var(--chalk-dim); letter-spacing: 0.1em; }
+/* Filled in asynchronously by renderMatchupHeadToHead, once the full
+   season history has loaded -- :empty keeps it invisible (no stray gap)
+   until then, matching the site's "render nothing, not an empty box"
+   convention used for the other optional dashboard panels. */
+.matchup-h2h {
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--chalk-dim);
+  padding-top: 4px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.matchup-h2h:empty { display: none; }
 
 /* ==========================================================================
    TROPHY CASE / CHAMPIONS LEDGER (history page)
