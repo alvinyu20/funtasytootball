@@ -3095,7 +3095,13 @@ const DeepHistory = {
       };
     });
 
-    // Std dev of weekly points (population formula — divide by N).
+    // Std dev of weekly points (population formula — divide by N), plus
+    // each team's trailing-3-week scoring average (fewer weeks early in
+    // the season). recentPpg is a "hot/cold form" signal, distinct from
+    // the season-long avgPpg above -- it feeds into the PR Score below
+    // but is deliberately NOT one of the fields the Power Rankings table
+    // renders (see power-rankings.js's renderPowerTable, which only ever
+    // reads a fixed, explicit list of columns and never this one).
     const weeklyByRoster = new Map(rosterIds.map((id) => [id, []]));
     (deep ? deep.weeks : []).forEach(({ matchups }) => {
       matchups.forEach((m) => {
@@ -3106,10 +3112,13 @@ const DeepHistory = {
       const pts = weeklyByRoster.get(row.rosterId) || [];
       if (!pts.length) {
         row.stdDev = 0;
+        row.recentPpg = 0;
         return;
       }
       const mean = pts.reduce((a, b) => a + b, 0) / pts.length;
       row.stdDev = Math.sqrt(pts.reduce((a, b) => a + (b - mean) ** 2, 0) / pts.length);
+      const recentPts = pts.slice(-3); // last 3 played weeks, or fewer early in the season
+      row.recentPpg = recentPts.reduce((a, b) => a + b, 0) / recentPts.length;
     });
 
     // Composite PR Score: a weighted average of ranks (1 = best in every
@@ -3117,11 +3126,15 @@ const DeepHistory = {
     const recordRank = DeepHistory.rankData(rows.map((r) => r.wins), false);
     const overallRank = DeepHistory.rankData(rows.map((r) => r.overallWins), false);
     const ppgRank = DeepHistory.rankData(rows.map((r) => r.avgPpg), false);
+    const recentPpgRank = DeepHistory.rankData(rows.map((r) => r.recentPpg), false);
     const playoffOddsRank = DeepHistory.rankData(rows.map((r) => r.playoffPct), false);
     const rosRankValues = rows.map((r) => (r.rosRank != null ? r.rosRank : fallbackRank));
 
-    const WEIGHTS = { record: 3, overall: 4, ppg: 5, playoffOdds: 3, ros: 4 }; // record weight restored to the original 3 (was 4)
-    const weightSum = WEIGHTS.record + WEIGHTS.overall + WEIGHTS.ppg + WEIGHTS.playoffOdds + WEIGHTS.ros; // 19
+    // recentPpg (trailing-3-week scoring form) is a hidden weight -- it
+    // nudges the score but, unlike every other term here, has no column
+    // of its own on the Power Rankings page.
+    const WEIGHTS = { record: 3, overall: 4, ppg: 5, playoffOdds: 3, ros: 4, recentPpg: 1.23 };
+    const weightSum = WEIGHTS.record + WEIGHTS.overall + WEIGHTS.ppg + WEIGHTS.playoffOdds + WEIGHTS.ros + WEIGHTS.recentPpg; // 20.23
 
     rows.forEach((row, i) => {
       row.prScore =
@@ -3130,7 +3143,8 @@ const DeepHistory = {
             overallRank[i] * WEIGHTS.overall +
             ppgRank[i] * WEIGHTS.ppg +
             playoffOddsRank[i] * WEIGHTS.playoffOdds +
-            rosRankValues[i] * WEIGHTS.ros) /
+            rosRankValues[i] * WEIGHTS.ros +
+            recentPpgRank[i] * WEIGHTS.recentPpg) /
             weightSum) *
             100
         ) / 100; // rounded to 2 decimals, same as the original script
