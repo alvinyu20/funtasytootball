@@ -3133,7 +3133,7 @@ const DeepHistory = {
     // recentPpg (trailing-3-week scoring form) is a hidden weight -- it
     // nudges the score but, unlike every other term here, has no column
     // of its own on the Power Rankings page.
-    const WEIGHTS = { record: 2.57, overall: 4.51, ppg: 4, playoffOdds: 2.7, ros: 4, recentPpg: 1.23 };
+    const WEIGHTS = { record: 2.57, overall: 4.51, ppg: 4, playoffOdds: 2.7, ros: 4, recentPpg: 1.33 };
     const weightSum = WEIGHTS.record + WEIGHTS.overall + WEIGHTS.ppg + WEIGHTS.playoffOdds + WEIGHTS.ros + WEIGHTS.recentPpg; // 20.23
 
     rows.forEach((row, i) => {
