@@ -99,7 +99,6 @@
 
   <div class="wrap">
     <div id="dash-error" class="error-state" style="display:none;"></div>
-    <div id="hero-thesis"></div>
   </div>
 
   <div class="yard-divider">
@@ -124,22 +123,33 @@
   </div>
 
   <main>
-    <div class="section-grid">
+    <div class="wrap-wide">
       <div class="panel">
         <h2>Standings</h2>
-        <table class="stat-table">
-          <thead>
-            <tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>ROS</th></tr>
-          </thead>
-          <tbody id="standings-body">
-            <tr><td colspan="5" class="loading">Loading standings…</td></tr>
-          </tbody>
-        </table>
+        <div class="heatmap-table-wrap stay-scrollable">
+          <table class="stat-table compact-mobile">
+            <thead>
+              <tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th>Overall</th><th>Luck</th><th>ROS</th><th>SOS</th></tr>
+            </thead>
+            <tbody id="standings-body">
+              <tr><td colspan="10" class="loading">Loading standings…</td></tr>
+            </tbody>
+          </table>
+        </div>
         <p class="heatmap-note" id="ros-note"></p>
       </div>
+    </div>
+
+    <div class="section-grid" style="margin-top: 24px;">
       <div class="panel">
         <h2>This Week's Matchups</h2>
         <div class="matchup-list" id="matchups-list">
+          <div class="loading">Loading matchups…</div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Last Week's Matchups</h2>
+        <div class="matchup-list" id="last-week-matchups-list">
           <div class="loading">Loading matchups…</div>
         </div>
       </div>

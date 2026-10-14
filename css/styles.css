@@ -450,6 +450,7 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
 .matchup .side { display: flex; flex-direction: column; gap: 2px; width: 42%; }
 .matchup .side.right { text-align: right; align-items: flex-end; }
 .matchup .name { font-family: var(--font-body); font-size: 13px; color: var(--chalk); }
+.matchup .username-sub { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); }
 .matchup .pts { font-size: 16px; color: var(--gold); }
 .matchup .pts.lead { color: var(--gold); }
 .matchup .pts.trail { color: var(--chalk-dim); }
