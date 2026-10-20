@@ -164,11 +164,17 @@ function rbEraSummary(seasons) {
 
 function rbCategoryHtml(opts) {
   const { category, sections, eras, era, seasons, hasPartialSeason, rawPending, noCompleteSeason } = opts;
+  const preSleeper = opts.preSleeper || [];
   const total = sections.reduce((n, s) => n + s.records.length, 0);
 
   const notices = [];
   if (hasPartialSeason) {
     notices.push("The current season is still in progress. It counts toward career totals, streaks and weekly records, but single-season records unlock once its regular season ends.");
+  }
+  if (preSleeper.length) {
+    notices.push(
+      `Pre-Sleeper seasons (${rbEraSummary(preSleeper)}) count wherever season totals are enough: wins, points, playoffs, titles and Overall Record where it was kept (2017 on). Records built on weekly scores, such as high-score weeks and schedule strength, cover the Sleeper era only.`
+    );
   }
   if (rawPending) {
     notices.push("The Team Raw Stats records are waiting on data — run the “Build Team Raw Stats” workflow once (GitHub → Actions → Run workflow) and they fill in.");
@@ -216,15 +222,18 @@ const RB_STATE = {
   shownCategory: undefined,
 };
 
-function rbContext(eraId) {
-  if (!RB_STATE.contexts.has(eraId)) RB_STATE.contexts.set(eraId, RecordBook.context(RB_STATE.facts, eraId));
-  return RB_STATE.contexts.get(eraId);
+// Careers and Seasons include the pre-Sleeper seasons (they only need season
+// totals); every other category needs weekly detail, so it is Sleeper-only.
+function rbContext(eraId, sleeperOnly) {
+  const key = `${eraId}|${sleeperOnly ? "s" : "h"}`;
+  if (!RB_STATE.contexts.has(key)) RB_STATE.contexts.set(key, RecordBook.context(RB_STATE.facts, eraId, sleeperOnly));
+  return RB_STATE.contexts.get(key);
 }
 
-function rbCategoryData(categoryId, eraId) {
+function rbCategoryData(categoryId, eraId, sleeperOnly) {
   const key = `${categoryId}|${eraId}`;
   if (!RB_STATE.categories.has(key)) {
-    RB_STATE.categories.set(key, RecordBook.computeCategory(categoryId, rbContext(eraId)));
+    RB_STATE.categories.set(key, RecordBook.computeCategory(categoryId, rbContext(eraId, sleeperOnly)));
   }
   return RB_STATE.categories.get(key);
 }
@@ -251,16 +260,18 @@ function rbRenderView() {
   }
 
   const facts = RB_STATE.facts;
-  const eras = RecordBook.eras(facts);
-  const era = eras.some((e) => e.id === route.era) ? route.era : "all";
   const category = RecordBook.CATEGORIES.find((c) => c.id === route.category);
-  const sections = rbCategoryData(category.id, era);
-  const ctx = rbContext(era);
+  const sleeperOnly = !category.history;
+  const eras = RecordBook.eras(facts, sleeperOnly);
+  const era = eras.some((e) => e.id === route.era) ? route.era : "all";
+  const sections = rbCategoryData(category.id, era, sleeperOnly);
+  const ctx = rbContext(era, sleeperOnly);
+  const preSleeper = facts.seasons.filter((s) => s.source === "espn" && ctx.seasonSet.has(s.season)).map((s) => s.season);
   const hasPartialSeason = facts.seasons.some((s) => ctx.seasonSet.has(s.season) && !s.regularComplete);
   const rawPending = sections.some((s) => s.records.some((r) => r.result.status === "pending"));
   const noCompleteSeason = facts.seasons.filter((s) => ctx.seasonSet.has(s.season)).every((s) => !s.regularComplete);
 
-  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, hasPartialSeason, rawPending, noCompleteSeason });
+  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, hasPartialSeason, rawPending, noCompleteSeason, preSleeper });
   initAnimatedDropdowns();
 
   // Opening a different category starts at the top; switching the season
@@ -283,10 +294,12 @@ async function renderRecords() {
   }
 
   try {
-    const [seasonChain, playerDirectory, rawStats] = await Promise.all([
+    const [seasonChain, playerDirectory, rawStats, manual, powerRanks] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(TEAM_RAW_STATS_FILE, null),
+      fetchJsonSafe(MANUAL_HISTORY_FILE, null),
+      fetchJsonSafe(POWER_RANK_CSV_HISTORY_FILE, null),
     ]);
 
     if (seasonChain.length === 0) {
@@ -303,14 +316,15 @@ async function renderRecords() {
     progressBox.style.display = "none";
 
     const stats = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
-    // Records cover the Sleeper era only: it is the only era with weekly
-    // scores, lineups, transactions and drafts, which most records need.
-    RB_STATE.facts = RecordBook.buildFacts({ seasonChain, deepSeasons, playerDirectory, stats, rawStats });
+    // The Sleeper era has weekly scores, lineups, transactions and drafts;
+    // the pre-Sleeper (ESPN) seasons in manual-history.json only have season
+    // totals, so only Careers and Seasons use them (see rbContext).
+    RB_STATE.facts = RecordBook.buildFacts({ seasonChain, deepSeasons, playerDirectory, stats, rawStats, manual, powerRanks });
 
     const seasons = RB_STATE.facts.seasons.map((s) => s.season);
     const total = RecordBook.DEFS.length;
     document.getElementById("sb-sub").textContent = seasons.length
-      ? `${rbPlural(total, "record")} · ${rbEraSummary(seasons)} · ${rbPlural(seasons.length, "season")} of Sleeper history`
+      ? `${rbPlural(total, "record")} · ${rbEraSummary(seasons)} · ${rbPlural(seasons.length, "season")} of league history`
       : "No scored weeks yet";
     rbRenderView();
   } catch (err) {

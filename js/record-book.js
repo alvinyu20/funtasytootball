@@ -24,10 +24,12 @@
   the era, "season" records pick the best single season inside it — so
   picking one season just makes the career records that season's totals.
 
-  Data coverage: the ESPN era (2015-2019) only has season totals, so it
-  contributes to the records computable from totals (wins, points,
-  playoffs, titles, all-play where recorded) and is skipped — not
-  guessed at — for anything that needs weekly scores or lineups.
+  Data coverage: the pre-Sleeper ESPN seasons (2015-2019) only have season
+  totals, so they contribute to the records computable from totals (wins,
+  points, playoffs, titles, Overall Record where recorded — 2017 on) and
+  are skipped — not guessed at — for anything that needs weekly scores or
+  lineups. Only the categories flagged `history` (Careers, Seasons) include
+  them; the page asks for the rest with context(facts, era, true).
 */
 
 const RecordBook = (function () {
@@ -40,8 +42,8 @@ const RecordBook = (function () {
   // Metadata the page needs even before any records are computed.
   // ---------------------------------------------------------------
   const CATEGORIES = [
-    { id: "careers", title: "Careers", icon: "crown", blurb: "Winning, scoring and hardware—volume records paired with the rates that keep long tenures honest." },
-    { id: "seasons", title: "Seasons", icon: "medal", blurb: "The dominant runs, fortunate schedules and campaigns that became league shorthand." },
+    { id: "careers", history: true, title: "Careers", icon: "crown", blurb: "Winning, scoring and hardware—volume records paired with the rates that keep long tenures honest." },
+    { id: "seasons", history: true, title: "Seasons", icon: "medal", blurb: "The dominant runs, fortunate schedules and campaigns that became league shorthand." },
     { id: "matchups", title: "Matchups", icon: "target", blurb: "Scoreboard eruptions, impossible losses, narrow escapes and the widest margins in the archive." },
     { id: "players", title: "Players & Lineups", icon: "user", blurb: "Historic performances, position crowns and the managers who squeezed the most from every roster." },
     { id: "streaks", title: "Streaks & Milestones", icon: "flame", blurb: "The heat that lasted, the waits that would not end and the career marks that changed the ledger." },
@@ -83,12 +85,14 @@ const RecordBook = (function () {
     dec1: (n) => fixed(n, 1),
     dec2: (n) => fixed(n, 2),
     pct1: (n) => fixed(n * 100, 1) + "%",
+    signedPct1: (n) => signed(n * 100, 1) + "%",
     signed1: (n) => signed(n, 1),
     signed2: (n) => signed(n, 2),
     wins: (n) => signed(n, 1) + " wins",
     perWeek: (n) => signed(n, 1) + "/wk",
     perDollar: (n) => signed(n, 1) + "/$",
     usd: (n) => "$" + fixed(Math.round(n), 0),
+    week: (n) => "Week " + Math.round(n),
   };
 
   // ---------------------------------------------------------------
@@ -144,6 +148,8 @@ const RecordBook = (function () {
       moveCounts: [],
       draftPicks: [],
       rawRows: [],
+      powerRows: [], // weekly Power Rankings: {season, week, key, rank, score, odds, teams}
+      oddsSeries: [], // each manager-season's weekly playoff odds: {season, key, weekly}
       rawStatsAvailable: !!(rawStats && rawStats.seasons && Object.keys(rawStats.seasons).length),
       latest: null, // {season, week} of the newest scored week (for "active" streak flags)
     };
@@ -230,7 +236,7 @@ const RecordBook = (function () {
           oppSum: null,
           oppGames: null,
           scheduleIndex: null,
-          luckWins: null, // luck is measured against the weekly median, which ESPN-era totals don't have
+          luck: ap && games > 0 ? DeepHistory.luckPercent(row.wins, row.losses, ties, ap.w, ap.l, ap.t) / 100 : null,
           lineup: null,
           titles: { regular: false, points: false, allPlay: false },
         });
@@ -293,6 +299,43 @@ const RecordBook = (function () {
       });
     }
 
+
+    // ---- Power Rankings history (data/power-rank-csv-history.json) ---------
+    // Weekly Power Rank (1 = best; shared ranks are averaged, e.g. 1.5), PR
+    // Score (lower is better) and playoff odds, keyed by Sleeper username.
+    // Names are matched to managers by any username they have used; a name
+    // that matches nobody becomes its own standalone manager.
+    const powerRanks = input.powerRanks;
+    if (powerRanks && powerRanks.seasons) {
+      Object.entries(powerRanks.seasons).forEach(([season, data]) => {
+        const keyOf = (name) => {
+          const hit = usernameIndex.get(String(name).toLowerCase());
+          if (hit) return hit;
+          register("e:" + name, null, name);
+          return "e:" + name;
+        };
+        const ranks = (data && data.ranks) || {};
+        const scores = (data && data.scores) || {};
+        const odds = (data && data.playoffOdds) || {};
+        const rows = [];
+        Object.entries(ranks).forEach(([name, series]) => {
+          const key = keyOf(name);
+          (series.weekly || []).forEach((rank, i) => {
+            if (rank == null) return;
+            const sc = scores[name] && scores[name].weekly ? scores[name].weekly[i] : null;
+            const od = Array.isArray(odds[name]) ? odds[name][i] : null;
+            rows.push({ season: String(season), week: i + 1, key, rank, score: sc == null ? null : sc, odds: od == null ? null : od, teams: 0 });
+          });
+        });
+        const teamsByWeek = new Map();
+        rows.forEach((r) => teamsByWeek.set(r.week, (teamsByWeek.get(r.week) || 0) + 1));
+        rows.forEach((r) => (r.teams = teamsByWeek.get(r.week)));
+        facts.powerRows.push(...rows);
+        Object.entries(odds).forEach(([name, weekly]) => {
+          if (Array.isArray(weekly)) facts.oddsSeries.push({ season: String(season), key: keyOf(name), weekly });
+        });
+      });
+    }
     return facts;
   }
 
@@ -593,7 +636,7 @@ const RecordBook = (function () {
         blowoutWins: a.blowoutWins, blowoutLosses: a.blowoutLosses, narrowWins: a.narrowWins,
         oppSum: a.oppSum, oppGames: a.oppGames,
         scheduleIndex: a.oppGames && leagueAvgPf ? (a.oppSum / a.oppGames / leagueAvgPf) * 100 : null,
-        luckWins: a.scoredWeeks ? a.wins + 0.5 * a.ties - (a.medW + 0.5 * a.medT) : null,
+        luck: hasAllPlay && a.games ? DeepHistory.luckPercent(a.wins, a.losses, a.ties, a.apW, a.apL, a.apT) / 100 : null,
         lineup: a.lineupWeeks ? { actual: a.lineupActual, optimal: a.lineupOptimal, bench: a.lineupBench, weeks: a.lineupWeeks, perfect: a.lineupPerfect } : null,
         titles: { regular: false, points: false, allPlay: false },
       });
@@ -765,8 +808,8 @@ const RecordBook = (function () {
   // ---------------------------------------------------------------
   // Eras
   // ---------------------------------------------------------------
-  function eras(facts) {
-    const ids = facts.seasons.map((s) => s.season);
+  function eras(facts, sleeperOnly) {
+    const ids = facts.seasons.filter((s) => !sleeperOnly || s.source !== "espn").map((s) => s.season);
     const out = [
       { id: "all", label: "All seasons" },
       { id: "last3", label: "Last 3 seasons" },
@@ -775,8 +818,10 @@ const RecordBook = (function () {
     return out;
   }
 
-  function seasonsForEra(facts, eraId) {
-    const ids = facts.seasons.map((s) => s.season);
+  // `sleeperOnly` drops the pre-Sleeper (ESPN) seasons, which only have
+  // season totals — used by the categories that need weekly detail.
+  function seasonsForEra(facts, eraId, sleeperOnly) {
+    const ids = facts.seasons.filter((s) => !sleeperOnly || s.source !== "espn").map((s) => s.season);
     if (eraId === "all" || eraId == null) return ids;
     if (eraId === "last3") return ids.slice(-3);
     return ids.includes(String(eraId)) ? [String(eraId)] : ids;
@@ -787,8 +832,8 @@ const RecordBook = (function () {
   // lazily and memoized, since most records touch only one or two
   // fact tables.
   // ---------------------------------------------------------------
-  function context(facts, eraId) {
-    const seasons = seasonsForEra(facts, eraId);
+  function context(facts, eraId, sleeperOnly) {
+    const seasons = seasonsForEra(facts, eraId, sleeperOnly);
     const set = new Set(seasons);
     const memo = new Map();
     const lazy = (name, fn) => () => {
@@ -799,6 +844,7 @@ const RecordBook = (function () {
     const ctx = {
       facts,
       eraId: eraId || "all",
+      sleeperOnly: !!sleeperOnly,
       seasons,
       seasonSet: set,
       minSeasons: Math.min(MIN_SEASONS, seasons.length),
@@ -818,6 +864,8 @@ const RecordBook = (function () {
       moveCounts: lazy("moveCounts", () => facts.moveCounts.filter(inEra)),
       draftPicks: lazy("draftPicks", () => facts.draftPicks.filter(inEra)),
       rawRows: lazy("rawRows", () => facts.rawRows.filter(inEra)),
+      powerRows: lazy("powerRows", () => facts.powerRows.filter(inEra)),
+      oddsSeries: lazy("oddsSeries", () => facts.oddsSeries.filter(inEra)),
       memo: (name, fn) => {
         if (!memo.has(name)) memo.set(name, fn());
         return memo.get(name);

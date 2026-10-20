@@ -91,4 +91,60 @@ function fixtureInput() {
   };
 }
 
-module.exports = { fixtureInput, NAMES };
+// One pre-Sleeper (ESPN) season: totals only, with an Overall Record on file for a and b.
+// a: 9-4 (69.2%) against a 70-47 Overall Record (59.8%) -> luck +9.4%.
+// b: 7-6 (53.8%) against a 60-57 Overall Record (51.3%) -> luck +2.6%.
+// e is only ever in the ESPN era (a departed manager with no Sleeper account).
+function fixtureManual() {
+  const row = (team, wins, losses, pointsFor, extra) => ({
+    team, wins, losses, ties: 0, pointsFor, pointsAgainst: 1300, playoffAppearance: true, playoffBye: false,
+    playoffWins: 0, playoffLosses: 0, playoffPoints: 0, medal: null, ...extra,
+  });
+  return {
+    seasons: [
+      {
+        year: 2019,
+        standings: [
+          row("a", 9, 4, 1500, { medal: "gold", playoffWins: 2, overallRecord: { wins: 70, losses: 47, ties: 0 } }),
+          row("b", 7, 6, 1400, { overallRecord: { wins: 60, losses: 57, ties: 0 } }),
+          row("e", 3, 10, 1100, { playoffAppearance: false }),
+        ],
+      },
+    ],
+  };
+}
+
+// Weekly Power Rankings in the shape of data/power-rank-csv-history.json.
+//  2019 (pre-Sleeper, ranks only): a is #1 all five weeks; in week 5 b and "ghost" (a name that
+//        matches no manager anywhere) tie for last, so both are averaged to 2.5 and both count as last.
+//  2022 (three weeks): ranks a [1,1,2] b [2,3,1] c [3,2,4] d [4,4,3];
+//        scores a [5.0,5.5,6.0] b [6.0,7.0,4.5] c [7.5,6.5,9.0] d [9.0,9.5,8.0] (lower is better);
+//        odds a [60,99.6,100] b [50,80,99.5] c [40,99.9,20] d [30,40,50] -> a clinches in week 2,
+//        b in week 3, c never (it ends at 20%) and d never.
+//  2023 (in progress): ranks a [2,1] b [1,2] c [3,3] d [4,4]; scores a [3.0,3.5] ...
+function fixturePowerRanks() {
+  const series = (weekly) => ({ pre: null, weekly });
+  return {
+    seasons: {
+      2019: {
+        ranks: {
+          a: series([1, 1, 1, 1, 1]),
+          b: series([2, 2, 2, 2, 2.5]),
+          ghost: series([3, 3, 3, 3, 2.5]),
+        },
+      },
+      2022: {
+        ranks: { a: series([1, 1, 2]), b: series([2, 3, 1]), c: series([3, 2, 4]), d: series([4, 4, 3]) },
+        scores: { a: series([5.0, 5.5, 6.0]), b: series([6.0, 7.0, 4.5]), c: series([7.5, 6.5, 9.0]), d: series([9.0, 9.5, 8.0]) },
+        playoffOdds: { a: [60, 99.6, 100], b: [50, 80, 99.5], c: [40, 99.9, 20], d: [30, 40, 50] },
+      },
+      2023: {
+        ranks: { a: series([2, 1]), b: series([1, 2]), c: series([3, 3]), d: series([4, 4]) },
+        scores: { a: series([3.0, 3.5]), b: series([4.0, 4.5]), c: series([5.0, 5.5]), d: series([6.0, 6.5]) },
+        playoffOdds: { a: [99.9, 100], b: [99.8, 100], c: [20, 10], d: [5, 1] },
+      },
+    },
+  };
+}
+
+module.exports = { fixtureInput, fixtureManual, fixturePowerRanks, NAMES };

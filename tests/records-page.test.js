@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const { loadSiteModules, runInLoadedContext } = require("./helpers/site-env.js");
-const { fixtureInput } = require("./helpers/record-fixture.js");
+const { fixtureInput, fixtureManual, fixturePowerRanks } = require("./helpers/record-fixture.js");
 
 function setup() {
   return loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "animations.js", "record-book.js", "record-defs.js", "records.js"]);
@@ -38,6 +38,8 @@ test("landing: singular count reads '1 record'", () => {
   assert.match(html, /1 record</);
 });
 
+// Draws a category exactly the way rbRenderView does: Careers and Seasons see the
+// pre-Sleeper seasons, every other category is Sleeper-only.
 function pageHtml(ctx, categoryId, era, mutate) {
   return evalHtml(
     ctx,
@@ -45,14 +47,16 @@ function pageHtml(ctx, categoryId, era, mutate) {
       const input = ${JSON.stringify(fixtureInput())};
       ${mutate || ""}
       const facts = RecordBook.buildFacts(input);
-      const eras = RecordBook.eras(facts);
-      const c = RecordBook.context(facts, ${JSON.stringify(era)});
       const category = RecordBook.CATEGORIES.find((x) => x.id === ${JSON.stringify(categoryId)});
+      const sleeperOnly = !category.history;
+      const eras = RecordBook.eras(facts, sleeperOnly);
+      const c = RecordBook.context(facts, ${JSON.stringify(era)}, sleeperOnly);
       return rbCategoryHtml({
         category, sections: RecordBook.computeCategory(category.id, c), eras, era: ${JSON.stringify(era)}, seasons: c.seasons,
         hasPartialSeason: facts.seasons.some((s) => c.seasonSet.has(s.season) && !s.regularComplete),
         rawPending: ${categoryId === "players"},
         noCompleteSeason: facts.seasons.filter((s) => c.seasonSet.has(s.season)).every((s) => !s.regularComplete),
+        preSleeper: facts.seasons.filter((s) => s.source === "espn" && c.seasonSet.has(s.season)).map((s) => s.season),
       });
     })()`
   );
@@ -140,10 +144,11 @@ test("record rows: names are escaped, a tie shows '+N tied', and a headline over
   assert.ok(headlined.includes("Leader") && headlined.includes("11,155") && !headlined.includes("+2 tied"));
 });
 
-async function renderPage(hash, withData = true) {
+async function renderPage(hash, withData = true, withManual = false) {
   const ctx = setup();
   const input = fixtureInput();
   ctx.__INPUT__ = input;
+  ctx.__MANUAL__ = withManual ? fixtureManual() : null;
   ctx.__CALLS__ = [];
   runInLoadedContext(
     ctx,
@@ -153,7 +158,7 @@ async function renderPage(hash, withData = true) {
     SleeperAPI.getPlayerDirectory = async () => __INPUT__.playerDirectory;
     DeepHistory.buildAll = async () => __INPUT__.deepSeasons;
     DeepHistory.computeStats = () => ({ managers: [] });
-    fetchJsonSafe = async () => null;
+    fetchJsonSafe = async (file) => (file === MANUAL_HISTORY_FILE ? __MANUAL__ : null);
     initAnimatedDropdowns = () => { __CALLS__.push("initAnimatedDropdowns"); };
     `
   );
@@ -165,7 +170,9 @@ test("renderRecords: the landing page is drawn from the static definitions and t
   const ctx = await renderPage("");
   const root = ctx.document.getElementById("records-root").innerHTML;
   assert.strictEqual((root.match(/class="rb-cat"/g) || []).length, 6);
-  assert.match(ctx.document.getElementById("sb-sub").textContent, /131 records · 2022–2023 · 2 seasons/);
+  const total = runInLoadedContext(ctx, "RecordBook.DEFS.length");
+  assert.ok(total >= 138, "every record is counted in the subtitle");
+  assert.ok(ctx.document.getElementById("sb-sub").textContent.startsWith(`${total} records · 2022–2023 · 2 seasons`));
 });
 
 test("renderRecords: a category URL renders that category for the era in the hash and re-arms the smooth open/close animation", async () => {
@@ -184,4 +191,104 @@ test("renderRecords: with no seasons it shows the error instead of an empty page
   const ctx = await renderPage("#careers", false);
   assert.match(ctx.document.getElementById("records-root").innerHTML, /Couldn't load league records/);
   assert.match(ctx.document.getElementById("records-error").textContent, /Couldn't load any seasons/);
+});
+
+const MANUAL = `input.manual = ${JSON.stringify(fixtureManual())};`;
+
+test("naming: no category page says All-Play anywhere", () => {
+  const ctx = setup();
+  RecordBookIds.forEach((id) => {
+    const html = pageHtml(ctx, id, "all", MANUAL);
+    assert.ok(!/all-play/i.test(html), `${id} page should say Overall Record, not All-Play`);
+  });
+  const careers = pageHtml(ctx, "careers", "all", MANUAL);
+  assert.ok(careers.includes("Career Overall Wins") && careers.includes("Best Overall Record") && careers.includes("Overall Record Titles"));
+  assert.ok(pageHtml(ctx, "seasons", "all", MANUAL).includes("Most Overall Wins in a Season"));
+});
+const RecordBookIds = ["careers", "seasons", "matchups", "players", "streaks", "front-office"];
+
+test("luck records show percentages on the page", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "seasons", "2022", MANUAL);
+  const lucky = html.slice(html.indexOf('data-record="luckiest-season"'));
+  assert.match(lucky.slice(0, 1000), /rb-value">\+22\.2%</);
+  const unlucky = html.slice(html.indexOf('data-record="unluckiest-season"'));
+  assert.match(unlucky.slice(0, 1000), /rb-value">\u221222\.2%</);
+  assert.ok(!/wins</.test(lucky.slice(0, 1000)), "luck is no longer shown in wins");
+});
+
+test("Careers and Seasons offer the pre-Sleeper seasons as filters; the other categories don't", () => {
+  const ctx = setup();
+  ["careers", "seasons"].forEach((id) => {
+    const html = pageHtml(ctx, id, "all", MANUAL);
+    assert.ok(html.includes(`href="#${id}/2019"`), `${id} has a 2019 pill`);
+    assert.ok(html.indexOf(`href="#${id}/2022"`) < html.indexOf(`href="#${id}/2019"`), "newest first");
+    assert.ok(html.includes("Showing <strong>2019–2023</strong>"));
+  });
+  ["matchups", "players", "streaks", "front-office"].forEach((id) => {
+    const html = pageHtml(ctx, id, "all", MANUAL);
+    assert.ok(!html.includes(`href="#${id}/2019"`), `${id} stays Sleeper-only`);
+    assert.ok(html.includes("Showing <strong>2022–2023</strong>"));
+  });
+});
+
+test("pre-Sleeper note appears only where those seasons are included, and says what they cover", () => {
+  const ctx = setup();
+  const careers = pageHtml(ctx, "careers", "all", MANUAL);
+  assert.ok(careers.includes("Pre-Sleeper seasons (2019)"));
+  assert.ok(careers.includes("Overall Record where it was kept (2017 on)"));
+  // Picking a Sleeper-era season only drops the note.
+  assert.ok(!pageHtml(ctx, "careers", "2022", MANUAL).includes("Pre-Sleeper seasons"));
+  assert.ok(!pageHtml(ctx, "streaks", "all", MANUAL).includes("Pre-Sleeper seasons"));
+  // Without any manual history there is nothing to note.
+  assert.ok(!pageHtml(ctx, "careers", "all").includes("Pre-Sleeper seasons"));
+});
+
+test("renderRecords: loads manual history, offers 2019 for Careers, and the subtitle counts all seasons", async () => {
+  const ctx = await renderPage("#careers/2019", true, true);
+  const root = ctx.document.getElementById("records-root").innerHTML;
+  assert.ok(root.includes("Showing <strong>2019</strong>"));
+  assert.ok(root.includes("Pre-Sleeper seasons (2019)"));
+  assert.match(ctx.document.getElementById("sb-sub").textContent, /2019–2023 · 3 seasons of league history/);
+  // The same URL on a Sleeper-only category falls back to All seasons (2019 isn't offered there).
+  const streaks = await renderPage("#streaks/2019", true, true);
+  assert.ok(streaks.document.getElementById("records-root").innerHTML.includes("Showing <strong>2022–2023</strong>"));
+});
+
+test("Seasons page has a Power Rankings & Playoff Odds section with the seven new records", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "seasons", "2022", `input.powerRanks = ${JSON.stringify(fixturePowerRanks())};`);
+  assert.match(html, /Power Rankings &amp; Playoff Odds<\/span><span class="rb-section-count">7 records/);
+  ["Most Weeks at #1 in a Season", "Most Weeks in a Row at #1", "Most Weeks in Last Place in a Season", "Most Weeks in a Row in Last Place", "Highest Power Ranking Score", "Lowest Power Ranking Score", "Earliest to Clinch a Playoff Berth"].forEach((t) =>
+    assert.ok(html.includes(">" + t + "<"), t)
+  );
+  const clinch = html.slice(html.indexOf('data-record="earliest-playoff-clinch"'));
+  assert.match(clinch.slice(0, 1200), /rb-value">Week 2</);
+  // the "worst" extremes carry the red lowlight accent
+  assert.match(html, /<details class="rb-row rb-low" data-record="highest-pr-score"/);
+  assert.match(html, /<details class="rb-row rb-low" data-record="most-weeks-last-pr"/);
+  assert.match(html, /<details class="rb-row" data-record="lowest-pr-score"/);
+});
+
+test("renderRecords: power rankings history is loaded and feeds the Seasons page", async () => {
+  const ctx = setup();
+  const input = fixtureInput();
+  ctx.__INPUT__ = input;
+  ctx.__POWER__ = fixturePowerRanks();
+  runInLoadedContext(
+    ctx,
+    `
+    location.hash = "#seasons/2022";
+    SleeperAPI.getSeasonChain = async () => __INPUT__.seasonChain;
+    SleeperAPI.getPlayerDirectory = async () => __INPUT__.playerDirectory;
+    DeepHistory.buildAll = async () => __INPUT__.deepSeasons;
+    DeepHistory.computeStats = () => ({ managers: [] });
+    fetchJsonSafe = async (file) => (file === POWER_RANK_CSV_HISTORY_FILE ? __POWER__ : null);
+    initAnimatedDropdowns = () => {};
+    `
+  );
+  await ctx.renderRecords();
+  const root = ctx.document.getElementById("records-root").innerHTML;
+  assert.ok(root.includes("Earliest to Clinch a Playoff Berth"));
+  assert.match(root.slice(root.indexOf('data-record="most-weeks-first-pr"')).slice(0, 1000), /rb-holder-name">a/);
 });

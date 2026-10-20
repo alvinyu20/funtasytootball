@@ -1953,18 +1953,35 @@ How it's built:
 
 Conventions worth knowing:
 
-- **Sleeper era only (2020–present).** Weekly scores, lineups, waivers,
-  trades and drafts exist only there. ESPN-era (2015–19) totals are
-  supported by the engine but are deliberately not passed in; to fold them
-  into the aggregate records, pass `manual` to `RecordBook.buildFacts` in
-  `renderRecords`.
+- **Careers and Seasons include the pre-Sleeper (ESPN, 2015–19) years**
+  from `data/manual-history.json`, and those years get their own season
+  pills. That era only has season totals, so it feeds the records totals
+  can answer (wins, points, playoffs, titles, and Overall Record where it
+  was kept — 2017 on). Records built on weekly scores (high-score weeks,
+  schedule strength, vs-the-median...) and the other four categories
+  (Matchups, Players & Lineups, Streaks & Milestones, Front Office) are
+  Sleeper era (2020+) only. The switch is the `history: true` flag on a
+  category in `record-book.js`.
 - Career records add up every season in the range; season records only
   use seasons whose regular season is finished; rate-style career records
   (win %, efficiency...) need at least three seasons in the range (or all
   of them, if fewer).
 - Regular season = weeks before `playoff_week_start`. Playoff results
   count only games on the road to 1st or 3rd place.
-- Luck = real wins minus wins against the weekly median.
+- The Seasons page's "Power Rankings & Playoff Odds" section reads
+  `data/power-rank-csv-history.json` (the same file behind each season's
+  Power Rank History charts): weeks at #1 / in last place, longest runs at
+  each (a run stays inside one season), highest and lowest Power Ranking
+  Score (lower is better, so "highest" is the worst a team has rated), and
+  Earliest to Clinch a Playoff Berth — the first week playoff odds reach
+  99.5% and stay there, the same moment the Season page's Playoff Odds
+  chart labels "Clinched". Season-long ones wait for a finished regular
+  season; the 2026 numbers appear once the weekly Power Rankings workflow
+  has written 2026 into that file.
+- "Overall Record" = every week's score against every other team in the
+  league (what older versions called all-play).
+- Luck = real win % minus Overall Record win % — the same Luck shown on the
+  Home and Season pages (`DeepHistory.luckPercent`), shown as a percentage.
 - Blowout = won by 30+; narrow win = won by 5 or less.
 - Waiver, FAAB and trade "value" = points a player actually produced in the
   acquiring team's starting lineup minus what a replacement-level player

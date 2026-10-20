@@ -107,7 +107,7 @@
           if (o.negativeOnly && raw >= 0) return;
           out.push({ key: ts.key, raw, detail: o.detail ? o.detail(ts) : `${ts.season} · ${recordText(ts.wins, ts.losses, ts.ties)}`, when: Number(ts.season) });
         });
-        return { rows: out };
+        return { rows: out, note: o.note || null };
       },
     });
   }
@@ -122,11 +122,11 @@
   careerTotal("careers", "Winning", "career-losses", "Career Losses", "The most regular-season losses across the selected era.", (ts) => ts.losses, { tone: "low", detail: record1 });
   careerRate("careers", "Winning", "best-win-pct", "Best Win Percentage", "Regular-season record, with a three-season minimum.",
     (ts) => ts.wins + 0.5 * ts.ties, (ts) => ts.games, { detail: record1 });
-  careerTotal("careers", "Winning", "career-allplay-wins", "Career All-Play Wins", "Every weekly score compared with every other team in the league.", (ts) => (ts.allPlay ? ts.allPlay.w : null));
-  careerTotal("careers", "Winning", "career-allplay-losses", "Career All-Play Losses", "The most weekly head-to-head comparisons lost to the field.", (ts) => (ts.allPlay ? ts.allPlay.l : null), { tone: "low" });
+  careerTotal("careers", "Winning", "career-allplay-wins", "Career Overall Wins", "Overall Record wins: every weekly score against every other team in the league.", (ts) => (ts.allPlay ? ts.allPlay.w : null));
+  careerTotal("careers", "Winning", "career-allplay-losses", "Career Overall Losses", "Overall Record losses: the most weekly comparisons lost to the field.", (ts) => (ts.allPlay ? ts.allPlay.l : null), { tone: "low" });
   careerRate("careers", "Winning", "best-vs-median", "Best Record vs the Median", "Who won most often after removing the weekly schedule draw.",
     (ts) => (ts.median ? ts.median.w + 0.5 * ts.median.t : null), (ts) => (ts.median ? ts.median.w + ts.median.l + ts.median.t : null));
-  careerRate("careers", "Winning", "best-allplay-record", "Best All-Play Record", "Every score compared with every other team that week.",
+  careerRate("careers", "Winning", "best-allplay-record", "Best Overall Record", "Overall Record win percentage: every score against every other team that week.",
     (ts) => (ts.allPlay ? ts.allPlay.w + 0.5 * ts.allPlay.t : null), (ts) => (ts.allPlay ? ts.allPlay.w + ts.allPlay.l + ts.allPlay.t : null));
   careerTotal("careers", "Winning", "blowout-wins", "Blowout Wins", "Regular-season victories by 30 points or more", (ts) => ts.blowoutWins);
   careerTotal("careers", "Winning", "narrow-wins", "Narrow Wins", "Regular-season victories by five points or fewer", (ts) => ts.narrowWins);
@@ -149,26 +149,34 @@
   careerTotal("careers", "Hardware", "regular-season-titles", "Regular-Season Titles",
     "Best regular-season win percentage; points scored break ties. Exact ties share the title.", (ts) => (ts.titles.regular ? 1 : 0));
   careerTotal("careers", "Hardware", "points-titles", "Points Titles", "Most regular-season points in a season.", (ts) => (ts.titles.points ? 1 : 0));
-  careerTotal("careers", "Hardware", "allplay-titles", "All-Play Titles",
-    "Best all-play win percentage, with ties worth a half win. Equal leaders share the title.", (ts) => (ts.allPlay ? (ts.titles.allPlay ? 1 : 0) : null));
+  careerTotal("careers", "Hardware", "allplay-titles", "Overall Record Titles",
+    "Best Overall Record win percentage in a season, with ties worth a half win. Equal leaders share the title.", (ts) => (ts.allPlay ? (ts.titles.allPlay ? 1 : 0) : null));
 
   // Luck & Schedule
+  // Luck = real win % minus Overall Record win %, the same Luck shown on the
+  // Home and Season pages (DeepHistory.luckPercent). Over a career it is the
+  // gap between all of a manager's wins and all of their Overall Record wins.
+  const LUCK_NOTE = "Luck = real win % minus Overall Record win % (every score against every other team, every week), the same Luck shown on the Home and Season pages.";
   function luckCareer(id, title, desc, dir) {
     add({
-      id, cat: "careers", section: "Luck & Schedule", title, desc, fmt: "wins", dir, tone: dir === "asc" ? "low" : undefined,
+      id, cat: "careers", section: "Luck & Schedule", title, desc, fmt: "signedPct1", dir, tone: dir === "asc" ? "low" : undefined,
       compute(ctx) {
         const out = [];
-        groupBy(ctx.teamSeasons().filter((ts) => ts.luckWins != null), (r) => r.key).forEach((rs, key) => {
-          const raw = sum(rs.map((r) => r.luckWins));
+        groupBy(ctx.teamSeasons().filter((ts) => ts.allPlay && ts.games > 0), (r) => r.key).forEach((rs, key) => {
+          if (new Set(rs.map((r) => r.season)).size < ctx.minSeasons) return;
+          const raw = DeepHistory.luckPercent(
+            sum(rs.map((r) => r.wins)), sum(rs.map((r) => r.losses)), sum(rs.map((r) => r.ties)),
+            sum(rs.map((r) => r.allPlay.w)), sum(rs.map((r) => r.allPlay.l)), sum(rs.map((r) => r.allPlay.t))
+          ) / 100;
           if (dir === "desc" ? raw <= 0 : raw >= 0) return;
           out.push({ key, raw, detail: seasonsDetail(rs) });
         });
-        return { rows: out, note: "Luck = actual wins minus the wins a team's weekly scores would normally earn (its all-play win rate times its games)." };
+        return { rows: out, note: [LUCK_NOTE, minSeasonsNote(ctx)].filter(Boolean).join(" ") };
       },
     });
   }
-  luckCareer("luckiest-career", "Luckiest Career", "The most wins gained from the weekly schedule draw.", "desc");
-  luckCareer("unluckiest-career", "Unluckiest Career", "The most wins lost to the weekly schedule draw.", "asc");
+  luckCareer("luckiest-career", "Luckiest Career", "The biggest career schedule boost: real win percentage above Overall Record win percentage.", "desc");
+  luckCareer("unluckiest-career", "Unluckiest Career", "The biggest career schedule penalty: real win percentage below Overall Record win percentage.", "asc");
 
   function scheduleCareer(id, title, desc, dir) {
     add({
@@ -196,9 +204,9 @@
   seasonRecord(S, "Best Seasons", "most-points-season", "Most Points in a Season", "Regular-season points in the league's scoring system.", (ts) => ts.pf, { fmt: "dec1", positiveOnly: true });
   seasonRecord(S, "Best Seasons", "best-season-vs-median", "Best Season vs the Median", "Schedule-free weekly performance.",
     (ts) => (ts.median ? winPct(ts.median.w, ts.median.l, ts.median.t) : null), { fmt: "pct1" });
-  seasonRecord(S, "Best Seasons", "best-allplay-season", "Best All-Play Season", "Every week played against the entire league.",
+  seasonRecord(S, "Best Seasons", "best-allplay-season", "Best Overall Record Season", "Overall Record win percentage: every week played against the entire league.",
     (ts) => (ts.allPlay ? winPct(ts.allPlay.w, ts.allPlay.l, ts.allPlay.t) : null), { fmt: "pct1" });
-  seasonRecord(S, "Best Seasons", "most-allplay-wins-season", "Most All-Play Wins in a Season", "The most weekly head-to-head comparisons won against the field.",
+  seasonRecord(S, "Best Seasons", "most-allplay-wins-season", "Most Overall Wins in a Season", "The most Overall Record wins: weekly comparisons won against the field.",
     (ts) => (ts.allPlay ? ts.allPlay.w : null), { positiveOnly: true });
   seasonRecord(S, "Best Seasons", "best-point-differential", "Best Point Differential", "Average scoring margin across the regular season.",
     (ts) => (ts.games ? (ts.pf - ts.pa) / ts.games : null), { fmt: "signed1" });
@@ -206,16 +214,115 @@
   seasonRecord(S, "Best Seasons", "most-consistent-season", "Most Consistent Season", "Highest share of sampled weeks in the league's top half.",
     (ts) => (ts.weeks ? ts.topHalfWeeks / ts.weeks : null), { fmt: "pct1" });
 
-  seasonRecord(S, "Lowlights", "most-allplay-losses-season", "Most All-Play Losses in a Season", "The most weekly head-to-head comparisons lost to the field.",
+  seasonRecord(S, "Lowlights", "most-allplay-losses-season", "Most Overall Losses in a Season", "The most Overall Record losses: weekly comparisons lost to the field.",
     (ts) => (ts.allPlay ? ts.allPlay.l : null), { tone: "low", positiveOnly: true });
   seasonRecord(S, "Lowlights", "most-losses-season", "Most Losses in a Season", "The roughest regular-season records.", (ts) => ts.losses, { tone: "low", positiveOnly: true });
   seasonRecord(S, "Lowlights", "fewest-points-season", "Fewest Points in a Season", "Lowest full-season scoring totals.", (ts) => (ts.pf > 0 ? ts.pf : null), { tone: "low", dir: "asc", fmt: "dec1" });
   seasonRecord(S, "Lowlights", "most-blowout-losses", "Most Blowout Losses", "Losses by 30 points or more in one season.", (ts) => ts.blowoutLosses, { tone: "low", positiveOnly: true });
 
-  seasonRecord(S, "Luck & Schedule", "luckiest-season", "Luckiest Season", "The schedule added the most wins relative to weekly performance.", (ts) => ts.luckWins, { fmt: "wins", positiveOnly: true });
-  seasonRecord(S, "Luck & Schedule", "unluckiest-season", "Unluckiest Season", "The schedule cost the most wins relative to weekly performance.", (ts) => ts.luckWins, { fmt: "wins", dir: "asc", tone: "low", negativeOnly: true });
+  seasonRecord(S, "Luck & Schedule", "luckiest-season", "Luckiest Season", "The schedule added the most win percentage over what the Overall Record deserved.", (ts) => ts.luck, { fmt: "signedPct1", positiveOnly: true, note: LUCK_NOTE });
+  seasonRecord(S, "Luck & Schedule", "unluckiest-season", "Unluckiest Season", "The schedule cost the most win percentage against what the Overall Record deserved.", (ts) => ts.luck, { fmt: "signedPct1", dir: "asc", tone: "low", negativeOnly: true, note: LUCK_NOTE });
   seasonRecord(S, "Luck & Schedule", "toughest-schedule", "Toughest Schedule", "Opponent scoring indexed to that season's league average.", (ts) => ts.scheduleIndex, { fmt: "dec1" });
   seasonRecord(S, "Luck & Schedule", "easiest-schedule", "Easiest Schedule", "The lowest opponent scoring relative to the league that season.", (ts) => ts.scheduleIndex, { fmt: "dec1", dir: "asc", tone: "low" });
+
+  // Power Rankings & playoff odds (data/power-rank-csv-history.json): each
+  // team's weekly Power Rank (1 = best, shared ranks average to e.g. 1.5), PR
+  // Score (lower is better) and playoff odds. Season-long ones wait for a
+  // finished regular season like the rest of this page; single-week ones
+  // (the score extremes) don't need to.
+  const PR_SECTION = "Power Rankings & Playoff Odds";
+  const PR_NOTE = "Built from the weekly Power Rankings history (2019 on).";
+  const prAtFirst = (r) => r.rank <= 1.5;
+  const prAtLast = (r) => r.rank >= r.teams - 0.5;
+  const prRankText = (r) => (Number.isInteger(r.rank) ? `#${r.rank}` : `T-${Math.floor(r.rank)}`);
+  const finishedSeasons = (ctx) => new Set(ctx.facts.seasons.filter((s) => ctx.seasonSet.has(s.season) && s.regularComplete).map((s) => s.season));
+
+  function prWeeksInSeason(id, title, desc, pred, tone) {
+    add({
+      id, cat: S, section: PR_SECTION, title, desc, fmt: "int", dir: "desc", tone,
+      compute(ctx) {
+        const done = finishedSeasons(ctx);
+        const out = [];
+        groupBy(ctx.powerRows().filter((r) => done.has(r.season)), (r) => `${r.key}|${r.season}`).forEach((rs, k) => {
+          const [key, season] = k.split("|");
+          const n = rs.filter(pred).length;
+          if (n > 0) out.push({ key, raw: n, when: Number(season), detail: `${season} · ${n} of ${plural(rs.length, "ranked week")}` });
+        });
+        return { rows: out, note: PR_NOTE };
+      },
+    });
+  }
+
+  // Longest run of consecutive weeks inside one season (ranks reset every
+  // preseason, so a run never crosses seasons); a missing week ends it.
+  function prRunInSeason(id, title, desc, pred, tone) {
+    add({
+      id, cat: S, section: PR_SECTION, title, desc, fmt: "int", dir: "desc", tone,
+      compute(ctx) {
+        const done = finishedSeasons(ctx);
+        const out = [];
+        groupBy(ctx.powerRows().filter((r) => done.has(r.season)), (r) => r.key).forEach((rs, key) => {
+          let best = null;
+          groupBy(rs, (r) => r.season).forEach((weeks, season) => {
+            let cur = null;
+            [...weeks].sort((a, b) => a.week - b.week).forEach((r) => {
+              if (!pred(r)) {
+                cur = null;
+                return;
+              }
+              cur = cur && cur.end === r.week - 1 ? { start: cur.start, end: r.week, length: cur.length + 1 } : { start: r.week, end: r.week, length: 1 };
+              if (!best || cur.length > best.length || (cur.length === best.length && Number(season) < Number(best.season))) best = { ...cur, season };
+            });
+          });
+          if (best) out.push({ key, raw: best.length, when: Number(best.season) * 100 + best.start, detail: `${plural(best.length, "week")} · ${best.season} Wk ${best.start}${best.end > best.start ? "–" + best.end : ""}` });
+        });
+        return { rows: out, note: PR_NOTE + " A run stays inside one season." };
+      },
+    });
+  }
+
+  prWeeksInSeason("most-weeks-first-pr", "Most Weeks at #1 in a Season", "Weeks spent atop the Power Rankings in one season.", prAtFirst);
+  prRunInSeason("longest-run-first-pr", "Most Weeks in a Row at #1", "The longest unbroken stay atop the Power Rankings.", prAtFirst);
+  prWeeksInSeason("most-weeks-last-pr", "Most Weeks in Last Place in a Season", "Weeks spent at the very bottom of the Power Rankings in one season.", prAtLast, "low");
+  prRunInSeason("longest-run-last-pr", "Most Weeks in a Row in Last Place", "The longest unbroken stay at the bottom of the Power Rankings.", prAtLast, "low");
+
+  // PR Score is "lower is better", so "highest" is the worst a team has ever rated.
+  function prScoreExtreme(id, title, desc, dir, tone) {
+    add({
+      id, cat: S, section: PR_SECTION, title, desc, fmt: "dec2", dir, tone,
+      compute(ctx) {
+        return {
+          rows: ctx.powerRows().filter((r) => r.score != null).map((r) => ({ key: r.key, raw: r.score, when: when(r), detail: `${weekLabel(r)} · ranked ${prRankText(r)}` })),
+          note: PR_NOTE + " Power Ranking Score is lower-is-better, and weekly scores were first recorded in 2021.",
+        };
+      },
+    });
+  }
+  prScoreExtreme("highest-pr-score", "Highest Power Ranking Score", "The highest weekly Power Ranking Score ever: the worst a team has rated (lower is better).", "desc", "low");
+  prScoreExtreme("lowest-pr-score", "Lowest Power Ranking Score", "The lowest weekly Power Ranking Score ever: the best a team has rated (lower is better).", "asc");
+
+  // The same "clinched" moment the Season page's Playoff Odds chart marks:
+  // odds reach 99.5%+ and stay there for the rest of the season. (A week the
+  // odds weren't recorded is skipped rather than treated as a dip.)
+  add({
+    id: "earliest-playoff-clinch", cat: S, section: PR_SECTION, title: "Earliest to Clinch a Playoff Berth",
+    desc: "The first week a team's playoff odds hit 100% and stayed there.", fmt: "week", dir: "asc",
+    compute(ctx) {
+      const done = finishedSeasons(ctx);
+      const out = [];
+      ctx.oddsSeries().filter((o) => done.has(o.season)).forEach((o) => {
+        for (let i = 0; i < o.weekly.length; i++) {
+          const v = o.weekly[i];
+          if (v != null && v >= 99.5 && o.weekly.slice(i).every((x) => x == null || x >= 99.5)) {
+            const spare = o.weekly.length - (i + 1);
+            out.push({ key: o.key, raw: i + 1, when: Number(o.season), detail: `${o.season} · ${spare > 0 ? plural(spare, "week") + " to spare" : "clinched in the final week"}` });
+            return;
+          }
+        }
+      });
+      return { rows: out, note: "Clinched = playoff odds at 99.5%+ for the rest of the regular season, the same moment the Season page's Playoff Odds chart marks. Playoff odds history starts in 2021." };
+    },
+  });
 
   // ============================================================
   // MATCHUPS
@@ -756,7 +863,7 @@
   // added above; within a section, records keep definition order.
   const SECTION_ORDER = {
     careers: ["Winning", "Scoring", "Playoffs", "Hardware", "Luck & Schedule"],
-    seasons: ["Best Seasons", "Lowlights", "Luck & Schedule"],
+    seasons: ["Best Seasons", "Lowlights", "Luck & Schedule", "Power Rankings & Playoff Odds"],
     matchups: ["Scoring", "Margins & Drama"],
     players: ["Player Performances", "Position Crowns", "Lineup Management", "Team Raw Stats · Careers", "Team Raw Stats · Seasons", "Team Raw Stats · Weeks"],
     streaks: ["Weekly Streaks", "Droughts", "Season Streaks", "Milestone Wall"],
