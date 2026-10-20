@@ -1,0 +1,45 @@
+name: Build Team Raw Stats
+
+# Rebuilds data/team-raw-stats.json — the raw box-score totals (passing
+# yards, receptions, TDs...) behind the "Team Raw Stats" records on the
+# Records page. Run it once by hand after first deploying (Actions tab ->
+# "Build Team Raw Stats" -> Run workflow) and those records fill in. After
+# that it refreshes every Tuesday, after the weekend's games are final and
+# an hour after the Sleeper backup (sleeper-data-pipeline.yml) has saved
+# the new week's matchups, which this script reads.
+on:
+  schedule:
+    - cron: "0 11 * * 2"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # needed to commit the regenerated data/team-raw-stats.json back to the repo
+
+jobs:
+  build-team-raw-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build team raw stats
+        run: node scripts/build-team-raw-stats.js
+
+      - name: Commit and push if data/team-raw-stats.json changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/team-raw-stats.json
+          if git diff --staged --quiet; then
+            echo "No changes to data/team-raw-stats.json — nothing to commit."
+          else
+            git commit -m "Update team raw stats [automated]"
+            git push
+          fi
