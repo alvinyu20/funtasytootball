@@ -30,6 +30,10 @@
   are skipped — not guessed at — for anything that needs weekly scores or
   lineups. Only the categories flagged `history` (Careers, Seasons) include
   them; the page asks for the rest with context(facts, era, true).
+
+  Seasons in progress: ctx.seasonLevelRows() holds back single-season
+  records until the regular season ends, and ctx.draftPicks() holds back a
+  draft class until its season is completely over (league status "complete").
 */
 
 const RecordBook = (function () {
@@ -841,6 +845,10 @@ const RecordBook = (function () {
       return memo.get(name);
     };
     const inEra = (r) => set.has(r.season);
+    // A draft pick is only judged on how its player did over the whole year,
+    // so a draft class joins the books once its season is over (league status
+    // "complete") — not while the season is still being played.
+    const overSeasons = new Set(facts.seasons.filter((s) => s.complete).map((s) => s.season));
     const ctx = {
       facts,
       eraId: eraId || "all",
@@ -862,7 +870,7 @@ const RecordBook = (function () {
       tradeSides: lazy("tradeSides", () => facts.tradeSides.filter(inEra)),
       tradePairs: lazy("tradePairs", () => facts.tradePairs.filter(inEra)),
       moveCounts: lazy("moveCounts", () => facts.moveCounts.filter(inEra)),
-      draftPicks: lazy("draftPicks", () => facts.draftPicks.filter(inEra)),
+      draftPicks: lazy("draftPicks", () => facts.draftPicks.filter((p) => inEra(p) && overSeasons.has(p.season))),
       rawRows: lazy("rawRows", () => facts.rawRows.filter(inEra)),
       powerRows: lazy("powerRows", () => facts.powerRows.filter(inEra)),
       oddsSeries: lazy("oddsSeries", () => facts.oddsSeries.filter(inEra)),

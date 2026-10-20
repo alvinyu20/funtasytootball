@@ -53,9 +53,8 @@ function pageHtml(ctx, categoryId, era, mutate) {
       const c = RecordBook.context(facts, ${JSON.stringify(era)}, sleeperOnly);
       return rbCategoryHtml({
         category, sections: RecordBook.computeCategory(category.id, c), eras, era: ${JSON.stringify(era)}, seasons: c.seasons,
-        hasPartialSeason: facts.seasons.some((s) => c.seasonSet.has(s.season) && !s.regularComplete),
+        ...rbSeasonFlags(facts, c),
         rawPending: ${categoryId === "players"},
-        noCompleteSeason: facts.seasons.filter((s) => c.seasonSet.has(s.season)).every((s) => !s.regularComplete),
         preSleeper: facts.seasons.filter((s) => s.source === "espn" && c.seasonSet.has(s.season)).map((s) => s.season),
       });
     })()`
@@ -291,4 +290,44 @@ test("renderRecords: power rankings history is loaded and feeds the Seasons page
   const root = ctx.document.getElementById("records-root").innerHTML;
   assert.ok(root.includes("Earliest to Clinch a Playoff Berth"));
   assert.match(root.slice(root.indexOf('data-record="most-weeks-first-pr"')).slice(0, 1000), /rb-holder-name">a/);
+});
+
+// ---- Draft records and the season in progress --------------------------------------------
+const DRAFT_PAGE_STATS = `
+  const pick = (season, player, pickNo, vbd) => ({ season, player, playerId: "x", position: "QB", round: 1, pickNo, pickInRound: pickNo, isKeeper: false, gradingVbd: vbd, expectedVbd: 5 });
+  input.stats = { draftGradeModel: null, managers: [
+    { userId: "u1", seasons: [{ draftPicks: [pick("2022", "Steal 22", 1, 10), pick("2023", "Steal 23", 2, 80)] }] },
+  ] };`;
+const draftRow = (html, id) => (html.match(new RegExp(`data-record="${id}"[\\s\\S]*?(?=data-record=|$)`)) || [""])[0];
+
+test("Front Office, season in progress only: Draft records say they unlock after the season ends, and the rest keep their own wording", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "front-office", "2023", DRAFT_PAGE_STATS);
+  const row = draftRow(html, "greatest-draft-pick");
+  assert.ok(row.includes("Unlocks after the season ends"), row.slice(0, 300));
+  assert.ok(!row.includes("No qualifying entries"));
+  assert.ok(!/<details[^>]*greatest-draft-pick/.test(html), "nothing to expand");
+  assert.ok(html.includes("Draft records leave out the current season"));
+  assert.strictEqual((html.match(/Unlocks after the season ends/g) || []).length, 6, "all six Draft records");
+});
+
+test("Front Office, all seasons: Draft records use the finished drafts only and the banner explains the missing season", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "front-office", "all", DRAFT_PAGE_STATS);
+  const row = draftRow(html, "greatest-draft-pick");
+  assert.ok(/<details[^>]*greatest-draft-pick/.test(html));
+  assert.ok(row.includes("Steal 22") && !row.includes("Steal 23"), "2023's pick is not eligible");
+  assert.ok(html.includes("Draft records leave out the current season"));
+});
+
+test("Front Office, a finished season: no Draft banner", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "front-office", "2022", DRAFT_PAGE_STATS);
+  assert.ok(!html.includes("Draft records leave out the current season"));
+  assert.ok(!html.includes("Unlocks after the season ends"));
+});
+
+test("the Draft banner only appears on pages that actually have Draft records", () => {
+  const ctx = setup();
+  assert.ok(!pageHtml(ctx, "seasons", "all").includes("Draft records leave out"));
 });

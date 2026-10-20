@@ -1,8 +1,9 @@
 {
   "name": "funtasytootball",
   "private": true,
-  "description": "No dependencies, no build step — this exists purely so `npm test` works as the standard, familiar way to run the regression suite in tests/.",
+  "description": "No dependencies and no build step to deploy — the site is plain static files. This exists so `npm test` runs the regression suite in tests/, and `npm run stamp` refreshes the ?v= cache-busting hashes on the HTML pages after js/ or css/ changes.",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "stamp": "node scripts/stamp-asset-versions.js"
   }
 }

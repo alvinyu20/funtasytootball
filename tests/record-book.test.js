@@ -373,3 +373,46 @@ test("earliest playoff clinch: a week the odds weren't recorded doesn't undo a c
   const res = run(ctx, "earliest-playoff-clinch", "2022", `${POWER} input.powerRanks.seasons[2022].playoffOdds.a = [60, 99.6, null];`);
   assert.deepStrictEqual(top(res)[0], "a:Week 2");
 });
+
+// ---- Draft records leave out a season that isn't over --------------------------------------
+// Draft picks in the fixture's 2022 (complete) and 2023 (still being played) drafts. Each pick's
+// value is gradingVbd - expectedVbd.
+const DRAFT_STATS = `
+  const pick = (season, player, pickNo, vbd, expected, extra) => Object.assign({ season, player, playerId: "x", position: "QB", round: 1, pickNo, pickInRound: pickNo, isKeeper: false, gradingVbd: vbd, expectedVbd: expected }, extra || {});
+  input.stats = { draftGradeModel: null, managers: [
+    { userId: "u1", seasons: [{ draftPicks: [pick("2022", "Steal 22", 1, 10, 5), pick("2023", "Steal 23", 2, 80, 5)] }] },
+    { userId: "u2", seasons: [{ draftPicks: [pick("2022", "Bust 22", 3, -5, 10), pick("2023", "Bust 23", 4, -60, 10)] }] },
+  ] };`;
+
+test("draft records: a draft class does not count while its season is still being played", () => {
+  const ctx = setup();
+  const best = run(ctx, "greatest-draft-pick", "all", DRAFT_STATS);
+  assert.deepStrictEqual(top(best), ["a:+5.0"], "the 2023 pick (+75) is ignored until 2023 is over");
+  assert.match(best.entries[0].detail, /Steal 22/);
+  const worst = run(ctx, "biggest-draft-bust", "all", DRAFT_STATS);
+  assert.deepStrictEqual(top(worst), ["b:" + "\u221215.0"], "the 2023 bust (-70) is ignored too");
+  assert.match(worst.entries[0].detail, /Bust 22/);
+});
+
+test("draft records: picking only the season in progress leaves them empty", () => {
+  const ctx = setup();
+  ["greatest-draft-pick", "biggest-draft-bust", "best-career-drafter", "best-draft-season", "worst-draft-season", "best-drafter-by-position"].forEach((id) => {
+    const res = run(ctx, id, "2023", DRAFT_STATS);
+    assert.strictEqual(res.status, "empty", id);
+  });
+  assert.deepStrictEqual(top(run(ctx, "greatest-draft-pick", "2022", DRAFT_STATS)), ["a:+5.0"]);
+});
+
+test("draft records: the class joins as soon as its season is marked complete", () => {
+  const ctx = setup();
+  const done = DRAFT_STATS + 'input.seasonChain[1].league.status = "complete";';
+  assert.deepStrictEqual(top(run(ctx, "greatest-draft-pick", "all", done)), ["a:+75.0", "a:+5.0"]);
+  assert.deepStrictEqual(top(run(ctx, "greatest-draft-pick", "2023", done)), ["a:+75.0"]);
+});
+
+test("draft records: every Draft-section record is flagged so the page can explain the wait", () => {
+  const ctx = setup();
+  const defs = JSON.parse(runInLoadedContext(ctx, `JSON.stringify(RecordBook.DEFS.filter((d) => d.section === "Draft").map((d) => [d.id, !!d.needsFinishedSeason]))`));
+  assert.ok(defs.length >= 6);
+  defs.forEach(([id, flagged]) => assert.ok(flagged, id));
+});

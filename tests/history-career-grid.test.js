@@ -46,13 +46,12 @@ test("sparklinePoints: x coordinates are evenly spaced from pad to width-pad", (
   assert.strictEqual(xs[xs.length - 1], 97, "last point ends at width - padding");
 });
 
-test("renderCareerRecords: builds a career grid card per manager, using wins-per-season for the sparkline and win% (not title count) as the caption", async () => {
-  const ctx = setup();
+// The History page's career section is a sortable table (the per-manager sparkline cards now
+// live on the Teams page), so these tests read the table body.
+const owners = (html) => [...html.matchAll(/data-label="Owner">(?:<a [^>]*>)?([^<]+)</g)].map((m) => m[1]);
 
-  // Stub the network-touching pieces this function depends on with a
-  // small, fully-controlled pair of managers — one with 3 Sleeper
-  // seasons, no manual/ESPN-era history, so the test is about the
-  // rendering logic itself, not real league data.
+test("renderCareerRecords: one table row per manager, with the owner's name linking to their Teams page", async () => {
+  const ctx = setup();
   ctx.__FAKE_STATS__ = {
     managers: [
       {
@@ -67,11 +66,10 @@ test("renderCareerRecords: builds a career grid card per manager, using wins-per
         careerPlayoffTies: 0,
         careerPF: 3500.5,
         championships: 2,
-        seasons: [
-          { season: 2021, wins: 6 },
-          { season: 2022, wins: 8 },
-          { season: 2023, wins: 6 },
-        ],
+        runnerUps: 0,
+        thirdPlaceFinishes: 0,
+        playoffAppearances: 3,
+        seasons: [{ season: 2021, wins: 6 }, { season: 2022, wins: 8 }, { season: 2023, wins: 6 }],
       },
     ],
   };
@@ -86,16 +84,17 @@ test("renderCareerRecords: builds a career grid card per manager, using wins-per
 
   await ctx.renderCareerRecords([{ league: { season: "2023" } }], {}, { seasons: [] });
 
-  const gridHtml = ctx.document.getElementById("career-grid").innerHTML;
-  assert.ok(gridHtml.includes("evangonnerman"), "should show the manager's name");
-  assert.ok(gridHtml.includes("career-spark"), "should render a sparkline element");
-  // 20 regular + 3 playoff = 23 wins out of 34 total games = 67.6%
-  assert.ok(gridHtml.includes("67.6% win rate"), "should show career win% as the caption");
-  assert.ok(!/\d\s*titles?/i.test(gridHtml), "should NOT state a title count anywhere in the card");
-  assert.ok(!gridHtml.includes("🏆"), "should not show a trophy/title indicator either");
+  const bodyHtml = ctx.document.getElementById("career-body").innerHTML;
+  assert.deepStrictEqual(owners(bodyHtml), ["evangonnerman"]);
+  assert.ok(bodyHtml.includes('href="teams.html#u1"'), "the owner's name links to their Teams page");
+  assert.strictEqual((bodyHtml.match(/<tr>/g) || []).length, 1);
+  assert.ok(bodyHtml.includes('data-label="Gold">2<'));
+  assert.ok(bodyHtml.includes('data-label="Silver">—<'), "no runner-up finishes renders as an em dash");
+  assert.ok(bodyHtml.includes('data-label="Years">3<'));
+  assert.strictEqual(ctx.document.getElementById("career-grid").innerHTML, "", "the old card grid is no longer drawn on this page");
 });
 
-test("renderCareerRecords: a manager's sparkline includes ESPN-era (manual) seasons merged in alongside Sleeper seasons, not just the Sleeper-tracked half of their career", async () => {
+test("renderCareerRecords: ESPN-era (manual) seasons are merged into a manager's row alongside their Sleeper seasons, not just the Sleeper-tracked half of their career", async () => {
   const ctx = setup();
   ctx.__FAKE_STATS__ = {
     managers: [
@@ -111,6 +110,9 @@ test("renderCareerRecords: a manager's sparkline includes ESPN-era (manual) seas
         careerPlayoffTies: 0,
         careerPF: 1200,
         championships: 0,
+        runnerUps: 0,
+        thirdPlaceFinishes: 0,
+        playoffAppearances: 0,
         seasons: [{ season: 2023, wins: 8 }],
       },
     ],
@@ -151,14 +153,12 @@ test("renderCareerRecords: a manager's sparkline includes ESPN-era (manual) seas
 
   await ctx.renderCareerRecords([{ league: { season: "2023" } }], {}, { seasons: [] });
 
-  // Both the merged career total (careerRegularSeasonWins: 8+9=17) and the
-  // per-season sparkline data (2017's wins=9 alongside 2023's wins=8)
-  // should reflect the merge -- checked indirectly via the win% caption,
-  // since the sparkline's raw SVG points aren't easy to assert on
-  // directly, but a wrong total here would mean the merge didn't happen.
-  const gridHtml = ctx.document.getElementById("career-grid").innerHTML;
-  // 17 wins (8+9) + 1 playoff win = 18, out of 8+5+9+4+1 = 27 total games = 66.7%
-  assert.ok(gridHtml.includes("66.7% win rate"), "career win% should include the merged-in ESPN-era record");
+  const bodyHtml = ctx.document.getElementById("career-body").innerHTML;
+  assert.ok(bodyHtml.includes('data-label="Reg Season Record">17-9<'), "8-5 on Sleeper plus 9-4 on ESPN");
+  assert.ok(bodyHtml.includes('data-label="Playoff Record">1-0<'), "the ESPN-era playoff win is included");
+  assert.ok(bodyHtml.includes('data-label="Years">2<'), "one Sleeper season plus one ESPN season");
+  assert.ok(bodyHtml.includes('data-label="Gold">1<'), "the ESPN-era title is included");
+  assert.ok(bodyHtml.includes('data-label="Reg Season Win %">65.4%<'), "17 of 26 regular-season games");
 });
 
 // Three managers with deliberately DIFFERENT orderings across categories
@@ -240,7 +240,7 @@ test("renderCareerRecords: the table has a two-tier header (Titles / Playoffs / 
   await setupCareerTable(ctx);
 
   const bodyHtml = ctx.document.getElementById("career-body").innerHTML;
-  const names = [...bodyHtml.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const names = owners(bodyHtml);
   assert.deepStrictEqual(names, ["zeta", "alpha", "mno"], "default sort should be Gold descending: zeta(3), alpha(1), mno(0)");
 
   const goldCells = [...bodyHtml.matchAll(/data-label="Gold">([^<]+)</g)].map((m) => m[1]);
@@ -269,7 +269,7 @@ test("sortCareerRows: sorting by a different key produces a genuinely different 
   await setupCareerTable(ctx);
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "name", dir: "asc" }; renderCareerTable();`);
-  const byName = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const byName = owners(ctx.document.getElementById("career-body").innerHTML);
   assert.deepStrictEqual(byName, ["alpha", "mno", "zeta"], "sorting by name should read alphabetically, not match the gold-count order");
 });
 
@@ -278,7 +278,7 @@ test("sortCareerRows: clicking the same column again (simulated by toggling dir)
   await setupCareerTable(ctx);
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "gold", dir: "asc" }; renderCareerTable();`);
-  const ascending = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const ascending = owners(ctx.document.getElementById("career-body").innerHTML);
   assert.deepStrictEqual(ascending, ["mno", "alpha", "zeta"], "ascending gold order should be the exact reverse of the default descending order");
 });
 
@@ -287,11 +287,11 @@ test("sortCareerRows: sorting by Years (Playoffs group) and by Playoff Win % eac
   await setupCareerTable(ctx);
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "years", dir: "desc" }; renderCareerTable();`);
-  const byYears = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const byYears = owners(ctx.document.getElementById("career-body").innerHTML);
   assert.deepStrictEqual(byYears, ["zeta", "alpha", "mno"], "zeta and alpha both played 6 years (tied, stable order), mno played 3");
 
   runInLoadedContext(ctx, `CAREER_SORT = { key: "playoffWinPct", dir: "desc" }; renderCareerTable();`);
-  const byPlayoffWinPct = [...ctx.document.getElementById("career-body").innerHTML.matchAll(/data-label="Owner">([^<]+)</g)].map((m) => m[1]);
+  const byPlayoffWinPct = owners(ctx.document.getElementById("career-body").innerHTML);
   // zeta: 10/15=66.7%, alpha: 8/16=50%, mno: 2/5=40%
   assert.deepStrictEqual(byPlayoffWinPct, ["zeta", "alpha", "mno"]);
 });

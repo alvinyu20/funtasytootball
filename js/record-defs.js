@@ -808,18 +808,22 @@
   });
 
   // Draft
-  const DRAFT_NOTE = "Pick value = a player's value over replacement (injury-adjusted) minus what that draft slot historically returns in this league.";
+  // Every Draft record reads ctx.draftPicks(), which leaves out the draft of a
+  // season still in progress (see context() in record-book.js) — the picks
+  // haven't had a full year to prove themselves. `needsFinishedSeason` is what
+  // lets the page say "Unlocks after the season ends" instead of "No qualifying entries".
+  const DRAFT_NOTE = "Pick value = a player's value over replacement (injury-adjusted) minus what that draft slot historically returns in this league. A draft class counts once its season is over.";
   const pickDetail = (p) => `${p.player} · ${p.round}.${String(p.pickInRound).padStart(2, "0")} · ${p.season}`;
   add({
-    id: "greatest-draft-pick", cat: FO, section: "Draft", title: "Greatest Draft Pick", desc: "One pick measured against what its slot historically returns.", fmt: "signed1", dir: "desc",
+    id: "greatest-draft-pick", cat: FO, section: "Draft", needsFinishedSeason: true, title: "Greatest Draft Pick", desc: "One pick measured against what its slot historically returns.", fmt: "signed1", dir: "desc",
     compute: (ctx) => ({ rows: ctx.draftPicks().filter((p) => p.delta > 0).map((p) => ({ key: p.key, raw: p.delta, when: Number(p.season) * 1000 + p.pickNo, detail: pickDetail(p) })), note: DRAFT_NOTE }),
   });
   add({
-    id: "biggest-draft-bust", cat: FO, section: "Draft", title: "Biggest Draft Bust", desc: "The picks that missed their league-specific slot expectation by the most.", fmt: "signed1", dir: "asc", tone: "low",
+    id: "biggest-draft-bust", cat: FO, section: "Draft", needsFinishedSeason: true, title: "Biggest Draft Bust", desc: "The picks that missed their league-specific slot expectation by the most.", fmt: "signed1", dir: "asc", tone: "low",
     compute: (ctx) => ({ rows: ctx.draftPicks().filter((p) => p.delta < 0).map((p) => ({ key: p.key, raw: p.delta, when: Number(p.season) * 1000 + p.pickNo, detail: pickDetail(p) })), note: DRAFT_NOTE }),
   });
   add({
-    id: "best-career-drafter", cat: FO, section: "Draft", title: "Best Career Drafter", desc: "Average realized value per non-keeper pick.", fmt: "signed1", dir: "desc",
+    id: "best-career-drafter", cat: FO, section: "Draft", needsFinishedSeason: true, title: "Best Career Drafter", desc: "Average realized value per non-keeper pick.", fmt: "signed1", dir: "desc",
     compute(ctx) {
       const out = [];
       groupBy(ctx.draftPicks().filter((p) => !p.isKeeper), (p) => p.key).forEach((ps, key) => {
@@ -831,7 +835,7 @@
   });
   function draftSeason(id, title, desc, dir, tone) {
     add({
-      id, cat: FO, section: "Draft", title, desc, fmt: "signed1", dir, tone,
+      id, cat: FO, section: "Draft", needsFinishedSeason: true, title, desc, fmt: "signed1", dir, tone,
       compute(ctx) {
         const out = [];
         groupBy(ctx.draftPicks().filter((p) => !p.isKeeper), (p) => `${p.key}|${p.season}`).forEach((ps, k) => {
@@ -846,7 +850,7 @@
   draftSeason("best-draft-season", "Best Draft Season", "Average realized pick value within one draft class.", "desc");
   draftSeason("worst-draft-season", "Worst Draft Season", "The draft classes with the lowest average realized pick value.", "asc", "low");
   add({
-    id: "best-drafter-by-position", cat: FO, section: "Draft", title: "Best Drafter by Position", desc: "Career average pick value within each position.", fmt: "signed1", dir: "desc",
+    id: "best-drafter-by-position", cat: FO, section: "Draft", needsFinishedSeason: true, title: "Best Drafter by Position", desc: "Career average pick value within each position.", fmt: "signed1", dir: "desc",
     compute(ctx) {
       const out = [];
       groupBy(ctx.draftPicks().filter((p) => !p.isKeeper && p.position), (p) => `${p.key}|${p.position}`).forEach((ps, k) => {

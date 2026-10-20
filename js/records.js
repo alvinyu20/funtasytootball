@@ -117,6 +117,8 @@ function rbTopListHtml(result) {
     </ol>`;
 }
 
+// `locked` is the text to show when the record has nothing yet because the
+// season it needs is still running — or just `true` for the regular-season wording.
 function rbRowHtml(def, result, locked) {
   const low = def.tone === "low" ? " rb-low" : "";
   const record = `
@@ -126,7 +128,8 @@ function rbRowHtml(def, result, locked) {
     </span>`;
 
   if (result.status !== "ok") {
-    const label = result.status === "pending" ? "Awaiting data" : locked ? "Unlocks after the regular season" : "No qualifying entries";
+    const lockText = typeof locked === "string" ? locked : locked ? "Unlocks after the regular season" : "";
+    const label = result.status === "pending" ? "Awaiting data" : lockText || "No qualifying entries";
     return `
     <div class="rb-row rb-static${low}" data-record="${escapeHtml(def.id)}">
       <div class="rb-summary">
@@ -162,14 +165,31 @@ function rbEraSummary(seasons) {
   return seasons.length === 1 ? seasons[0] : `${seasons[0]}–${seasons[seasons.length - 1]}`;
 }
 
+// Which of the selected seasons are still being played, as the page needs it.
+// "Regular season over" unlocks single-season records; "season over" (champion
+// crowned) is what the Draft records wait for.
+function rbSeasonFlags(facts, ctx) {
+  const picked = facts.seasons.filter((s) => ctx.seasonSet.has(s.season));
+  return {
+    hasPartialSeason: picked.some((s) => !s.regularComplete),
+    noCompleteSeason: picked.every((s) => !s.regularComplete),
+    hasUnfinishedSeason: picked.some((s) => !s.complete),
+    noFinishedSeason: picked.every((s) => !s.complete),
+  };
+}
+
 function rbCategoryHtml(opts) {
-  const { category, sections, eras, era, seasons, hasPartialSeason, rawPending, noCompleteSeason } = opts;
+  const { category, sections, eras, era, seasons, hasPartialSeason, rawPending, noCompleteSeason, hasUnfinishedSeason, noFinishedSeason } = opts;
   const preSleeper = opts.preSleeper || [];
   const total = sections.reduce((n, s) => n + s.records.length, 0);
 
   const notices = [];
   if (hasPartialSeason) {
     notices.push("The current season is still in progress. It counts toward career totals, streaks and weekly records, but single-season records unlock once its regular season ends.");
+  }
+  const hasDraftRecords = sections.some((sec) => sec.records.some((r) => r.def.needsFinishedSeason));
+  if (hasDraftRecords && hasUnfinishedSeason) {
+    notices.push("Draft records leave out the current season’s draft until that season is over — a pick can’t be judged before its player has played the whole year.");
   }
   if (preSleeper.length) {
     notices.push(
@@ -203,7 +223,9 @@ function rbCategoryHtml(opts) {
       <section class="rb-section">
         <h3 class="rb-section-head"><span>${escapeHtml(s.title)}</span><span class="rb-section-count">${rbPlural(s.records.length, "record")}</span></h3>
         <div class="rb-rows">
-          ${s.records.map((r) => rbRowHtml(r.def, r.result, noCompleteSeason)).join("")}
+          ${s.records
+            .map((r) => rbRowHtml(r.def, r.result, r.def.needsFinishedSeason ? noFinishedSeason && "Unlocks after the season ends" : noCompleteSeason))
+            .join("")}
         </div>
       </section>`
         )
@@ -267,11 +289,9 @@ function rbRenderView() {
   const sections = rbCategoryData(category.id, era, sleeperOnly);
   const ctx = rbContext(era, sleeperOnly);
   const preSleeper = facts.seasons.filter((s) => s.source === "espn" && ctx.seasonSet.has(s.season)).map((s) => s.season);
-  const hasPartialSeason = facts.seasons.some((s) => ctx.seasonSet.has(s.season) && !s.regularComplete);
   const rawPending = sections.some((s) => s.records.some((r) => r.result.status === "pending"));
-  const noCompleteSeason = facts.seasons.filter((s) => ctx.seasonSet.has(s.season)).every((s) => !s.regularComplete);
 
-  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, hasPartialSeason, rawPending, noCompleteSeason, preSleeper });
+  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, rawPending, preSleeper, ...rbSeasonFlags(facts, ctx) });
   initAnimatedDropdowns();
 
   // Opening a different category starts at the top; switching the season

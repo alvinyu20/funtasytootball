@@ -1987,6 +1987,15 @@ Conventions worth knowing:
   acquiring team's starting lineup minus what a replacement-level player
   would have produced; draft pick value = value over the pick slot's
   expected value that season.
+- **Draft records wait for the season to be over.** A pick is judged on how
+  its player did across the whole year, so a season still being played
+  (league status not "complete") is left out of every Draft record — it can't
+  hold a record, a bust or a "worst draft season" yet. Pick a season in
+  progress and the Draft rows read "Unlocks after the season ends"; on All
+  seasons / Last 3 a banner says the current draft is being held back. The rule
+  lives in `ctx.draftPicks()` (`js/record-book.js`), so any new Draft record
+  gets it automatically; give it `needsFinishedSeason: true` in
+  `js/record-defs.js` so the page can word the wait correctly.
 
 **Team Raw Stats** (passing yards, receptions, TDs... summed over submitted
 starting lineups) need box-score numbers Sleeper's matchup data doesn't
@@ -1996,6 +2005,41 @@ exists those records show "Awaiting data". Run it once from the Actions tab
 ("Build Team Raw Stats" -> Run workflow) — after that it refreshes itself
 every Tuesday. Or run `node scripts/build-team-raw-stats.js` locally and
 commit the result.
+
+## Why Visitors Used To Need A Hard Refresh (Cache-Busting)
+
+GitHub Pages tells browsers they may keep any file for 10 minutes
+(`Cache-Control: max-age=600`). A normal refresh only re-checks the HTML
+page itself, so for up to ten minutes after a deploy a browser could pair
+the new page with the old `js/*.js` and `css/styles.css` it had kept — or show
+old numbers from `data/*.json`. A hard refresh or an incognito window (empty
+cache) skipped that, which is why those "fixed" it.
+
+Two fixes, neither needing a build step on the server:
+
+- **Versioned scripts and styles.** Every `<script src="js/...">` and
+  `<link href="css/...">` carries `?v=<hash of that file's contents>`. Edit
+  a file and its URL changes, so every browser fetches it fresh; leave it
+  alone and the URL (and the browser's cached copy) stays put.
+  `scripts/stamp-asset-versions.js` writes the hashes. **After editing any
+  file in `js/` or `css/`, run `npm run stamp`** (or ask me — I do it before
+  every zip). `npm test` fails with a clear message if the stamps are stale,
+  so a forgotten stamp can't silently ship. A brand-new page just needs plain
+  `<script src="js/whatever.js">` tags; the stamp script fills in the rest.
+- **Data files always revalidate.** `fetchJsonSafe` (used for everything under
+  `data/`) now fetches with `cache: "no-cache"`: the browser asks the server
+  "changed?" each time. Unchanged files return a tiny 304 and are reused;
+  a file a workflow just committed (power rankings, injuries, newsletters,
+  raw stats) downloads immediately.
+
+What this can't fix: the HTML page itself is still cached by GitHub Pages
+for up to ten minutes, and a deploy takes a minute or two to publish. So
+right after a push, someone who opens a page they visited in the last ten
+minutes can still briefly see the old *page* — but a normal refresh will
+pick up the new one, and it will no longer be mismatched with stale
+scripts or data. Browser-stored data (`localStorage`) has its own expiry: the
+NFL player directory is kept up to a week, and a live-fetched completed season
+up to a day.
 
 ## Known limitations / ideas for later
 

@@ -22,9 +22,15 @@ async function mapWithConcurrency(items, limit, worker) {
   return results;
 }
 
+// Loads one of this site's own data files (data/*.json). `cache: "no-cache"`
+// makes the browser ask the server "has this changed?" on every load
+// instead of trusting whatever it kept for the last ten minutes (GitHub
+// Pages' default max-age) — an unchanged file comes back as a tiny 304 and
+// is reused, a changed one (say, after the weekly power-rankings workflow
+// commits new numbers) is downloaded immediately.
 async function fetchJsonSafe(path, fallback) {
   try {
-    const res = await fetch(path);
+    const res = await fetch(path, { cache: "no-cache" });
     if (!res.ok) return fallback;
     return await res.json();
   } catch (err) {
