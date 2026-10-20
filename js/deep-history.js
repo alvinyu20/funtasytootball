@@ -766,6 +766,9 @@ const DeepHistory = {
               pickNo: pick.pick_no,
               pickInRound: pick.pick_no - (pick.round - 1) * rosters.length,
               position: (pick.metadata && pick.metadata.position) || "",
+              // Used by the Record Book's per-pick draft averages, which
+              // only count picks a manager actually had to make.
+              isKeeper: !!pick.is_keeper,
               points: pts,
               vbd: vbdEntry ? vbdEntry.vbd : null,
               gradingVbd,

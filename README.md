@@ -111,9 +111,11 @@ They'll merge into the History page's champions ledger and, if you included
   lopsided matchups, the single best weekly performance at each position,
   and draft standouts (best steal, biggest bust, points leader). Teams are
   shown by Sleeper username here too.
-- `records.html` / `js/records.js` — league-wide fun stats: highest/lowest
-  scores, biggest blowout, closest game, win/lose streaks, best late-round
-  steal, biggest draft bust, most trades, most waiver adds, and more
+- `records.html` / `js/records.js` — the Record Book: six categories
+  (Careers, Seasons, Matchups, Players & Lineups, Streaks & Milestones,
+  Front Office), each a list of records you can click open for its top 10,
+  filterable by All seasons, Last 3 seasons, or any single season (see
+  "Record Book" below)
 - `newsletters.html` / `js/newsletters.js` — lists issues from
   `data/newsletters.json`; clicking one opens its full text on the same page
 - `js/sleeper-api.js` — every call to Sleeper's API lives here
@@ -1927,6 +1929,56 @@ pulled from every individual team-season in the league's history.
 Teams — 🏆, 🥈, and 🥉 respectively, both in the career summary and next
 to each season in Season By Season. 3rd place comes from Sleeper's own
 3rd-place bracket game where the league plays one.
+
+## Record Book
+
+The Records page is a landing page with six categories. Click one for its
+list of records (record, record holder, record value), click a record to
+open its top 10, and use the season pills at the top to switch between
+**All seasons**, **Last 3 seasons**, or one season. The address bar follows
+along (`records.html#careers/last3`, `#front-office/2024`), so any view can
+be bookmarked or shared.
+
+How it's built:
+
+- `js/record-defs.js` is the list of records — title, description,
+  section, number format, and the one small function that produces each
+  record's ranked rows. Adding a record means adding an entry there.
+- `js/record-book.js` is the engine. It first boils the league down to
+  plain "facts" (one row per manager-season, per manager-week, per game,
+  per roster move, per draft pick...), narrows them to the selected
+  season range, and ranks each record's rows into a top 10 (ties share a
+  rank and are called out).
+- `js/records.js` draws the landing, category and row views.
+
+Conventions worth knowing:
+
+- **Sleeper era only (2020–present).** Weekly scores, lineups, waivers,
+  trades and drafts exist only there. ESPN-era (2015–19) totals are
+  supported by the engine but are deliberately not passed in; to fold them
+  into the aggregate records, pass `manual` to `RecordBook.buildFacts` in
+  `renderRecords`.
+- Career records add up every season in the range; season records only
+  use seasons whose regular season is finished; rate-style career records
+  (win %, efficiency...) need at least three seasons in the range (or all
+  of them, if fewer).
+- Regular season = weeks before `playoff_week_start`. Playoff results
+  count only games on the road to 1st or 3rd place.
+- Luck = real wins minus wins against the weekly median.
+- Blowout = won by 30+; narrow win = won by 5 or less.
+- Waiver, FAAB and trade "value" = points a player actually produced in the
+  acquiring team's starting lineup minus what a replacement-level player
+  would have produced; draft pick value = value over the pick slot's
+  expected value that season.
+
+**Team Raw Stats** (passing yards, receptions, TDs... summed over submitted
+starting lineups) need box-score numbers Sleeper's matchup data doesn't
+carry. `scripts/build-team-raw-stats.js` fetches them week by week from
+Sleeper's stats endpoint into `data/team-raw-stats.json`. Until that file
+exists those records show "Awaiting data". Run it once from the Actions tab
+("Build Team Raw Stats" -> Run workflow) — after that it refreshes itself
+every Tuesday. Or run `node scripts/build-team-raw-stats.js` locally and
+commit the result.
 
 ## Known limitations / ideas for later
 

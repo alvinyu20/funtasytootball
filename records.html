@@ -37,7 +37,7 @@
 
   <section class="scoreboard">
     <p class="scoreboard-eyebrow">RECORD BOOK</p>
-    <h1 class="scoreboard-title">Fun Stats &amp; Records</h1>
+    <h1 class="scoreboard-title">League Records</h1>
     <p class="scoreboard-sub" id="sb-sub">Loading…</p>
   </section>
 
@@ -49,18 +49,16 @@
   <div class="yard-divider">
     <span class="tick"></span>
     <div class="line"></div>
-    <span class="label">All-Time</span>
+    <span class="label">The Record Book</span>
     <div class="line"></div>
   </div>
 
   <main class="wrap">
-    <div class="records-grid" id="records-grid">
-      <div class="loading">Crunching every season's scores, drafts, and transactions…</div>
-    </div>
+    <div id="records-root"></div>
   </main>
 
   <footer class="site-footer">
-    Draft value is judged against where a player was picked that same season, not across years.
+    Records cover the Sleeper era. Draft value is judged against where a player was picked that same season, not across years.
   </footer>
 
   <script src="js/nav.js"></script>
@@ -69,6 +67,8 @@
   <script src="js/sleeper-api.js"></script>
   <script src="js/deep-history.js"></script>
   <script src="js/animations.js"></script>
+  <script src="js/record-book.js"></script>
+  <script src="js/record-defs.js"></script>
   <script src="js/records.js"></script>
 </body>
 </html>

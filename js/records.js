@@ -1,12 +1,292 @@
+/*
+  ============================================================
+  RECORDS PAGE
+  ============================================================
+  The Record Book: a landing page with six categories, a category page
+  listing every record in it (holder + value, click a row for the top 10),
+  and a season filter — All seasons, Last 3 seasons, or any single season.
+
+  All the math lives in record-book.js / record-defs.js. This file is the
+  view: pure HTML builders (rb*Html, rbParseRoute — unit-tested without a
+  browser) plus renderRecords(), the controller that loads the league's
+  data, then draws whichever view the URL hash asks for:
+
+    #                      landing (the six categories)
+    #careers               Careers, all seasons
+    #careers/last3         Careers, last three seasons
+    #careers/2024          Careers, 2024 only
+
+  The landing page needs nothing but the static record definitions, so it
+  draws immediately while the league data loads behind it.
+*/
+
+const RB_ICONS = {
+  crown: '<path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/>',
+  medal: '<circle cx="12" cy="9" r="5"/><path d="M8.5 13.5L7 21l5-3 5 3-1.5-7.5"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>',
+  flame: '<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 01-10 0c0-2 1-3 2-4 .3 1.5 1 2 2 2-.5-3 0-6 1-8z"/>',
+  gauge: '<path d="M4 17a8 8 0 1116 0"/><path d="M12 17l4-5"/><circle cx="12" cy="17" r="1"/>',
+};
+
+function rbIcon(name) {
+  return `<svg class="rb-icon" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${RB_ICONS[name] || ""}</svg>`;
+}
+
+// ---------------------------------------------------------------
+// Routing — "#category" or "#category/era"
+// ---------------------------------------------------------------
+function rbParseRoute(hash) {
+  const raw = String(hash || "").replace(/^#/, "");
+  const [category, era] = raw.split("/");
+  const known = RecordBook.CATEGORIES.some((c) => c.id === category);
+  return { category: known ? category : null, era: era || "all" };
+}
+
+function rbRouteHash(category, era) {
+  if (!category) return "#";
+  return `#${category}${era && era !== "all" ? "/" + era : ""}`;
+}
+
+function rbPlural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+// ---------------------------------------------------------------
+// Landing
+// ---------------------------------------------------------------
+function rbLandingHtml(counts, era) {
+  return `
+    <div class="rb-landing">
+      ${RecordBook.CATEGORIES.map(
+        (c) => `
+      <a class="rb-cat" href="${rbRouteHash(c.id, era)}">
+        <span class="rb-cat-icon">${rbIcon(c.icon)}</span>
+        <span class="rb-cat-body">
+          <span class="rb-cat-title">${escapeHtml(c.title)}</span>
+          <span class="rb-cat-blurb">${escapeHtml(c.blurb)}</span>
+        </span>
+        <span class="rb-cat-count">${rbPlural(counts[c.id] || 0, "record")}</span>
+        <span class="rb-cat-arrow" aria-hidden="true">→</span>
+      </a>`
+      ).join("")}
+    </div>`;
+}
+
+// ---------------------------------------------------------------
+// Category page
+// ---------------------------------------------------------------
+function rbEraPillsHtml(categoryId, eras, activeEra) {
+  return `
+    <div class="season-pills rb-eras" role="group" aria-label="Season filter">
+      ${eras
+        .map(
+          (e) =>
+            `<a class="season-pill${e.id === activeEra ? " active" : ""}" href="${rbRouteHash(categoryId, e.id)}"${e.id === activeEra ? ' aria-current="true"' : ""}>${escapeHtml(e.label)}</a>`
+        )
+        .join("")}
+    </div>`;
+}
+
+function rbHolderHtml(entry, result) {
+  const name = playerLinkHtml(entry.playerId, escapeHtml(entry.name));
+  const tied = result.tied > 0 ? ` <span class="rb-tied">+${result.tied} tied</span>` : "";
+  return `<span class="rb-holder-name">${name}${tied}</span>${entry.detail ? `<span class="rb-holder-detail">${escapeHtml(entry.detail)}</span>` : ""}`;
+}
+
+function rbTopListHtml(result) {
+  // Entries that share a rank show it as "T2" so a tie is never mistaken
+  // for a gap in the ordering.
+  const shared = new Map();
+  result.entries.forEach((e) => shared.set(e.rank, (shared.get(e.rank) || 0) + 1));
+  return `
+    <ol class="rb-top">
+      ${result.entries
+        .map(
+          (e) => `
+      <li>
+        <span class="rb-top-rank">${shared.get(e.rank) > 1 ? "T" : ""}${e.rank}</span>
+        <span class="rb-top-who">
+          <span class="rb-top-name">${playerLinkHtml(e.playerId, escapeHtml(e.name))}</span>
+          ${e.detail ? `<span class="rb-top-detail">${escapeHtml(e.detail)}</span>` : ""}
+        </span>
+        <span class="rb-top-value">${escapeHtml(e.valueText)}</span>
+      </li>`
+        )
+        .join("")}
+    </ol>`;
+}
+
+function rbRowHtml(def, result, locked) {
+  const low = def.tone === "low" ? " rb-low" : "";
+  const record = `
+    <span class="rb-cell rb-record">
+      <span class="rb-title">${escapeHtml(def.title)}</span>
+      <span class="rb-desc">${escapeHtml(def.desc || "")}</span>
+    </span>`;
+
+  if (result.status !== "ok") {
+    const label = result.status === "pending" ? "Awaiting data" : locked ? "Unlocks after the regular season" : "No qualifying entries";
+    return `
+    <div class="rb-row rb-static${low}" data-record="${escapeHtml(def.id)}">
+      <div class="rb-summary">
+        ${record}
+        <span class="rb-cell rb-holder rb-muted">${label}</span>
+        <span class="rb-cell rb-value rb-muted">—</span>
+        <span class="rb-chev" aria-hidden="true"></span>
+      </div>
+    </div>`;
+  }
+
+  const lead = result.headline
+    ? { name: result.headline.name, playerId: null, detail: result.headline.detail || "", valueText: result.headline.valueText }
+    : result.entries[0];
+  const holderResult = result.headline ? { tied: 0 } : result;
+  return `
+    <details class="rb-row${low}" data-record="${escapeHtml(def.id)}">
+      <summary class="rb-summary">
+        ${record}
+        <span class="rb-cell rb-holder">${rbHolderHtml(lead, holderResult)}</span>
+        <span class="rb-cell rb-value">${escapeHtml(lead.valueText)}</span>
+        <span class="rb-chev" aria-hidden="true"></span>
+      </summary>
+      <div class="rb-expand">
+        ${rbTopListHtml(result)}
+        ${result.note ? `<p class="rb-note">${escapeHtml(result.note)}</p>` : ""}
+      </div>
+    </details>`;
+}
+
+function rbEraSummary(seasons) {
+  if (!seasons.length) return "";
+  return seasons.length === 1 ? seasons[0] : `${seasons[0]}–${seasons[seasons.length - 1]}`;
+}
+
+function rbCategoryHtml(opts) {
+  const { category, sections, eras, era, seasons, hasPartialSeason, rawPending, noCompleteSeason } = opts;
+  const total = sections.reduce((n, s) => n + s.records.length, 0);
+
+  const notices = [];
+  if (hasPartialSeason) {
+    notices.push("The current season is still in progress. It counts toward career totals, streaks and weekly records, but single-season records unlock once its regular season ends.");
+  }
+  if (rawPending) {
+    notices.push("The Team Raw Stats records are waiting on data — run the “Build Team Raw Stats” workflow once (GitHub → Actions → Run workflow) and they fill in.");
+  }
+
+  return `
+    <div class="rb-category">
+      <a class="rb-back" href="#">← Record Book</a>
+      <header class="rb-cat-head">
+        <span class="rb-cat-icon rb-cat-icon-lg">${rbIcon(category.icon)}</span>
+        <div>
+          <h2 class="rb-cat-heading">${escapeHtml(category.title)}</h2>
+          <p class="rb-cat-sub">${escapeHtml(category.blurb)}</p>
+        </div>
+        <span class="rb-cat-count">${rbPlural(total, "record")}</span>
+      </header>
+      ${rbEraPillsHtml(category.id, eras, era)}
+      <p class="rb-era-line">Showing <strong>${escapeHtml(rbEraSummary(seasons))}</strong> · tap a record for its top 10</p>
+      ${notices.map((n) => `<p class="rb-banner">${escapeHtml(n)}</p>`).join("")}
+      <div class="rb-colhead" aria-hidden="true">
+        <span>Record</span><span>Record Holder</span><span>Record Value</span><span></span>
+      </div>
+      ${sections
+        .map(
+          (s) => `
+      <section class="rb-section">
+        <h3 class="rb-section-head"><span>${escapeHtml(s.title)}</span><span class="rb-section-count">${rbPlural(s.records.length, "record")}</span></h3>
+        <div class="rb-rows">
+          ${s.records.map((r) => rbRowHtml(r.def, r.result, noCompleteSeason)).join("")}
+        </div>
+      </section>`
+        )
+        .join("")}
+    </div>`;
+}
+
+// ---------------------------------------------------------------
+// Controller
+// ---------------------------------------------------------------
+const RB_STATE = {
+  facts: null,
+  loadError: null,
+  contexts: new Map(),
+  categories: new Map(),
+  shownCategory: undefined,
+};
+
+function rbContext(eraId) {
+  if (!RB_STATE.contexts.has(eraId)) RB_STATE.contexts.set(eraId, RecordBook.context(RB_STATE.facts, eraId));
+  return RB_STATE.contexts.get(eraId);
+}
+
+function rbCategoryData(categoryId, eraId) {
+  const key = `${categoryId}|${eraId}`;
+  if (!RB_STATE.categories.has(key)) {
+    RB_STATE.categories.set(key, RecordBook.computeCategory(categoryId, rbContext(eraId)));
+  }
+  return RB_STATE.categories.get(key);
+}
+
+function rbRenderView() {
+  const root = document.getElementById("records-root");
+  if (!root) return;
+  const route = rbParseRoute(location.hash);
+  const counts = RecordBook.countByCategory();
+
+  if (!route.category) {
+    root.innerHTML = rbLandingHtml(counts, "all");
+    RB_STATE.shownCategory = null;
+    return;
+  }
+
+  if (RB_STATE.loadError) {
+    root.innerHTML = `<div class="error-state">Couldn't load league records — ${escapeHtml(RB_STATE.loadError)}</div>`;
+    return;
+  }
+  if (!RB_STATE.facts) {
+    root.innerHTML = `<div class="loading">Crunching every season's scores, drafts, and transactions…</div>`;
+    return;
+  }
+
+  const facts = RB_STATE.facts;
+  const eras = RecordBook.eras(facts);
+  const era = eras.some((e) => e.id === route.era) ? route.era : "all";
+  const category = RecordBook.CATEGORIES.find((c) => c.id === route.category);
+  const sections = rbCategoryData(category.id, era);
+  const ctx = rbContext(era);
+  const hasPartialSeason = facts.seasons.some((s) => ctx.seasonSet.has(s.season) && !s.regularComplete);
+  const rawPending = sections.some((s) => s.records.some((r) => r.result.status === "pending"));
+  const noCompleteSeason = facts.seasons.filter((s) => ctx.seasonSet.has(s.season)).every((s) => !s.regularComplete);
+
+  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, hasPartialSeason, rawPending, noCompleteSeason });
+  initAnimatedDropdowns();
+
+  // Opening a different category starts at the top; switching the season
+  // filter inside one keeps the visitor's place.
+  if (RB_STATE.shownCategory !== category.id && typeof window !== "undefined" && window && window.scrollTo) {
+    window.scrollTo(0, 0);
+  }
+  RB_STATE.shownCategory = category.id;
+}
+
 async function renderRecords() {
   const errorBox = document.getElementById("records-error");
   const progressBox = document.getElementById("progress-status");
-  const grid = document.getElementById("records-grid");
+
+  // The landing page only needs the static record definitions, so it is
+  // on screen straight away while the league data loads.
+  rbRenderView();
+  if (typeof window !== "undefined" && window && window.addEventListener) {
+    window.addEventListener("hashchange", rbRenderView);
+  }
 
   try {
-    const [seasonChain, playerDirectory] = await Promise.all([
+    const [seasonChain, playerDirectory, rawStats] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(TEAM_RAW_STATS_FILE, null),
     ]);
 
     if (seasonChain.length === 0) {
@@ -15,7 +295,6 @@ async function renderRecords() {
 
     const latest = seasonChain[seasonChain.length - 1].league;
     document.title = (SITE_TITLE || latest.name || "League") + " — Records";
-    document.getElementById("sb-sub").textContent = `${seasonChain.length} season${seasonChain.length === 1 ? "" : "s"} of history`;
 
     progressBox.style.display = "block";
     const deepSeasons = await DeepHistory.buildAll(seasonChain, (season, status) => {
@@ -24,364 +303,26 @@ async function renderRecords() {
     progressBox.style.display = "none";
 
     const stats = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
-    grid.innerHTML = buildRecordCards(stats);
-    initScrollAnimations();
-    // Every other expandable panel on the site (lineups, draft picks,
-    // bracket games) animates its open/close via this same generic
-    // <details> handler — this page just never called it, which is why
-    // its Top 5 disclosures snapped open/closed instead of easing like
-    // everywhere else.
-    initAnimatedDropdowns();
+    // Records cover the Sleeper era only: it is the only era with weekly
+    // scores, lineups, transactions and drafts, which most records need.
+    RB_STATE.facts = RecordBook.buildFacts({ seasonChain, deepSeasons, playerDirectory, stats, rawStats });
+
+    const seasons = RB_STATE.facts.seasons.map((s) => s.season);
+    const total = RecordBook.DEFS.length;
+    document.getElementById("sb-sub").textContent = seasons.length
+      ? `${rbPlural(total, "record")} · ${rbEraSummary(seasons)} · ${rbPlural(seasons.length, "season")} of Sleeper history`
+      : "No scored weeks yet";
+    rbRenderView();
   } catch (err) {
     console.error(err);
     progressBox.style.display = "none";
+    RB_STATE.loadError = err.message;
     errorBox.textContent = "Couldn't load league records — " + err.message;
     errorBox.style.display = "block";
+    rbRenderView();
   }
 }
 
-function card(label, value, detail, badge) {
-  return `
-    <div class="record-card">
-      <p class="record-label">${escapeHtml(label)}${badge ? ` ${badge}` : ""}</p>
-      <p class="record-value" data-count-up>${value}</p>
-      ${detail ? `<p class="record-detail">${detail}</p>` : ""}
-    </div>`;
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("DOMContentLoaded", renderRecords);
 }
-
-// Lightweight category dividers woven through the records grid. Mostly
-// matters on mobile, where 17+ cards stack into one long undifferentiated
-// list — a heading every few cards gives a visitor something to scan for
-// instead of reading the whole page top to bottom to find, say, the draft
-// records. Spans the full grid width (see .records-group-label in
-// styles.css) so it reads fine on the desktop 4-column grid too, not just
-// when stacked.
-// Cards are pushed in a fixed, deliberately-grouped order already (see
-// buildRecordCards below), so this only needs to know which group starts
-// at which push — not track membership card-by-card.
-function groupLabel(text) {
-  return `<h3 class="records-group-label">${escapeHtml(text)}</h3>`;
-}
-
-// A small generic table for a category's top 5 — #, Team/Player, Detail
-// (season/week/context), Value (the headline stat). Every category's
-// rows get shaped into this same {name, detail, value} form before
-// reaching here (see TOP5_ROW_FORMATTERS below), so this one table
-// layout covers all of them rather than needing bespoke columns per
-// category.
-function top5Table(rows) {
-  return `
-    <div class="record-top5">
-      <table class="stat-table compact-mobile">
-        <thead><tr><th>#</th><th>Team / Player</th><th>Detail</th><th>Value</th></tr></thead>
-        <tbody>
-          ${rows
-            .map(
-              (r, i) => `
-          <tr>
-            <td class="rank" data-label="#">${i + 1}</td>
-            <td class="team-cell" data-label="Team / Player">${playerLinkHtml(r.playerId, escapeHtml(r.name))}</td>
-            <td data-label="Detail">${escapeHtml(r.detail)}</td>
-            <td data-label="Value">${escapeHtml(r.value)}</td>
-          </tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>
-    </div>`;
-}
-
-// Same as card(), but expandable (click/tap anywhere on the panel) to
-// reveal a Top 5 table for that category — same <details>/<summary>
-// pattern season.js's expandableRecordCard already uses for revealing a
-// matchup's lineup, so it gets the same native, keyboard-accessible
-// disclosure behavior for free. Falls back to a plain card when there
-// isn't more than the #1 entry to show (nothing meaningful to expand).
-function expandableCard(label, value, detail, badge, top5Rows) {
-  if (!top5Rows || top5Rows.length < 2) return card(label, value, detail, badge);
-  return `
-    <details class="record-card record-card-expandable top5">
-      <summary>
-        <span class="record-label">${escapeHtml(label)}${badge ? ` ${badge}` : ""}</span>
-        <span class="record-value" data-count-up>${value}</span>
-        ${detail ? `<span class="record-detail">${detail}</span>` : ""}
-      </summary>
-      ${top5Table(top5Rows)}
-    </details>`;
-}
-
-// Turns one raw top5Records[key] entry into the generic {name, detail,
-// value} row shape top5Table renders — one formatter per category,
-// matching the wording each category's single-value card already uses
-// above, just split into separate columns instead of one detail string.
-const TOP5_ROW_FORMATTERS = {
-  highestWeekScore: (x) => ({ name: x.username || x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.points.toFixed(1)} pts` }),
-  lowestWeekScore: (x) => ({ name: x.username || x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.points.toFixed(1)} pts` }),
-  biggestBlowout: (x) => ({
-    name: `${x.winnerUsername || x.winner} over ${x.loserUsername || x.loser}`,
-    detail: `${x.season} Wk ${x.week}`,
-    value: `${x.margin.toFixed(1)} pts`,
-  }),
-  closestGame: (x) => ({
-    name: `${x.winnerUsername || x.winner} over ${x.loserUsername || x.loser}`,
-    detail: `${x.season} Wk ${x.week}`,
-    value: `${x.margin.toFixed(2)} pts`,
-  }),
-  longestWinStreak: (x) => ({ name: x.username || x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
-  longestLoseStreak: (x) => ({ name: x.username || x.teamName, detail: `through ${x.end.season} Wk ${x.end.week}`, value: `${x.length} games` }),
-  bestValuePick: (x) => ({
-    name: x.player,
-    playerId: x.playerId,
-    detail: `${x.round}.${x.pickInRound} by ${x.username || x.teamName} (${x.season})`,
-    value: x.vbd != null ? `+${x.vbd.toFixed(1)} VBD` : `${x.points.toFixed(1)} pts`,
-  }),
-  worstValuePick: (x) => ({
-    name: x.player,
-    playerId: x.playerId,
-    detail: `${x.round}.${x.pickInRound} by ${x.username || x.teamName} (${x.season})`,
-    value: x.vbd != null ? `${x.vbd.toFixed(1)} VBD` : `${x.points.toFixed(1)} pts`,
-  }),
-  mostTrades: (x) => ({ name: x.username || x.teamName, detail: "most trades made", value: `${x.count}` }),
-  mostWaiverAdds: (x) => ({ name: x.username || x.teamName, detail: "adds off waivers/free agency", value: `${x.count}` }),
-  mostBenchPointsLeft: (x) => ({ name: x.username || x.teamName, detail: `${x.season} Wk ${x.week}`, value: `${x.left.toFixed(1)} pts left` }),
-  mostConsistentSeason: (x) => ({ name: x.username || x.teamName, detail: `${x.season}`, value: `±${x.stdDev.toFixed(1)} pts` }),
-  leastConsistentSeason: (x) => ({ name: x.username || x.teamName, detail: `${x.season}`, value: `±${x.stdDev.toFixed(1)} pts` }),
-  toughestSchedule: (x) => ({ name: x.username || x.teamName, detail: `${x.season} · avg. opponent score`, value: `${x.avgOpponentPF.toFixed(1)} PPG` }),
-  easiestSchedule: (x) => ({ name: x.username || x.teamName, detail: `${x.season} · avg. opponent score`, value: `${x.avgOpponentPF.toFixed(1)} PPG` }),
-};
-
-function top5RowsFor(stats, recordKey) {
-  const formatter = TOP5_ROW_FORMATTERS[recordKey];
-  const list = stats.top5Records && stats.top5Records[recordKey];
-  if (!formatter || !list) return null;
-  return list.map(formatter);
-}
-
-function buildRecordCards(stats) {
-  const r = stats.records;
-  const cards = [];
-  // Lazily flushes a pending group label the first time a card in that
-  // group actually gets pushed — so a group with every one of its cards
-  // conditionally skipped (e.g. no trades logged yet) never leaves an
-  // orphaned heading with nothing under it.
-  let pendingLabel = null;
-  const startGroup = (name) => { pendingLabel = name; };
-  const push = (html) => {
-    if (pendingLabel) { cards.push(groupLabel(pendingLabel)); pendingLabel = null; }
-    cards.push(html);
-  };
-
-  startGroup("Scoring & Matchups");
-  if (r.highestWeekScore) {
-    const x = r.highestWeekScore;
-    push(expandableCard("Highest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.username || x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "highestWeekScore")));
-  }
-  if (r.lowestWeekScore) {
-    const x = r.lowestWeekScore;
-    push(expandableCard("Lowest Single-Week Score", x.points.toFixed(1), `${escapeHtml(x.username || x.teamName)} · ${x.season} Wk ${x.week}`, null, top5RowsFor(stats, "lowestWeekScore")));
-  }
-  if (r.biggestBlowout) {
-    const x = r.biggestBlowout;
-    push(
-      expandableCard(
-        "Biggest Blowout",
-        `${x.margin.toFixed(1)} pts`,
-        `${escapeHtml(x.winnerUsername || x.winner)} over ${escapeHtml(x.loserUsername || x.loser)} · ${x.season} Wk ${x.week}`,
-        null,
-        top5RowsFor(stats, "biggestBlowout")
-      )
-    );
-  }
-  if (r.closestGame) {
-    const x = r.closestGame;
-    push(
-      expandableCard(
-        "Closest Game",
-        `${x.margin.toFixed(2)} pts`,
-        `${escapeHtml(x.winnerUsername || x.winner)} over ${escapeHtml(x.loserUsername || x.loser)} · ${x.season} Wk ${x.week}`,
-        null,
-        top5RowsFor(stats, "closestGame")
-      )
-    );
-  }
-  startGroup("Streaks");
-  if (r.longestWinStreak) {
-    const x = r.longestWinStreak;
-    push(
-      expandableCard("Longest Win Streak", `${x.length} games`, `${escapeHtml(x.username || x.teamName)} · through ${x.end.season} Wk ${x.end.week}`, null, top5RowsFor(stats, "longestWinStreak"))
-    );
-  }
-  if (r.longestLoseStreak) {
-    const x = r.longestLoseStreak;
-    push(
-      expandableCard(
-        "Longest Losing Streak",
-        `${x.length} games`,
-        `${escapeHtml(x.username || x.teamName)} · through ${x.end.season} Wk ${x.end.week}`,
-        null,
-        top5RowsFor(stats, "longestLoseStreak")
-      )
-    );
-  }
-  startGroup("Draft");
-  if (r.bestValuePick) {
-    const x = r.bestValuePick;
-    push(
-      expandableCard(
-        "Best Late-Round Steal",
-        playerLinkHtml(x.playerId, escapeHtml(x.player)),
-        `${x.round}.${x.pickInRound} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · +${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
-        gradeBadgeHtml(x.grade),
-        top5RowsFor(stats, "bestValuePick")
-      )
-    );
-  }
-  if (r.worstValuePick) {
-    const x = r.worstValuePick;
-    push(
-      expandableCard(
-        "Biggest Draft Bust",
-        playerLinkHtml(x.playerId, escapeHtml(x.player)),
-        `${x.round}.${x.pickInRound} by ${escapeHtml(x.username || x.teamName)} · ${x.points.toFixed(1)} pts${x.vbd != null ? ` · ${x.vbd.toFixed(1)} VBD` : ""} (${x.season})`,
-        gradeBadgeHtml(x.grade),
-        top5RowsFor(stats, "worstValuePick")
-      )
-    );
-  }
-  startGroup("Roster Management");
-  if (r.mostTrades) {
-    push(expandableCard("Trade Machine", `${r.mostTrades.count}`, `${escapeHtml(r.mostTrades.username || r.mostTrades.teamName)} · most trades made`, null, top5RowsFor(stats, "mostTrades")));
-  }
-  if (r.mostWaiverAdds) {
-    push(
-      expandableCard(
-        "Waiver Wire Warrior",
-        `${r.mostWaiverAdds.count}`,
-        `${escapeHtml(r.mostWaiverAdds.username || r.mostWaiverAdds.teamName)} · most adds off waivers/free agency`,
-        null,
-        top5RowsFor(stats, "mostWaiverAdds")
-      )
-    );
-  }
-  if (r.mostBenchPointsLeft) {
-    const x = r.mostBenchPointsLeft;
-    push(
-      expandableCard(
-        "Biggest Bench Blunder",
-        `${x.left.toFixed(1)} pts left on bench`,
-        `${escapeHtml(x.username || x.teamName)} scored ${x.actual.toFixed(1)} of a possible ${x.optimal.toFixed(1)} · ${x.season} Wk ${x.week}`,
-        null,
-        top5RowsFor(stats, "mostBenchPointsLeft")
-      )
-    );
-  }
-  startGroup("Consistency");
-  if (r.mostConsistentSeason) {
-    const x = r.mostConsistentSeason;
-    push(
-      expandableCard("Mr. Reliable", `±${x.stdDev.toFixed(1)} pts`, `${escapeHtml(x.username || x.teamName)} · ${x.season} · lowest weekly score variance`, null, top5RowsFor(stats, "mostConsistentSeason"))
-    );
-  }
-  if (r.leastConsistentSeason) {
-    const x = r.leastConsistentSeason;
-    push(
-      expandableCard(
-        "Feast Or Famine",
-        `±${x.stdDev.toFixed(1)} pts`,
-        `${escapeHtml(x.username || x.teamName)} · ${x.season} · highest weekly score variance`,
-        null,
-        top5RowsFor(stats, "leastConsistentSeason")
-      )
-    );
-  }
-  startGroup("Schedule");
-  if (r.toughestSchedule) {
-    const x = r.toughestSchedule;
-    push(
-      expandableCard(
-        "Toughest Schedule",
-        `${x.avgOpponentPF.toFixed(1)} PPG faced`,
-        `${escapeHtml(x.username || x.teamName)} · ${x.season} · avg. regular-season opponent score`,
-        null,
-        top5RowsFor(stats, "toughestSchedule")
-      )
-    );
-  }
-  if (r.easiestSchedule) {
-    const x = r.easiestSchedule;
-    push(
-      expandableCard(
-        "Easiest Schedule",
-        `${x.avgOpponentPF.toFixed(1)} PPG faced`,
-        `${escapeHtml(x.username || x.teamName)} · ${x.season} · average opponent score`,
-        null,
-        top5RowsFor(stats, "easiestSchedule")
-      )
-    );
-  }
-
-  startGroup("Career & All-Time");
-  // A few extra cards computed straight from career totals, no extra fetch needed.
-  if (stats.managers.length) {
-    const byChamps = [...stats.managers].sort((a, b) => b.championships - a.championships);
-    if (byChamps[0].championships > 0) {
-      push(
-        expandableCard(
-          "Most Championships",
-          `${byChamps[0].championships}`,
-          escapeHtml(byChamps[0].username || byChamps[0].teamName),
-          null,
-          byChamps
-            .filter((m) => m.championships > 0)
-            .slice(0, 5)
-            .map((m) => ({ name: m.username || m.teamName, detail: "championships", value: `${m.championships}` }))
-        )
-      );
-    }
-
-    const winPctOf = (m) => m.careerWins / (m.careerWins + m.careerLosses + m.careerTies || 1);
-    const byWinPct = [...stats.managers].filter((m) => m.careerWins + m.careerLosses + m.careerTies >= 5).sort((a, b) => winPctOf(b) - winPctOf(a));
-    if (byWinPct.length) {
-      push(
-        expandableCard(
-          "Best All-Time Win %",
-          `${(winPctOf(byWinPct[0]) * 100).toFixed(1)}%`,
-          escapeHtml(byWinPct[0].username || byWinPct[0].teamName),
-          null,
-          byWinPct.slice(0, 5).map((m) => ({ name: m.username || m.teamName, detail: "career win %", value: `${(winPctOf(m) * 100).toFixed(1)}%` }))
-        )
-      );
-    }
-
-    const byCareerPF = [...stats.managers].sort((a, b) => b.careerPF - a.careerPF);
-    push(
-      expandableCard(
-        "Most Career Points",
-        byCareerPF[0].careerPF.toFixed(1),
-        escapeHtml(byCareerPF[0].username || byCareerPF[0].teamName),
-        null,
-        byCareerPF.slice(0, 5).map((m) => ({ name: m.username || m.teamName, detail: "career points for", value: m.careerPF.toFixed(1) }))
-      )
-    );
-
-    const byBenchWaste = [...stats.managers].sort((a, b) => b.careerBenchPointsLeft - a.careerBenchPointsLeft);
-    if (byBenchWaste[0] && byBenchWaste[0].careerBenchPointsLeft > 0) {
-      push(
-        expandableCard(
-          "Career Bench Waste",
-          byBenchWaste[0].careerBenchPointsLeft.toFixed(1),
-          `${escapeHtml(byBenchWaste[0].username || byBenchWaste[0].teamName)} · total points left on the bench, all-time`,
-          null,
-          byBenchWaste
-            .filter((m) => m.careerBenchPointsLeft > 0)
-            .slice(0, 5)
-            .map((m) => ({ name: m.username || m.teamName, detail: "career points left on bench", value: m.careerBenchPointsLeft.toFixed(1) }))
-        )
-      );
-    }
-  }
-
-  return cards.join("") || `<div class="empty-state">Not enough completed games yet to crown any records.</div>`;
-}
-
-document.addEventListener("DOMContentLoaded", renderRecords);

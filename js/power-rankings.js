@@ -88,9 +88,13 @@ function renderPowerTable(snapshot, lastWeekRanks) {
     )
     .join("");
 
+  // compact-mobile + stay-scrollable: on a phone this stays a real table
+  // (same treatment as the Home page Standings) and pans sideways, rather
+  // than the old one-card-per-team stack, which turned 14 columns into a
+  // very tall wall of label/value rows.
   return `
-    <div class="heatmap-table-wrap">
-      <table class="stat-table responsive-stack">
+    <div class="heatmap-table-wrap stay-scrollable">
+      <table class="stat-table compact-mobile">
         <thead>
           <tr>
             <th>Rank</th><th>Δ</th><th>Team</th><th>PR Score</th><th>Record</th><th>Overall</th>
@@ -122,8 +126,8 @@ function renderOddsTable(snapshot) {
     .map((r) => `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${(r.finishDistribution || []).map((pct, i) => probCell(pct, i + 1)).join("")}</tr>`)
     .join("");
   return `
-    <div class="heatmap-table-wrap">
-      <table class="stat-table responsive-stack">
+    <div class="heatmap-table-wrap stay-scrollable">
+      <table class="stat-table compact-mobile">
         <thead><tr><th>Team</th>${header}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -165,8 +169,8 @@ function renderPreseasonContent(snapshot) {
   return `
     <div class="wrap"><div class="panel">
       <h2>Preseason Power Rankings</h2>
-      <div class="heatmap-table-wrap">
-        <table class="stat-table responsive-stack">
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile">
           <thead><tr><th>Rank</th><th>Team</th><th>Team Name</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>

@@ -45,6 +45,7 @@ const KNOWN_EXPORTS = {
   "deep-history.js": ["DeepHistory"],
   "sleeper-api.js": ["SleeperAPI"],
   "manual-history.js": ["ManualHistory"],
+  "record-book.js": ["RecordBook"],
 };
 
 /*

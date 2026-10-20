@@ -319,6 +319,11 @@ main { padding-bottom: 80px; }
   grid-template-columns: 1.3fr 1fr;
   gap: 24px;
 }
+/* Two equal columns, for side-by-side panels that are peers of each other
+   (This Week's / Last Week's Matchups) rather than a main + sidebar pair.
+   The two-class selector outranks the plain .section-grid rule, so the
+   narrow-screen media query below repeats it to collapse to one column. */
+.section-grid.section-grid-even { grid-template-columns: 1fr 1fr; }
 @media (max-width: 920px) {
   /* Widened from the original 800px: at 801-890px this 1.3fr/1fr split
      left the narrower column (Matchups/Hot & Cold/Archives) too tight
@@ -327,7 +332,8 @@ main { padding-bottom: 80px; }
      stacked. Verified by rendering at 801/840/870/900px: wrapping
      persists through ~870px and is clean by 900px, so 920px gives
      comfortable margin either side of that crossover. */
-  .section-grid { grid-template-columns: 1fr; }
+  .section-grid,
+  .section-grid.section-grid-even { grid-template-columns: 1fr; }
 }
 
 .panel {
@@ -690,6 +696,214 @@ details.record-card-expandable.top5 summary::after { content: "▾ view top 5"; 
 details.record-card-expandable.top5[open] summary::after { content: "▴ hide top 5"; }
 .record-top5 { margin-top: 14px; }
 .record-top5 table.stat-table th, .record-top5 table.stat-table td { padding: 6px 8px; }
+
+/* ==========================================================================
+   RECORD BOOK (Records page) — landing, category pages, expandable rows
+   ========================================================================== */
+.rb-landing { display: flex; flex-direction: column; gap: 12px; }
+.rb-cat {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  color: var(--chalk);
+  text-decoration: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+a.rb-cat:hover { border-color: var(--gold-dim); background: #234230; }
+a.rb-cat:hover .rb-cat-arrow { color: var(--gold); transform: translateX(3px); }
+.rb-cat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--turf-line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--gold);
+}
+.rb-cat-title {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: var(--font-display-weight);
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+.rb-cat-blurb { display: block; margin-top: 3px; font-size: 13px; line-height: 1.45; color: var(--chalk-dim); }
+.rb-cat-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  white-space: nowrap;
+}
+.rb-cat-arrow { font-family: var(--font-mono); color: var(--chalk-dim); transition: transform 0.15s ease, color 0.15s ease; }
+
+.rb-back {
+  display: inline-block;
+  margin-bottom: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--chalk-dim);
+  text-decoration: none;
+}
+.rb-back:hover { color: var(--gold); }
+.rb-category { --rb-cols: minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 0.7fr) 16px; }
+.rb-cat-head {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+.rb-cat-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--font-display-weight);
+  font-size: 30px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.rb-cat-sub { margin: 3px 0 0; font-size: 13px; color: var(--chalk-dim); line-height: 1.45; }
+.rb-eras { margin-top: 18px; }
+.rb-era-line { margin: 14px 0 0; font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); }
+.rb-era-line strong { color: var(--chalk); font-weight: 500; }
+.rb-banner {
+  margin: 14px 0 0;
+  padding: 10px 14px;
+  border: 1px dashed var(--gold-dim);
+  border-radius: var(--radius);
+  background: rgba(232, 178, 61, 0.05);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--chalk-dim);
+}
+.rb-colhead {
+  display: grid;
+  grid-template-columns: var(--rb-cols);
+  gap: 16px;
+  margin-top: 24px;
+  padding: 0 18px 0 21px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+.rb-colhead span:nth-child(3) { text-align: right; }
+.rb-section { margin-top: 18px; }
+.rb-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 8px;
+  padding: 0 2px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.rb-section-count { color: var(--chalk-dim); letter-spacing: 0.06em; }
+.rb-rows {
+  background: var(--turf-mid);
+  border: 1px solid var(--turf-line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.rb-row { border-bottom: 1px solid var(--turf-line); border-left: 3px solid transparent; }
+.rb-row:last-child { border-bottom: none; }
+.rb-row.rb-low { border-left-color: var(--rust); }
+.rb-row[open] { background: rgba(0, 0, 0, 0.1); }
+.rb-summary {
+  display: grid;
+  grid-template-columns: var(--rb-cols);
+  gap: 16px;
+  align-items: center;
+  padding: 14px 18px 14px 15px;
+  list-style: none;
+  cursor: pointer;
+}
+.rb-summary::-webkit-details-marker { display: none; }
+details.rb-row > .rb-summary:hover { background: rgba(255, 255, 255, 0.03); }
+.rb-static .rb-summary { cursor: default; }
+.rb-cell { min-width: 0; }
+.rb-title { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--chalk); }
+.rb-desc { display: block; margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--chalk-dim); }
+.rb-holder-name { display: block; font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--chalk); overflow-wrap: anywhere; }
+.rb-holder-detail { display: block; margin-top: 2px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.4; color: var(--chalk-dim); overflow-wrap: anywhere; }
+.rb-tied { font-family: var(--font-mono); font-size: 10px; font-weight: 400; letter-spacing: 0.04em; color: var(--gold-dim); white-space: nowrap; }
+.rb-value {
+  text-align: right;
+  font-family: var(--font-display);
+  font-weight: var(--font-display-weight);
+  font-size: 22px;
+  line-height: 1.15;
+  color: var(--chalk);
+}
+.rb-muted { color: var(--chalk-dim); font-family: var(--font-mono); font-size: 12px; font-weight: 400; }
+.rb-chev { width: 16px; text-align: center; color: var(--chalk-dim); transition: transform 0.2s ease, color 0.2s ease; }
+details.rb-row > .rb-summary .rb-chev::before { content: "›"; font-family: var(--font-mono); font-size: 20px; line-height: 1; }
+details.rb-row[open] > .rb-summary .rb-chev { transform: rotate(90deg); color: var(--gold); }
+details.rb-row > .rb-summary:hover .rb-chev { color: var(--gold); }
+
+.rb-expand { padding: 2px 18px 16px 18px; border-top: 1px dashed var(--turf-line); }
+.rb-top { list-style: none; margin: 0; padding: 0; }
+.rb-top li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.rb-top li:last-child { border-bottom: none; }
+.rb-top-rank { font-family: var(--font-mono); font-size: 12px; color: var(--chalk-dim); }
+.rb-top-name { display: block; font-size: 14px; color: var(--chalk); overflow-wrap: anywhere; }
+.rb-top-detail { display: block; margin-top: 1px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.4; color: var(--chalk-dim); overflow-wrap: anywhere; }
+.rb-top-value { font-family: var(--font-mono); font-size: 14px; color: var(--gold); white-space: nowrap; text-align: right; }
+.rb-note { margin: 10px 0 0; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.5; color: var(--chalk-dim); }
+
+@media (max-width: 720px) {
+  .rb-cat {
+    grid-template-columns: 40px minmax(0, 1fr) 14px;
+    grid-template-areas: "icon body arrow" "icon count arrow";
+    gap: 4px 14px;
+    padding: 16px;
+  }
+  .rb-cat > .rb-cat-icon { grid-area: icon; width: 40px; height: 40px; align-self: start; }
+  .rb-cat > .rb-cat-body { grid-area: body; }
+  .rb-cat > .rb-cat-count { grid-area: count; }
+  .rb-cat > .rb-cat-arrow { grid-area: arrow; }
+  .rb-cat-title { font-size: 18px; }
+  .rb-cat-head { grid-template-columns: 40px minmax(0, 1fr); gap: 8px 12px; align-items: start; }
+  .rb-cat-head > .rb-cat-icon { width: 40px; height: 40px; }
+  .rb-cat-head > .rb-cat-count { grid-column: 1 / -1; }
+  .rb-cat-heading { font-size: 24px; }
+  .rb-colhead { display: none; }
+  .rb-summary {
+    grid-template-columns: minmax(0, 1fr) auto 14px;
+    grid-template-areas: "record record chev" "holder value chev";
+    gap: 8px 12px;
+    padding: 13px 14px 13px 12px;
+  }
+  .rb-summary > .rb-record { grid-area: record; }
+  .rb-summary > .rb-holder { grid-area: holder; }
+  .rb-summary > .rb-value { grid-area: value; font-size: 19px; align-self: end; }
+  .rb-summary > .rb-chev { grid-area: chev; width: 14px; align-self: start; }
+  .rb-expand { padding: 2px 14px 14px 12px; }
+}
 
 /* ==========================================================================
    DRAFT PICKS DISCLOSURE

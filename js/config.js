@@ -104,6 +104,18 @@ const POWER_RANK_CSV_HISTORY_FILE = "data/power-rank-csv-history.json";
 const INJURIES_FILE = "data/injuries.json";
 
 /*
+  TEAM_RAW_STATS_FILE
+  --------------------
+  Box-score totals (passing yards, receptions, TDs...) summed over each
+  manager's submitted starting lineup, week by week — see
+  data/team-raw-stats.json and scripts/build-team-raw-stats.js. Powers the
+  "Team Raw Stats" records on the Records page. It doesn't exist until the
+  "Build Team Raw Stats" workflow has run once; until then those records
+  show a "waiting on data" state instead of numbers.
+*/
+const TEAM_RAW_STATS_FILE = "data/team-raw-stats.json";
+
+/*
   PLAYER_INDEX_FILE
   --------------------
   Precomputed player ownership history (Sleeper era only) — who owned
