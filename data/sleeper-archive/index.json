@@ -1,0 +1,44 @@
+[
+ {
+  "season": "2020",
+  "leagueId": "600029829760348160",
+  "previousLeagueId": null,
+  "status": "complete"
+ },
+ {
+  "season": "2021",
+  "leagueId": "731227285855789056",
+  "previousLeagueId": "600029829760348160",
+  "status": "complete"
+ },
+ {
+  "season": "2022",
+  "leagueId": "858823635220164608",
+  "previousLeagueId": "731227285855789056",
+  "status": "complete"
+ },
+ {
+  "season": "2023",
+  "leagueId": "993303766222905344",
+  "previousLeagueId": "858823635220164608",
+  "status": "complete"
+ },
+ {
+  "season": "2024",
+  "leagueId": "1121878687625940992",
+  "previousLeagueId": "993303766222905344",
+  "status": "complete"
+ },
+ {
+  "season": "2025",
+  "leagueId": "1249125304522264576",
+  "previousLeagueId": "1121878687625940992",
+  "status": "complete"
+ },
+ {
+  "season": "2026",
+  "leagueId": "1389677682723127296",
+  "previousLeagueId": "1249125304522264576",
+  "status": "in_season"
+ }
+]
