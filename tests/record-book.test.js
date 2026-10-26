@@ -51,11 +51,12 @@ test("definitions: six categories, every record has a title, description, sectio
   assert.deepStrictEqual(info.cats, ["careers", "seasons", "matchups", "players", "streaks", "front-office"]);
   assert.deepStrictEqual(info.bad, []);
   assert.deepStrictEqual(info.dup, []);
-  assert.strictEqual(info.counts.careers, 25);
-  assert.strictEqual(info.counts.seasons, 24);
-  assert.strictEqual(info.counts.matchups, 9);
+  assert.strictEqual(info.counts.careers, 26);
+  assert.strictEqual(info.counts.seasons, 27);
+  assert.strictEqual(info.counts.matchups, 17);
   assert.strictEqual(info.counts.streaks, 16);
-  assert.strictEqual(info.counts["front-office"], 19);
+  assert.strictEqual(info.counts["front-office"], 27);
+  assert.strictEqual(info.counts.players, 61);
 });
 
 test("number formats: signed values use a real minus sign, percentages and money are formatted", () => {
@@ -396,7 +397,7 @@ test("draft records: a draft class does not count while its season is still bein
 
 test("draft records: picking only the season in progress leaves them empty", () => {
   const ctx = setup();
-  ["greatest-draft-pick", "biggest-draft-bust", "best-career-drafter", "best-draft-season", "worst-draft-season", "best-drafter-by-position"].forEach((id) => {
+  ["greatest-draft-pick", "biggest-draft-bust", "best-career-drafter", "best-draft-season", "worst-draft-season", "best-drafter-qb", "best-drafter-rb", "best-drafter-wr", "best-drafter-te", "best-drafter-k", "best-drafter-dst"].forEach((id) => {
     const res = run(ctx, id, "2023", DRAFT_STATS);
     assert.strictEqual(res.status, "empty", id);
   });
@@ -415,4 +416,291 @@ test("draft records: every Draft-section record is flagged so the page can expla
   const defs = JSON.parse(runInLoadedContext(ctx, `JSON.stringify(RecordBook.DEFS.filter((d) => d.section === "Draft").map((d) => [d.id, !!d.needsFinishedSeason]))`));
   assert.ok(defs.length >= 6);
   defs.forEach(([id, flagged]) => assert.ok(flagged, id));
+});
+
+// ---- Starters by position, Superflex, postseason starts ------------------------------------
+// Week 1 of 2022: roster 1 (a) now also starts an RB and a kicker, in a lineup of QB / SUPER_FLEX / K.
+const LINEUP_MUTATE = `
+  input.playerDirectory.rb1 = { position: "RB", first_name: "Rae", last_name: "Back" };
+  input.playerDirectory.k1 = { position: "K", first_name: "Kay", last_name: "Kicker" };
+  input.playerDirectory.d1 = { position: "DEF", first_name: "Dee", last_name: "Fense" };
+  input.seasonChain[0].league.roster_positions = ["QB", "SUPER_FLEX", "K", "DEF"];
+  const m = input.deepSeasons[0].weeks[0].matchups[0];
+  m.players = ["q1", "rb1", "k1", "d1", "bench"];
+  m.starters = ["q1", "rb1", "k1", "d1"];
+  m.players_points = { q1: 100, rb1: -1.5, k1: 0, d1: 12, bench: -9 };
+`;
+
+test("starters by position: the best and worst week for a position come from starters only", () => {
+  const ctx = setup();
+  const hi = run(ctx, "highest-qb-starter", "all", LINEUP_MUTATE);
+  assert.deepStrictEqual(top(hi)[0], "Quinn Two:130.0");
+  assert.match(hi.entries[0].detail, /for b · 2022 Wk 3/);
+  const lo = run(ctx, "lowest-qb-starter", "all", LINEUP_MUTATE);
+  assert.deepStrictEqual(top(lo)[0], "Quinn Four:60.0");
+  assert.ok(lo.entries[0].detail.includes("2023 Wk 2"));
+  // the benched player's -9 never counts, and each position only sees its own players
+  assert.deepStrictEqual(top(run(ctx, "lowest-rb-starter", "all", LINEUP_MUTATE)), ["Rae Back:" + "−1.5"]);
+  assert.deepStrictEqual(top(run(ctx, "lowest-k-starter", "all", LINEUP_MUTATE)), ["Kay Kicker:0.0"]);
+  assert.deepStrictEqual(top(run(ctx, "highest-dst-starter", "all", LINEUP_MUTATE)), ["Dee Fense:12.0"]);
+  assert.strictEqual(run(ctx, "highest-te-starter", "all", LINEUP_MUTATE).status, "empty", "no TE ever started");
+});
+
+test("lowest SUPERFLEX starter reads the lineup slot, not the player's position", () => {
+  const ctx = setup();
+  const res = run(ctx, "lowest-superflex-starter", "all", LINEUP_MUTATE);
+  assert.deepStrictEqual(top(res), ["Rae Back:" + "−1.5"], "an RB in the SUPER_FLEX slot");
+  assert.match(res.entries[0].detail, /^RB for a/);
+  // with no SUPER_FLEX slot in the league there is nothing to rank
+  assert.strictEqual(run(ctx, "lowest-superflex-starter", "all").status, "empty");
+});
+
+test("every position has a highest and a lowest scoring starter record", () => {
+  const ctx = setup();
+  const ids = JSON.parse(runInLoadedContext(ctx, `JSON.stringify(RecordBook.DEFS.filter((d) => d.section === "Starters by Position").map((d) => d.id))`));
+  ["qb", "rb", "wr", "te", "k", "dst"].forEach((p) => {
+    assert.ok(ids.includes(`highest-${p}-starter`), p);
+    assert.ok(ids.includes(`lowest-${p}-starter`), p);
+  });
+  assert.ok(ids.includes("lowest-superflex-starter"));
+  assert.strictEqual(ids.length, 13);
+});
+
+// 2022 week 4 also has a consolation game between two non-playoff rosters (5 and 6).
+const CONSOLATION_MUTATE = `
+  input.seasonChain[0].rosters.push({ roster_id: 5, owner_id: "u5", settings: {} }, { roster_id: 6, owner_id: "u6", settings: {} });
+  input.seasonChain[0].users.push({ user_id: "u5", display_name: "e" }, { user_id: "u6", display_name: "f" });
+  input.playerDirectory.q5 = { position: "QB", first_name: "Quinn", last_name: "Five" };
+  input.playerDirectory.q6 = { position: "QB", first_name: "Quinn", last_name: "Six" };
+  const wk4 = input.deepSeasons[0].weeks[3].matchups;
+  wk4.push(
+    { roster_id: 5, matchup_id: 9, points: 77, players: ["q5"], starters: ["q5"], players_points: { q5: 77 } },
+    { roster_id: 6, matchup_id: 9, points: 66, players: ["q6"], starters: ["q6"], players_points: { q6: 66 } }
+  );
+`;
+
+test("championship starts: only the two finalists' lineups in the title game", () => {
+  const ctx = setup();
+  const res = run(ctx, "most-championship-starts", "all", CONSOLATION_MUTATE);
+  assert.deepStrictEqual(top(res).sort(), ["Quinn One:1 start", "Quinn Three:1 start"], "a (champion) vs c (runner-up); the third-place game doesn't count");
+  assert.strictEqual(res.entries[0].rank, 1);
+  assert.strictEqual(res.tied, 1);
+});
+
+test("playoff starts: the road to 1st and 3rd place counts, the consolation bracket does not", () => {
+  const ctx = setup();
+  const res = run(ctx, "most-playoff-starts", "all", CONSOLATION_MUTATE);
+  assert.deepStrictEqual(top(res).sort(), ["Quinn Four:2 starts", "Quinn One:2 starts", "Quinn Three:2 starts", "Quinn Two:2 starts"]);
+  assert.ok(!top(res).some((t) => /Five|Six/.test(t)), "the week-4 consolation game between rosters 5 and 6 is ignored");
+});
+
+// ---- Head to Head ----------------------------------------------------------------------------
+test("most lopsided head to head: ranked by the gap in wins, leader named first", () => {
+  const ctx = setup();
+  const res = run(ctx, "most-lopsided-head-to-head", "all");
+  assert.deepStrictEqual(top(res).slice(0, 3), ["b vs d:+3 wins", "a vs d:+2 wins", "a vs c:+1 win"]);
+  assert.match(res.entries[0].detail, /b leads 3-0 · 3 meetings/);
+  assert.ok(!top(res).some((t) => /^(a vs b|b vs c|c vs d)/.test(t)), "pairs that are dead even have no gap to rank");
+});
+
+test("combined points average per head to head: both scores added, needs enough meetings for the era", () => {
+  const ctx = setup();
+  assert.deepStrictEqual(top(run(ctx, "highest-combined-average", "all")).slice(0, 2), ["a vs d:212.5", "c vs d:200.0"]);
+  const lowest = run(ctx, "lowest-combined-average", "all");
+  assert.deepStrictEqual(top(lowest)[0], "b vs d:166.7");
+  assert.strictEqual(lowest.entries[0].detail, "3 meetings");
+  // a pair that has met once never qualifies for a two-season era (needs 2)
+  const single = run(ctx, "highest-combined-average", "2023");
+  assert.strictEqual(single.status, "empty", "one season of 2023 has a single meeting per pair");
+});
+
+test("regular-season and playoff meetings are counted separately and tie in rank", () => {
+  const ctx = setup();
+  const reg = run(ctx, "most-regular-season-meetings", "all");
+  assert.strictEqual(reg.entries[0].valueText, "2 meetings");
+  assert.strictEqual(reg.entries[0].rank, 1);
+  assert.strictEqual(reg.tied, 3, "a-b, a-c, b-d and c-d have all met twice in the regular season");
+  assert.match(reg.entries.find((e) => e.name === "a vs c").detail, /a 1-1 c in the regular season/);
+  const po = run(ctx, "most-playoff-meetings", "all");
+  assert.strictEqual(po.entries[0].valueText, "1 meeting");
+  assert.deepStrictEqual(po.entries.map((e) => e.name).sort(), ["a vs c", "a vs d", "b vs c", "b vs d"], "only the pairs that met in the playoff bracket");
+});
+
+// ---- Best drafter, one record per position ----------------------------------------------------
+test("best drafter by position: one record per position, defenses called D/ST, keepers left out", () => {
+  const ctx = setup();
+  const stats = `
+    const pick = (season, player, pos, vbd, extra) => Object.assign({ season, player, playerId: "x", position: pos, round: 1, pickNo: 1, pickInRound: 1, isKeeper: false, gradingVbd: vbd, expectedVbd: 5 }, extra || {});
+    input.stats = { draftGradeModel: null, managers: [
+      { userId: "u1", seasons: [{ draftPicks: [pick("2022", "QB A", "QB", 15), pick("2022", "DEF A", "DEF", 25), pick("2022", "QB keeper", "QB", 95, { isKeeper: true })] }] },
+      { userId: "u2", seasons: [{ draftPicks: [pick("2022", "QB B", "QB", 9), pick("2022", "DEF B", "DEF", 1)] }] },
+    ] };`;
+  assert.deepStrictEqual(top(run(ctx, "best-drafter-qb", "all", stats)), ["a:+10.0", "b:+4.0"], "a's keeper pick is excluded from the average");
+  assert.deepStrictEqual(top(run(ctx, "best-drafter-dst", "all", stats)), ["a:+20.0", "b:" + "−4.0"]);
+  assert.strictEqual(run(ctx, "best-drafter-te", "all", stats).status, "empty");
+  const titles = JSON.parse(runInLoadedContext(ctx, `JSON.stringify(RecordBook.DEFS.filter((d) => /^best-drafter-/.test(d.id)).map((d) => d.title))`));
+  assert.deepStrictEqual(titles, ["Best QB Drafter", "Best RB Drafter", "Best WR Drafter", "Best TE Drafter", "Best K Drafter", "Best D/ST Drafter"]);
+  assert.ok(!JSON.parse(runInLoadedContext(ctx, `JSON.stringify(RecordBook.DEFS.map((d) => d.id))`)).includes("best-drafter-by-position"));
+});
+
+// ---- Playoff Picture, Last Place, Head to Head streaks, upsets, benched, trades, kickers -----------
+// Like run(), but `factsCode` can rewrite the facts after they are built (e.g. to decide who made the
+// playoffs) and `inputCode` still tweaks the raw input first.
+function runFacts(ctx, id, era, factsCode, inputCode) {
+  return JSON.parse(
+    runInLoadedContext(
+      ctx,
+      `(function () {
+        const input = ${JSON.stringify(fixtureInput())};
+        ${inputCode || ""}
+        const facts = RecordBook.buildFacts(input);
+        ${factsCode || ""}
+        const def = RecordBook.DEFS.find((d) => d.id === ${JSON.stringify(id)});
+        return JSON.stringify(RecordBook.compute(def, RecordBook.context(facts, ${JSON.stringify(era)})));
+      })()`
+    )
+  );
+}
+const WITH_ESPN = `input.manual = ${JSON.stringify(fixtureManual())};`;
+const WITH_POWER = `input.powerRanks = ${JSON.stringify(fixturePowerRanks())};`;
+
+test("longest head to head win streak: runs across seasons and the playoffs, a tie ends it", () => {
+  const ctx = setup();
+  const res = run(ctx, "longest-head-to-head-streak", "all");
+  assert.deepStrictEqual(top(res), ["b over d:3 straight wins", "a over c:2 straight wins", "a over d:2 straight wins"]);
+  assert.strictEqual(res.entries[0].detail, "2022 Wk 2 – 2023 Wk 2 · ongoing", "b beat d in the regular season, the third-place game and again in 2023");
+  assert.strictEqual(res.entries[1].detail, "2022 Wk 2–5", "a beat c in week 2 and in the title game");
+  assert.strictEqual(res.entries[1].rank, 2);
+  assert.strictEqual(res.entries[2].rank, 2);
+  // one-game "streaks" are not records: a-b, b-c and c-d have only ever traded wins
+  assert.ok(!top(res).some((t) => /a over b|b over a|b over c|c over b|c over d|d over c/.test(t)));
+  // a finished season: nothing is still going
+  assert.ok(!run(ctx, "longest-head-to-head-streak", "2022").entries.some((e) => /ongoing/.test(e.detail)));
+  // a tie in b-d's third-place game ends their streak
+  const tied = run(ctx, "longest-head-to-head-streak", "all", `const m = input.deepSeasons[0].weeks[4].matchups[3]; m.points = 80; m.players_points.q4 = 80;`);
+  assert.ok(!top(tied).some((t) => /b over d/.test(t)));
+  assert.deepStrictEqual(top(tied), ["a over c:2 straight wins", "a over d:2 straight wins"]);
+});
+
+test("closest rivalry: smallest average winning margin across meetings, with the record in the detail", () => {
+  const ctx = setup();
+  const res = run(ctx, "closest-rivalry", "all");
+  assert.deepStrictEqual(top(res), ["a vs b:15.0 pts", "a vs c:18.3 pts", "a vs d:22.5 pts", "b vs d:23.3 pts", "c vs d:30.0 pts", "b vs c:32.5 pts"]);
+  assert.strictEqual(res.entries[0].detail, "a 1-1 b · 2 meetings");
+  assert.strictEqual(run(ctx, "closest-rivalry", "2023").status, "empty", "one season gives each pair a single meeting, short of the two needed");
+});
+
+test("biggest upset: the Power Rank going into the game, so Week 1 and games with no prior ranking are left out", () => {
+  const ctx = setup();
+  const res = run(ctx, "biggest-upset", "all", WITH_POWER);
+  assert.deepStrictEqual(top(res), ["c:3 spots", "b:1 spot", "c:1 spot"]);
+  assert.strictEqual(res.entries[0].detail, "#4 c beat #1 b 95.0–90.0 · 2022 Wk 4 (playoffs)", "week-3 ranks: c was 4th, b 1st");
+  assert.strictEqual(res.entries[1].detail, "#3 b beat #2 c 130.0–70.0 · 2022 Wk 3");
+  assert.strictEqual(res.entries[2].detail, "#3 c beat #2 a 85.0–70.0 · 2023 Wk 2");
+  assert.strictEqual(res.entries[1].rank, 2);
+  assert.strictEqual(res.entries[2].rank, 2);
+  assert.strictEqual(run(ctx, "biggest-upset", "all").status, "empty", "no Power Rank history, no upsets");
+});
+
+const MISS_FIELD = `facts.teamSeasons.forEach((ts) => { if (ts.season === "2022") { const made = ts.key === "u:u1" || ts.key === "u:u2"; ts.playoffApp = made && ts.key === "u:u2"; ts.bye = ts.key === "u:u1"; } });`;
+
+test("playoff picture: best record to miss, worst record to make, fewest wins by a champion", () => {
+  const ctx = setup();
+  // ESPN 2019 had e (3-10) miss; in 2022 all four teams made the bracket
+  assert.deepStrictEqual(top(run(ctx, "best-record-miss-playoffs", "all", WITH_ESPN)), ["e:3-10"]);
+  assert.deepStrictEqual(top(run(ctx, "worst-record-make-playoffs", "all", WITH_ESPN)).slice(0, 3), ["d:0-3", "c:1-2", "b:7-6"]);
+  assert.deepStrictEqual(top(run(ctx, "fewest-wins-champion", "all", WITH_ESPN)), ["a:3 wins", "a:9 wins"]);
+  assert.strictEqual(run(ctx, "fewest-wins-champion", "all", WITH_ESPN).entries[0].detail, "2022 · 3-0 in the regular season");
+  // only a (first-round bye) and b make it: c and d missed
+  assert.deepStrictEqual(top(runFacts(ctx, "best-record-miss-playoffs", "2022", MISS_FIELD)), ["c:1-2", "d:0-3"], "a bye counts as making it, so a is not a miss");
+  assert.deepStrictEqual(top(runFacts(ctx, "worst-record-make-playoffs", "2022", MISS_FIELD)), ["b:2-1", "a:3-0"]);
+  assert.strictEqual(runFacts(ctx, "best-record-miss-playoffs", "2022", MISS_FIELD).entries[0].detail, "2022 · 280.0 points scored");
+});
+
+test("playoff picture: waits for a finished season and a known playoff field", () => {
+  const ctx = setup();
+  ["best-record-miss-playoffs", "worst-record-make-playoffs", "fewest-wins-champion"].forEach((id) => {
+    assert.strictEqual(run(ctx, id, "2023").status, "empty", `${id}: 2023 is still being played`);
+    const def = JSON.parse(runInLoadedContext(ctx, `JSON.stringify(RecordBook.DEFS.find((d) => d.id === ${JSON.stringify(id)}).needsFinishedSeason)`));
+    assert.strictEqual(def, true, id);
+  });
+  // even if a team in the unfinished 2023 season is already marked as a playoff team, the season has not ended
+  const early = `facts.teamSeasons.forEach((ts) => { if (ts.season === "2023" && ts.key === "u:u1") ts.playoffApp = true; });`;
+  ["best-record-miss-playoffs", "worst-record-make-playoffs"].forEach((id) => assert.strictEqual(runFacts(ctx, id, "2023", early).status, "empty", id));
+  // a finished season in which nobody is marked as a playoff team has no field to judge
+  const none = `facts.teamSeasons.forEach((ts) => { ts.playoffApp = false; ts.bye = false; });`;
+  assert.strictEqual(runFacts(ctx, "best-record-miss-playoffs", "2022", none).status, "empty");
+});
+
+test("most last-place finishes: worst regular-season record each finished season, fewest points breaking a tie", () => {
+  const ctx = setup();
+  const res = run(ctx, "most-last-place-finishes", "all", WITH_ESPN);
+  assert.deepStrictEqual(top(res).sort(), ["d:1", "e:1"], "d was 0-3 in 2022, e 3-10 in 2019; 2023 is not over");
+  assert.strictEqual(res.entries.find((e) => e.name === "d").detail, "2022");
+  assert.strictEqual(res.entries.find((e) => e.name === "e").detail, "2019");
+  // d and c both 1-2: d scored fewer points, so d is last
+  const close = `facts.teamSeasons.forEach((ts) => { if (ts.season === "2022" && ts.key === "u:u4") { ts.wins = 1; ts.losses = 2; } });`;
+  assert.deepStrictEqual(top(runFacts(ctx, "most-last-place-finishes", "2022", close)), ["d:1"]);
+  // identical record and points: both share last place
+  const dead = close.replace("ts.losses = 2;", "ts.losses = 2; ts.pf = 280;");
+  assert.deepStrictEqual(top(runFacts(ctx, "most-last-place-finishes", "2022", dead)).sort(), ["c:1", "d:1"]);
+  assert.strictEqual(run(ctx, "most-last-place-finishes", "2023").status, "empty", "regular season still in progress");
+});
+
+test("highest scoring benched player: only rostered players who did not start, with what it cost the manager", () => {
+  const ctx = setup();
+  const bench = `
+    const w1 = input.deepSeasons[0].weeks[0].matchups;
+    // a (won 100-90) benches a 55-point player; d (lost 80-110) benches a 20-pointer and a 0
+    w1[0].players.push("bench1"); w1[0].players_points.bench1 = 55;
+    w1[3].players.push("bench2", "bench3"); w1[3].players_points.bench2 = 20; w1[3].players_points.bench3 = 0;
+    input.playerDirectory.bench1 = { position: "RB", first_name: "Big", last_name: "Bench" };
+    input.playerDirectory.bench2 = { position: "RB", first_name: "Small", last_name: "Bench" };
+    input.playerDirectory.bench3 = { position: "RB", first_name: "Zero", last_name: "Bench" };`;
+  const res = run(ctx, "highest-scoring-benched-player", "all", bench);
+  assert.deepStrictEqual(top(res), ["Big Bench:55.0", "Small Bench:20.0"], "starters and zero-point players are not listed");
+  assert.strictEqual(res.entries[0].detail, "benched by a · 2022 Wk 1 · they won anyway");
+  assert.strictEqual(res.entries[1].detail, "benched by d · 2022 Wk 1 · they lost by 30.0");
+  assert.strictEqual(run(ctx, "highest-scoring-benched-player", "all").status, "empty", "the fixture has no bench");
+});
+
+const TRADES = `
+  const names = { p1: "Pat One", p2: "Pat Two", p3: "Pat Three", p4: "Pat Four", p5: "Pat Five", p6: "Pat Six", p7: "Pat Seven", p8: "Pat Eight", p9: "Pat Nine" };
+  Object.entries(names).forEach(([id, n]) => (input.playerDirectory[id] = { first_name: n.split(" ")[0], last_name: n.split(" ")[1] }));
+  input.deepSeasons[0].transactions = [
+    { type: "trade", status: "complete", leg: 2, roster_ids: [1, 2], adds: { p1: 1, p2: 1, p3: 2 }, drops: { p1: 2, p2: 2, p3: 1 }, draft_picks: [{ round: 1 }] },
+    { type: "trade", status: "complete", leg: 3, roster_ids: [3, 4], adds: { p4: 3, p5: 3, p6: 4 }, drops: { p4: 4, p5: 4, p6: 3 }, draft_picks: [{ round: 1 }, { round: 2 }] },
+    { type: "trade", status: "complete", leg: 1, roster_ids: [1, 3], adds: { p7: 1 }, drops: { p7: 3 }, draft_picks: [] },
+    { type: "trade", status: "failed", leg: 2, roster_ids: [1, 4], adds: { p8: 1, p9: 1 }, drops: { p8: 4, p9: 4 }, draft_picks: [] },
+    { type: "trade", status: "complete", leg: 2, roster_ids: [2, 4], adds: {}, drops: {}, draft_picks: [{ round: 3 }] },
+  ];`;
+
+test("blockbuster trades: most players in one completed trade, draft picks break ties", () => {
+  const ctx = setup();
+  const res = run(ctx, "blockbuster-trades", "all", TRADES);
+  assert.deepStrictEqual(top(res), ["c & d:3 players", "a & b:3 players", "a & c:1 player"], "the failed trade and the picks-only trade are not blockbusters");
+  assert.strictEqual(res.entries[0].rank, 1);
+  assert.strictEqual(res.entries[1].rank, 1, "same player count shares the rank; the extra pick only orders them");
+  assert.strictEqual(res.entries[2].rank, 3);
+  assert.strictEqual(res.entries[0].detail, "2022 Wk 3 · c sent Pat Six · d sent Pat Four, Pat Five · 2 picks also moved");
+  assert.strictEqual(res.entries[0].when, 202203);
+  assert.strictEqual(run(ctx, "blockbuster-trades", "2023", TRADES).status, "empty", "the trades were in 2022");
+});
+
+test("earliest kicker and defense drafted: every pick counts, graded or not, once the season is over", () => {
+  const ctx = setup();
+  const stats = `
+    const pick = (season, player, pos, pickNo, vbd) => ({ season, player, playerId: "x", position: pos, round: 8, pickNo, pickInRound: 5, isKeeper: false, gradingVbd: vbd, vbd, expectedVbd: 5 });
+    input.stats = { draftGradeModel: null, managers: [
+      { userId: "u1", seasons: [{ draftPicks: [pick("2022", "Kick A", "K", 95, 10), pick("2022", "Def A", "DEF", 120, 4), pick("2022", "QB A", "QB", 1, 20)] }] },
+      { userId: "u2", seasons: [{ draftPicks: [pick("2022", "Kick B", "K", 70, null), pick("2022", "Def B", "DEF", 85, 8)] }] },
+      { userId: "u3", seasons: [{ draftPicks: [pick("2023", "Kick Future", "K", 40, 3), pick("2023", "Def Future", "DEF", 30, 3)] }] },
+    ] };`;
+  const kick = run(ctx, "earliest-kicker-drafted", "all", stats);
+  assert.deepStrictEqual(top(kick), ["b:Pick #70", "a:Pick #95"], "b's pick has no grade yet still counts; 2023's draft waits for its season to end");
+  assert.strictEqual(kick.entries[0].detail, "Kick B · 8.05 · 2022");
+  assert.deepStrictEqual(top(run(ctx, "earliest-defense-drafted", "all", stats)), ["b:Pick #85", "a:Pick #120"]);
+  assert.strictEqual(run(ctx, "earliest-kicker-drafted", "2023", stats).status, "empty");
+  const flags = JSON.parse(runInLoadedContext(ctx, `JSON.stringify(["earliest-kicker-drafted", "earliest-defense-drafted"].map((id) => RecordBook.DEFS.find((d) => d.id === id).needsFinishedSeason))`));
+  assert.deepStrictEqual(flags, [true, true]);
 });

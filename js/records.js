@@ -38,9 +38,11 @@ function rbIcon(name) {
 // ---------------------------------------------------------------
 function rbParseRoute(hash) {
   const raw = String(hash || "").replace(/^#/, "");
-  const [category, era] = raw.split("/");
+  const [category, era, record] = raw.split("/");
   const known = RecordBook.CATEGORIES.some((c) => c.id === category);
-  return { category: known ? category : null, era: era || "all" };
+  // A third part names one record to open and scroll to (the Home page's
+  // "Latest Records" links use it): #players/all/most-playoff-starts
+  return { category: known ? category : null, era: era || "all", record: known && record ? record : null };
 }
 
 function rbRouteHash(category, era) {
@@ -117,9 +119,79 @@ function rbTopListHtml(result) {
     </ol>`;
 }
 
+// ---------------------------------------------------------------
+// History extras (data/records-history.json): when a record's current
+// holder got there, and who held it before. Only offered on the "All
+// seasons" view, since the file is a snapshot of the all-time books.
+// ---------------------------------------------------------------
+
+// "Set 2024 Wk 14" for a single performance, "Leading since 2024 Wk 3" for a
+// running total that has no single moment, "Set in 2024" for season-long
+// records and "Set in the 2024 draft" for draft picks. A total that was
+// already ahead before the weekly history begins reads "Leading since before 2020".
+function rbSetLabel(cur) {
+  if (cur.scope === "season") return `Set in ${cur.season}`;
+  if (cur.scope === "draft") return `Set in the ${cur.season} draft`;
+  if (cur.before) return `Leading since before ${cur.season}`;
+  const where = `${cur.season} Wk ${cur.week}`;
+  return cur.scope === "since" ? `Leading since ${where}` : `Set ${where}`;
+}
+
+// Date of one past holder in a record's timeline, worded like its scope.
+function rbEventWhen(e) {
+  if (e.before) return `Before ${e.season}`;
+  if (e.scope === "season") return String(e.season);
+  if (e.scope === "draft") return `${e.season} draft`;
+  return `${e.season} Wk ${e.week}`;
+}
+
+// The history for a record, but only if it still describes the holder the
+// page is showing: the file is rebuilt weekly, so after a fresh week of play
+// the live numbers can run ahead of it, and a stale date is worse than none.
+function rbHistoryFor(history, def, result, era) {
+  if (era !== "all" || !history || !history.records || result.status !== "ok" || result.headline || !result.entries.length) return null;
+  const h = history.records[def.id];
+  const lead = result.entries[0];
+  if (!h || !h.current || h.current.holder !== lead.name) return null;
+  if (lead.when != null && h.current.when != null && lead.when !== h.current.when) return null;
+  return h;
+}
+
+function rbSetHtml(h) {
+  return `<span class="rb-set">${h.current.isNew ? '<span class="rb-new">NEW</span>' : ""}${escapeHtml(rbSetLabel(h.current))}</span>`;
+}
+
+const RB_TIMELINE_SHOWN = 6;
+function rbTimelineHtml(h) {
+  const events = Array.isArray(h.events) ? h.events : [];
+  if (!events.length) return "";
+  const shown = events.slice(0, RB_TIMELINE_SHOWN);
+  const earlier = events.length - shown.length + (h.more || 0);
+  return `
+        <div class="rb-history">
+          <h4 class="rb-history-title">Record history</h4>
+          <ol class="rb-hist">
+            ${shown
+              .map(
+                (e) => `
+            <li>
+              <span class="rb-hist-when">${escapeHtml(rbEventWhen(e))}</span>
+              <span class="rb-hist-body">
+                <span class="rb-hist-who">${escapeHtml(e.holder)}<span class="rb-hist-value">${escapeHtml(e.value)}</span></span>
+                <span class="rb-hist-note">${escapeHtml(recordChangeNote(e))}</span>
+              </span>
+            </li>`
+              )
+              .join("")}
+          </ol>
+          ${earlier > 0 ? `<p class="rb-note">…and ${earlier} earlier ${earlier === 1 ? "change" : "changes"}.</p>` : ""}
+        </div>`;
+}
+
 // `locked` is the text to show when the record has nothing yet because the
 // season it needs is still running — or just `true` for the regular-season wording.
-function rbRowHtml(def, result, locked) {
+// `history` is this record's entry from records-history.json when it applies (see rbHistoryFor).
+function rbRowHtml(def, result, locked, history) {
   const low = def.tone === "low" ? " rb-low" : "";
   const record = `
     <span class="rb-cell rb-record">
@@ -149,12 +221,13 @@ function rbRowHtml(def, result, locked) {
     <details class="rb-row${low}" data-record="${escapeHtml(def.id)}">
       <summary class="rb-summary">
         ${record}
-        <span class="rb-cell rb-holder">${rbHolderHtml(lead, holderResult)}</span>
+        <span class="rb-cell rb-holder">${rbHolderHtml(lead, holderResult)}${history ? rbSetHtml(history) : ""}</span>
         <span class="rb-cell rb-value">${escapeHtml(lead.valueText)}</span>
         <span class="rb-chev" aria-hidden="true"></span>
       </summary>
       <div class="rb-expand">
         ${rbTopListHtml(result)}
+        ${history ? rbTimelineHtml(history) : ""}
         ${result.note ? `<p class="rb-note">${escapeHtml(result.note)}</p>` : ""}
       </div>
     </details>`;
@@ -180,6 +253,7 @@ function rbSeasonFlags(facts, ctx) {
 
 function rbCategoryHtml(opts) {
   const { category, sections, eras, era, seasons, hasPartialSeason, rawPending, noCompleteSeason, hasUnfinishedSeason, noFinishedSeason } = opts;
+  const history = opts.history || null; // records-history.json, when it loaded
   const preSleeper = opts.preSleeper || [];
   const total = sections.reduce((n, s) => n + s.records.length, 0);
 
@@ -187,9 +261,17 @@ function rbCategoryHtml(opts) {
   if (hasPartialSeason) {
     notices.push("The current season is still in progress. It counts toward career totals, streaks and weekly records, but single-season records unlock once its regular season ends.");
   }
-  const hasDraftRecords = sections.some((sec) => sec.records.some((r) => r.def.needsFinishedSeason));
-  if (hasDraftRecords && hasUnfinishedSeason) {
-    notices.push("Draft records leave out the current season’s draft until that season is over — a pick can’t be judged before its player has played the whole year.");
+  // Records flagged needsFinishedSeason wait for the champion to be crowned; each
+  // section that has some says why in its own words.
+  const waitingSections = new Set();
+  sections.forEach((sec) => sec.records.forEach((r) => r.def.needsFinishedSeason && waitingSections.add(r.def.section)));
+  if (hasUnfinishedSeason) {
+    if (waitingSections.has("Draft")) {
+      notices.push("Draft records leave out the current season’s draft until that season is over — a pick can’t be judged before its player has played the whole year.");
+    }
+    if (waitingSections.has("Playoff Picture")) {
+      notices.push("Playoff Picture records leave out the current season until it is over — who makes the playoffs and who wins them isn’t settled before then.");
+    }
   }
   if (preSleeper.length) {
     notices.push(
@@ -224,7 +306,7 @@ function rbCategoryHtml(opts) {
         <h3 class="rb-section-head"><span>${escapeHtml(s.title)}</span><span class="rb-section-count">${rbPlural(s.records.length, "record")}</span></h3>
         <div class="rb-rows">
           ${s.records
-            .map((r) => rbRowHtml(r.def, r.result, r.def.needsFinishedSeason ? noFinishedSeason && "Unlocks after the season ends" : noCompleteSeason))
+            .map((r) => rbRowHtml(r.def, r.result, r.def.needsFinishedSeason ? noFinishedSeason && "Unlocks after the season ends" : noCompleteSeason, rbHistoryFor(history, r.def, r.result, era)))
             .join("")}
         </div>
       </section>`
@@ -238,6 +320,7 @@ function rbCategoryHtml(opts) {
 // ---------------------------------------------------------------
 const RB_STATE = {
   facts: null,
+  history: null, // data/records-history.json (optional)
   loadError: null,
   contexts: new Map(),
   categories: new Map(),
@@ -291,7 +374,7 @@ function rbRenderView() {
   const preSleeper = facts.seasons.filter((s) => s.source === "espn" && ctx.seasonSet.has(s.season)).map((s) => s.season);
   const rawPending = sections.some((s) => s.records.some((r) => r.result.status === "pending"));
 
-  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, rawPending, preSleeper, ...rbSeasonFlags(facts, ctx) });
+  root.innerHTML = rbCategoryHtml({ category, sections, eras, era, seasons: ctx.seasons, rawPending, preSleeper, history: RB_STATE.history, ...rbSeasonFlags(facts, ctx) });
   initAnimatedDropdowns();
 
   // Opening a different category starts at the top; switching the season
@@ -300,6 +383,17 @@ function rbRenderView() {
     window.scrollTo(0, 0);
   }
   RB_STATE.shownCategory = category.id;
+
+  // A link to one record (#players/all/most-playoff-starts) opens that row
+  // and brings it into view.
+  if (route.record && /^[a-z0-9-]+$/.test(route.record) && typeof root.querySelector === "function") {
+    const row = root.querySelector(`[data-record="${route.record}"]`);
+    if (row) {
+      if (row.tagName === "DETAILS") row.open = true;
+      if (typeof row.scrollIntoView === "function") row.scrollIntoView({ block: "center" });
+      if (row.classList) row.classList.add("rb-flash");
+    }
+  }
 }
 
 async function renderRecords() {
@@ -314,13 +408,15 @@ async function renderRecords() {
   }
 
   try {
-    const [seasonChain, playerDirectory, rawStats, manual, powerRanks] = await Promise.all([
+    const [seasonChain, playerDirectory, rawStats, manual, powerRanks, history] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(TEAM_RAW_STATS_FILE, null),
       fetchJsonSafe(MANUAL_HISTORY_FILE, null),
       fetchJsonSafe(POWER_RANK_CSV_HISTORY_FILE, null),
+      fetchJsonSafe(RECORDS_HISTORY_FILE, null),
     ]);
+    RB_STATE.history = history && history.records ? history : null;
 
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");

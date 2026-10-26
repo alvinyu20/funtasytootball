@@ -116,6 +116,27 @@ const INJURIES_FILE = "data/injuries.json";
 const TEAM_RAW_STATS_FILE = "data/team-raw-stats.json";
 
 /*
+  RECORDS_FEED_FILE
+  --------------------
+  The Home page's "Latest Records" list: every moment a Record Book record
+  was set or broken, newest first — see data/records-feed.json and
+  scripts/build-records-feed.js. The "Build Records Feed" workflow rebuilds
+  it every Tuesday; run `node scripts/build-records-feed.js` to do it by hand.
+*/
+const RECORDS_FEED_FILE = "data/records-feed.json";
+
+/*
+  RECORDS_HISTORY_FILE
+  --------------------
+  For the Records page: when each record's current holder got there (the
+  "Set 2024 Wk 14" line and the NEW badge) and who held it before (the
+  timeline in each record's dropdown) — see data/records-history.json. Built
+  by the same weekly "Build Records Feed" run. Without it the page simply
+  leaves those extras out.
+*/
+const RECORDS_HISTORY_FILE = "data/records-history.json";
+
+/*
   PLAYER_INDEX_FILE
   --------------------
   Precomputed player ownership history (Sleeper era only) — who owned

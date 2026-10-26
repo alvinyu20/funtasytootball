@@ -77,7 +77,10 @@ const RecordBook = (function () {
   // is produced here so tests can assert on exactly what a visitor sees.
   // ---------------------------------------------------------------
   function fixed(n, dec) {
-    return Number(n).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    const text = Number(n).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    if (!text.startsWith("-")) return text;
+    // A real minus sign, like signed() uses; and a negative that rounds to zero is just zero.
+    return /[1-9]/.test(text) ? MINUS + text.slice(1) : text.slice(1);
   }
   function signed(n, dec) {
     const rounded = Math.round(Math.abs(n) * 10 ** dec) / 10 ** dec;
@@ -149,8 +152,10 @@ const RecordBook = (function () {
       drops: [],
       tradeSides: [],
       tradePairs: [],
+      trades: [], // every completed trade: {season, week, keys, players, picks, sides:[{key, sent:[names]}]}
       moveCounts: [],
       draftPicks: [],
+      draftSlots: [], // every draft pick, graded or not: where each player went off the board
       rawRows: [],
       powerRows: [], // weekly Power Rankings: {season, week, key, rank, score, odds, teams}
       oddsSeries: [], // each manager-season's weekly playoff odds: {season, key, weekly}
@@ -266,6 +271,17 @@ const RecordBook = (function () {
         if (!facts.managers.has(key)) return;
         (m.seasons || []).forEach((s) => {
           (s.draftPicks || []).forEach((p) => {
+            facts.draftSlots.push({
+              key,
+              season: String(p.season),
+              player: p.player,
+              playerId: p.playerId,
+              position: p.position || "",
+              round: p.round,
+              pickNo: p.pickNo,
+              pickInRound: p.pickInRound,
+              isKeeper: !!p.isKeeper,
+            });
             const actual = p.gradingVbd != null ? p.gradingVbd : p.vbd;
             if (actual == null) return;
             const expected = p.expectedVbd != null ? p.expectedVbd : DeepHistory.predictExpectedVBD(p.pickNo, model);
@@ -398,12 +414,15 @@ const RecordBook = (function () {
     // the same definition computeStats uses for "playoff" results, so the
     // consolation bracket never leaks into winners-bracket numbers.
     const relevantPairs = new Set();
+    const finalPairs = new Set(); // the championship game alone (bracket game p:1)
     if (bracket && bracket.length && playoffStart != null) {
       SleeperAPI.relevantBracketGames(bracket).forEach((g) => {
         const t1 = SleeperAPI.resolveBracketTeamId(bracket, g, "t1");
         const t2 = SleeperAPI.resolveBracketTeamId(bracket, g, "t2");
         if (t1 == null || t2 == null) return;
-        relevantPairs.add(`${playoffStart + (g.r - 1)}:${Math.min(t1, t2)}-${Math.max(t1, t2)}`);
+        const pairKey = `${playoffStart + (g.r - 1)}:${Math.min(t1, t2)}-${Math.max(t1, t2)}`;
+        relevantPairs.add(pairKey);
+        if (g.p === 1) finalPairs.add(pairKey);
       });
     }
     const championId = SleeperAPI.findChampionRosterId(bracket);
@@ -524,6 +543,7 @@ const RecordBook = (function () {
         const oppPts = opp.points || 0;
         const oppInfo = rosterInfo.get(opp.roster_id);
         const result = p > oppPts ? "W" : p < oppPts ? "L" : "T";
+        const isFinal = finalPairs.has(`${week}:${Math.min(m.roster_id, opp.roster_id)}-${Math.max(m.roster_id, opp.roster_id)}`);
         const a = acc(m.roster_id);
         const margin = Math.abs(p - oppPts);
 
@@ -544,7 +564,7 @@ const RecordBook = (function () {
         }
 
         const row = {
-          season, week, isPlayoff: !isRegular, key: info.key, rosterId: m.roster_id,
+          season, week, isPlayoff: !isRegular, final: isFinal, key: info.key, rosterId: m.roster_id,
           points: p, oppKey: oppInfo ? oppInfo.key : null, oppPoints: oppPts, result,
           optimal, benchLeft,
           rank: null, isHigh: false, isTop3: false, isTopHalf: false, medianResult: null,
@@ -601,14 +621,24 @@ const RecordBook = (function () {
 
         // Every player on this roster this week, started or not.
         const startedSet = new Set((m.starters || []).filter((pid) => pid && pid !== "0"));
+        // Sleeper lists starters in the same order as the lineup slots in
+        // league.roster_positions (QB, RB, RB, WR, WR, TE, FLEX, SUPER_FLEX, K, DEF...),
+        // so a starter's slot is just their index in that list.
+        const slotOf = new Map();
+        (m.starters || []).forEach((pid, i) => {
+          if (pid && pid !== "0") slotOf.set(pid, (league.roster_positions || [])[i] || null);
+        });
         Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
-          facts.playerRows.push({ season, week, pid, points: pts || 0, key: info.key, started: startedSet.has(pid), isPlayoff: !isRegular });
+          facts.playerRows.push({
+            season, week, pid, points: pts || 0, key: info.key, started: startedSet.has(pid), slot: slotOf.get(pid) || null,
+            isPlayoff: !isRegular, final: isFinal,
+          });
         });
 
         // One game record per matchup (add it from the "first" side only).
         if (oppInfo && m.roster_id < opp.roster_id) {
           facts.games.push({
-            season, week, isPlayoff: !isRegular,
+            season, week, isPlayoff: !isRegular, final: isFinal,
             aKey: info.key, aPts: p, bKey: oppInfo.key, bPts: oppPts,
           });
         }
@@ -705,6 +735,26 @@ const RecordBook = (function () {
         for (let i = 0; i < keys.length; i++) {
           for (let j = i + 1; j < keys.length; j++) facts.tradePairs.push({ season, week: tx.leg, keys: [keys[i], keys[j]] });
         }
+      });
+
+    // One row per completed trade (scored or not, any week of the year), for
+    // "Blockbuster Trades". Each player in a trade is added to one roster and
+    // dropped from another, so the players moved are the distinct ids across both.
+    transactions
+      .filter((tx) => tx.type === "trade")
+      .forEach((tx) => {
+        const sides = new Map();
+        (tx.roster_ids || []).forEach((rid) => {
+          if (rosterInfo.has(rid)) sides.set(rid, { key: rosterInfo.get(rid).key, sent: [] });
+        });
+        if (sides.size < 2) return;
+        const moved = new Set([...Object.keys(tx.adds || {}), ...Object.keys(tx.drops || {})]);
+        Object.entries(tx.drops || {}).forEach(([pid, rid]) => {
+          if (sides.has(rid)) sides.get(rid).sent.push(SleeperAPI.playerName(playerDirectory, pid));
+        });
+        const picks = (tx.draft_picks || []).length;
+        if (!moved.size && !picks) return;
+        facts.trades.push({ season, week: tx.leg == null ? 0 : tx.leg, keys: [...sides.values()].map((x) => x.key), players: moved.size, picks, sides: [...sides.values()] });
       });
 
     if (!regularWeeks.length) return;
@@ -871,6 +921,8 @@ const RecordBook = (function () {
       tradePairs: lazy("tradePairs", () => facts.tradePairs.filter(inEra)),
       moveCounts: lazy("moveCounts", () => facts.moveCounts.filter(inEra)),
       draftPicks: lazy("draftPicks", () => facts.draftPicks.filter((p) => inEra(p) && overSeasons.has(p.season))),
+      draftSlots: lazy("draftSlots", () => (facts.draftSlots || []).filter((p) => inEra(p) && overSeasons.has(p.season))),
+      trades: lazy("trades", () => (facts.trades || []).filter(inEra)),
       rawRows: lazy("rawRows", () => facts.rawRows.filter(inEra)),
       powerRows: lazy("powerRows", () => facts.powerRows.filter(inEra)),
       oddsSeries: lazy("oddsSeries", () => facts.oddsSeries.filter(inEra)),
@@ -909,6 +961,7 @@ const RecordBook = (function () {
         key: r.key || null,
         playerId: r.playerId || null,
         raw: r.raw,
+        when: r.when != null ? r.when : null,
         valueText: fmt(r.raw, r),
         detail: r.detail || "",
       };

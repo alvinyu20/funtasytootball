@@ -1997,6 +1997,119 @@ Conventions worth knowing:
   gets it automatically; give it `needsFinishedSeason: true` in
   `js/record-defs.js` so the page can word the wait correctly.
 
+- **Starters by Position** (Players & Lineups): the highest and lowest single
+  week ever from a starter at QB, RB, WR, TE, K and D/ST, plus the lowest week
+  from the SUPERFLEX slot (2022 on). Starters only, in any lineup slot; a TE or
+  WR who started on a bye or inactive scores 0.0, which is why the lowest-TE
+  record is a big tie. A starter's slot comes from his index in Sleeper's
+  `starters` list, which follows `league.roster_positions`.
+- **Head to Head** (Matchups): built from every counted meeting between two
+  managers (regular season plus the games on the road to 1st/3rd place, the
+  same as the Rivalries page). *Most Lopsided* ranks by the gap in wins;
+  *Combined Points Average* adds both teams' scores per meeting and needs 5
+  meetings (3 for a 3 to 4 season view, 2 for a single season); *Most Regular
+  Season / Playoff Meetings* count each separately.
+- **Postseason Starts** (Players & Lineups): starts in the championship game
+  (either finalist) and in playoff games on the road to 1st or 3rd place, so the
+  third-place game counts and the consolation bracket does not. The engine
+  marks the title game `final` on `games`, `weekTeams` and `playerRows`.
+- **Best Drafter** is one record per position (QB, RB, WR, TE, K, D/ST); it
+  needs 3 picks at the position (1 in a single-season view).
+- **Playoff Picture** (Seasons, its own section): *Best Record to Miss the
+  Playoffs*, *Worst Record to Make the Playoffs* and *Fewest Wins by a
+  Champion*. "Made the playoffs" = Sleeper's playoff field (or, for the ESPN
+  years, the `playoffAppearance` flag in `manual-history.json`); a first-round
+  bye counts as making it. Regular-season record only. Like Draft records,
+  these leave out the season in progress, because who makes the playoffs and
+  who wins them isn't settled until it's over (`needsFinishedSeason: true`; the
+  page shows a banner and "Unlocks after the season ends").
+- **Most Last-Place Finishes** (Careers, Hardware): finishing with the worst
+  regular-season record in a season (fewest points scored breaks a tie in
+  win %). Counts a season only once its regular season is done.
+- **Head to Head, more** (Matchups): *Longest Head-to-Head Win Streak* (a tie
+  ends the streak, 2 wins minimum, the streak carries across seasons and shows
+  "ongoing" if it's still alive) and *Closest Rivalry* (smallest average margin
+  across all meetings, same minimum-meetings rule as Combined Points Average).
+- **Biggest Upset** (Matchups, Margins & Drama): the winner's Power Ranking
+  versus the loser's going into the game. Power Rankings are published after
+  each week's games, so it uses the *previous* week's ranking; Week 1 (no prior
+  ranking) and seasons without ranking data (before 2019) are skipped. Gap =
+  winner's rank minus loser's rank ("9 spots" = #10 beat #1).
+- **Highest-Scoring Benched Player** (Players & Lineups): the most points a
+  player scored while sitting on a manager's bench, with whether the manager
+  won anyway.
+- **Blockbuster Trades** (Front Office, Trades): the most players changing
+  teams in one trade; draft picks break ties.
+- **Earliest Kicker / Defense Drafted** (Front Office, Draft): the earliest
+  overall pick spent on a K or D/ST. Reads every draft slot (not just graded
+  picks) and waits for the season to be over like the rest of Draft.
+- **Ride or Die is not included.** It needs to know a player was on a bye (the
+  streak should skip those weeks), but Sleeper records a bye as the same 0.0 as
+  a benched or inactive player and the repo has no NFL team schedule per week,
+  so a bye can't be told apart from a real zero. Adding a weekly NFL team/bye
+  table would make it possible.
+
+### Record dates, NEW badges and the timeline (Records page)
+
+On **All seasons** every record shows when its current holder got there under
+their name ("Set 2024 Wk 14", "Set in 2024" for a season-long record, "Set in the
+2024 draft", "Leading since 2024 Wk 3" for a record that isn't a single moment,
+"Leading since before 2020" for something already on the books when the
+league's saved history begins). A **NEW** badge marks any record set in the
+newest 3 scored weeks (it stays through the offseason until the next season's
+scoring weeks push it out). Opening a record also shows **Record history**: who
+held it and when, newest first (the latest 6, with "...and N earlier changes").
+All of it comes from `data/records-history.json`, and it only shows on the
+All seasons view (a single season or Last 3 would need its own history). A date
+or timeline is shown only when the file's current holder matches the one the
+page is showing, so a stale file can never label the wrong person.
+
+## Latest Records (Home page)
+
+The Home page lists the 10 most recently set records, from
+`data/records-feed.json`. The Record Book can only say what the records are
+*now*, so `scripts/build-records-feed.js` rebuilds it as it stood after every
+scored week of every season (`scripts/lib/records-replay.js`): it cuts the saved
+archive off at that week, runs the real engine, and compares each record's top
+spot with the week before. It takes about 20 seconds, reads only files already
+in the repo, and the "Build Records Feed" workflow reruns it Tuesdays at 12:30
+UTC, after the Sleeper backup, power rankings and raw stats have refreshed. It
+writes two files: `data/records-feed.json` (this list and Records in Reach) and
+`data/records-history.json` (the Records page's dates, NEW badges and timelines),
+and the workflow commits both. Run `node scripts/build-records-feed.js` by hand
+after changing which records exist.
+
+The replay tracks each record's *reign* (the last holders it recognized), so a
+tie followed by someone passing both is still logged as a takeover, and a holder
+just extending their own mark isn't a new event.
+
+### Records in Reach (Home page)
+
+Below Latest Records, a short list (up to 6) of active managers closing in on a
+record they don't hold. Only managers who played in the latest season count; each
+record shows its single closest challenger, and the list is sorted by how close
+(gap relative to the record).
+
+- *Career totals* (records flagged `grows: true` in `js/record-defs.js`, such as
+  Career Wins or Most Trades): in reach when the gap is within 5% of the record,
+  or 1 when the record is 20 or less.
+- *Streaks* (weekly streak records with a `live(ctx)` function): in reach when
+  a streak that is still alive in the newest week is within 3 of the record and
+  at least 3 long.
+
+The panel hides itself when nothing qualifies (for example in the offseason with
+no live streaks and nobody close). The rules live in `scripts/lib/records-reach.js`.
+
+What counts as "set": a new performance beating the old mark (*broke*, or
+*topped their own*), someone passing the leader on a running total such as
+career wins (*broke*), or the lead changing hands (*took the lead*). A holder
+just adding to their own career total, a tie, and every running average or
+percentage (flagged `rate: true` in `js/record-defs.js`, e.g. Lineup Efficiency,
+FAAB ROI, Luckiest Career) don't count, since those leaders swap nearly every
+week. Season-long records are dated the first playoff week, when the engine
+decides the regular season is over. Each item links to its row in the Record
+Book (`records.html#players/all/most-playoff-starts` opens that record).
+
 **Team Raw Stats** (passing yards, receptions, TDs... summed over submitted
 starting lineups) need box-score numbers Sleeper's matchup data doesn't
 carry. `scripts/build-team-raw-stats.js` fetches them week by week from

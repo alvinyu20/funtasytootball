@@ -1,5 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
 const { loadSiteModules, runInLoadedContext } = require("./helpers/site-env.js");
 const { fixtureInput, fixtureManual, fixturePowerRanks } = require("./helpers/record-fixture.js");
 
@@ -12,11 +14,11 @@ const evalHtml = (ctx, code) => runInLoadedContext(ctx, code);
 
 test("routes: '#category' and '#category/era' parse, unknown or empty hashes fall back to the landing page", () => {
   const ctx = setup();
-  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#careers")`), { category: "careers", era: "all" });
-  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#front-office/last3")`), { category: "front-office", era: "last3" });
-  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#players/2024")`), { category: "players", era: "2024" });
-  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#nonsense/2024")`), { category: null, era: "2024" });
-  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("")`), { category: null, era: "all" });
+  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#careers")`), { category: "careers", era: "all", record: null });
+  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#front-office/last3")`), { category: "front-office", era: "last3", record: null });
+  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#players/2024")`), { category: "players", era: "2024", record: null });
+  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("#nonsense/2024")`), { category: null, era: "2024", record: null });
+  assert.deepStrictEqual(evalJson(ctx, `rbParseRoute("")`), { category: null, era: "all", record: null });
   assert.strictEqual(evalHtml(ctx, `rbRouteHash("careers", "all")`), "#careers");
   assert.strictEqual(evalHtml(ctx, `rbRouteHash("careers", "last3")`), "#careers/last3");
   assert.strictEqual(evalHtml(ctx, `rbRouteHash(null, "2024")`), "#");
@@ -27,8 +29,8 @@ test("landing: six category rows, each linking to its page with its record count
   const html = evalHtml(ctx, `rbLandingHtml(RecordBook.countByCategory(), "all")`);
   assert.strictEqual((html.match(/class="rb-cat"/g) || []).length, 6);
   ["careers", "seasons", "matchups", "players", "streaks", "front-office"].forEach((id) => assert.ok(html.includes(`href="#${id}"`), id));
-  assert.match(html, /Careers[\s\S]*25 records/);
-  assert.match(html, /Front Office[\s\S]*19 records/);
+  assert.match(html, /Careers[\s\S]*26 records/);
+  assert.match(html, /Front Office[\s\S]*27 records/);
   assert.ok(html.includes("Winning, scoring and hardware"));
 });
 
@@ -65,7 +67,7 @@ test("category page: header, season filter pills, grouped sections with counts a
   const ctx = setup();
   const html = pageHtml(ctx, "careers", "all");
   assert.ok(html.includes(">Careers<"));
-  assert.ok(html.includes("25 records"));
+  assert.ok(html.includes("26 records"));
   // pills: All, Last 3, then newest season first, with the active one marked
   assert.match(html, /season-pill active" href="#careers" aria-current="true">All seasons</);
   assert.ok(html.includes('href="#careers/last3"'));
@@ -308,7 +310,7 @@ test("Front Office, season in progress only: Draft records say they unlock after
   assert.ok(!row.includes("No qualifying entries"));
   assert.ok(!/<details[^>]*greatest-draft-pick/.test(html), "nothing to expand");
   assert.ok(html.includes("Draft records leave out the current season"));
-  assert.strictEqual((html.match(/Unlocks after the season ends/g) || []).length, 6, "all six Draft records");
+  assert.strictEqual((html.match(/Unlocks after the season ends/g) || []).length, 13, "all thirteen Draft records");
 });
 
 test("Front Office, all seasons: Draft records use the finished drafts only and the banner explains the missing season", () => {
@@ -330,4 +332,166 @@ test("Front Office, a finished season: no Draft banner", () => {
 test("the Draft banner only appears on pages that actually have Draft records", () => {
   const ctx = setup();
   assert.ok(!pageHtml(ctx, "seasons", "all").includes("Draft records leave out"));
+});
+
+// ---- Head to Head, Starters by Position, Postseason Starts, drafter split --------------------
+const sectionRows = (html, title) => {
+  const start = html.indexOf(`<span>${title}</span>`);
+  assert.ok(start >= 0, `${title} section is on the page`);
+  const end = html.indexOf("</section>", start);
+  return (html.slice(start, end).match(/data-record="([^"]+)"/g) || []).map((m) => m.slice(13, -1));
+};
+
+test("Matchups page: a Head to Head section after the existing two", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "matchups", "all");
+  assert.deepStrictEqual(sectionRows(html, "Head to Head"), ["most-lopsided-head-to-head", "highest-combined-average", "lowest-combined-average", "most-regular-season-meetings", "most-playoff-meetings", "longest-head-to-head-streak", "closest-rivalry"]);
+  const order = ["Scoring", "Margins &amp; Drama", "Head to Head"].map((t) => html.indexOf(`<span>${t}</span>`));
+  assert.ok(order[0] < order[1] && order[1] < order[2]);
+});
+
+test("Players & Lineups page: Starters by Position and Postseason Starts follow Player Performances", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "players", "all");
+  const rows = sectionRows(html, "Starters by Position");
+  assert.strictEqual(rows.length, 13);
+  assert.ok(rows.includes("lowest-superflex-starter") && rows.includes("highest-dst-starter"));
+  assert.deepStrictEqual(sectionRows(html, "Postseason Starts"), ["most-championship-starts", "most-playoff-starts"]);
+  const at = (t) => html.indexOf(`<span>${t}</span>`);
+  assert.ok(at("Player Performances") < at("Starters by Position") && at("Starters by Position") < at("Postseason Starts") && at("Postseason Starts") < at("Position Crowns"));
+});
+
+test("Front Office page: Best Drafter by Position is six records, one per position", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "front-office", "all");
+  assert.ok(!html.includes("best-drafter-by-position"));
+  ["Best QB Drafter", "Best RB Drafter", "Best WR Drafter", "Best TE Drafter", "Best K Drafter", "Best D/ST Drafter"].forEach((t) => assert.ok(html.includes(t.replace("/", "/")), t));
+});
+
+// ---- Playoff Picture, Margins & Drama, Hardware, Trades and Draft additions -------------------
+test("Seasons page: a Playoff Picture section between Luck & Schedule and the Power Rankings records", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "seasons", "all");
+  assert.deepStrictEqual(sectionRows(html, "Playoff Picture"), ["best-record-miss-playoffs", "worst-record-make-playoffs", "fewest-wins-champion"]);
+  const at = (t) => html.indexOf(`<span>${t}</span>`);
+  assert.ok(at("Luck &amp; Schedule") < at("Playoff Picture") && at("Playoff Picture") < at("Power Rankings &amp; Playoff Odds"));
+});
+
+test("Seasons page, season in progress: Playoff Picture rows unlock after the season ends and the banner says so", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "seasons", "2023");
+  assert.strictEqual((html.match(/Unlocks after the season ends/g) || []).length, 3, "the three Playoff Picture records");
+  assert.ok(html.includes("Playoff Picture records leave out the current season"));
+  assert.ok(!html.includes("Draft records leave out"), "no Draft records on this page");
+  const finished = pageHtml(ctx, "seasons", "2022");
+  assert.ok(!finished.includes("Playoff Picture records leave out"));
+  assert.ok(!finished.includes("Unlocks after the season ends"));
+});
+
+test("Front Office page, season in progress: both banners are separate and only the Draft rows mention drafts", () => {
+  const ctx = setup();
+  const html = pageHtml(ctx, "front-office", "2023");
+  assert.ok(html.includes("Draft records leave out the current season"));
+  assert.ok(!html.includes("Playoff Picture records leave out"), "Playoff Picture lives on the Seasons page");
+  assert.deepStrictEqual(sectionRows(html, "Trades").includes("blockbuster-trades"), true);
+  const draft = sectionRows(html, "Draft");
+  assert.ok(draft.includes("earliest-kicker-drafted") && draft.includes("earliest-defense-drafted"));
+});
+
+test("new records land in their sections", () => {
+  const ctx = setup();
+  assert.ok(sectionRows(pageHtml(ctx, "matchups", "all"), "Margins &amp; Drama").includes("biggest-upset"));
+  assert.ok(sectionRows(pageHtml(ctx, "careers", "all"), "Hardware").includes("most-last-place-finishes"));
+  assert.ok(sectionRows(pageHtml(ctx, "players", "all"), "Player Performances").includes("highest-scoring-benched-player"));
+});
+
+// ---- history extras: "Set ..." line, NEW badge, record timeline ---------------------------------
+function pageHtmlWith(ctx, categoryId, era, history) {
+  return evalHtml(
+    ctx,
+    `(function () {
+      const facts = RecordBook.buildFacts(${JSON.stringify(fixtureInput())});
+      const category = RecordBook.CATEGORIES.find((x) => x.id === ${JSON.stringify(categoryId)});
+      const sleeperOnly = !category.history;
+      const c = RecordBook.context(facts, ${JSON.stringify(era)}, sleeperOnly);
+      return rbCategoryHtml({
+        category, sections: RecordBook.computeCategory(category.id, c), eras: RecordBook.eras(facts, sleeperOnly), era: ${JSON.stringify(era)}, seasons: c.seasons,
+        history: ${JSON.stringify(history)}, ...rbSeasonFlags(facts, c),
+      });
+    })()`
+  );
+}
+const HIGH_HISTORY = (over) => ({
+  records: {
+    "highest-team-score": {
+      current: { holder: "b", when: 202203, scope: "week", season: "2022", week: 3, kind: "broke", isNew: true, ...(over && over.current) },
+      events: [
+        { season: "2022", week: 3, kind: "broke", holder: "b", value: "130.0", previous: { holder: "a", value: "120.0" } },
+        { season: "2022", week: 2, kind: "broke", holder: "a", value: "120.0", previous: { holder: "c", value: "110.0" } },
+        { season: "2022", week: 1, kind: "new", holder: "c", value: "110.0", previous: null },
+      ],
+      more: 0,
+      ...(over && over.rest),
+    },
+  },
+});
+const rowOf = (html, id) => (html.match(new RegExp(`data-record="${id}"[\\s\\S]*?(?=data-record=|$)`)) || [""])[0];
+
+test("rbSetLabel: worded to match what the record's date means", () => {
+  const ctx = setup();
+  const label = (cur) => evalHtml(ctx, `rbSetLabel(${JSON.stringify(cur)})`);
+  assert.strictEqual(label({ scope: "week", season: "2024", week: 14 }), "Set 2024 Wk 14");
+  assert.strictEqual(label({ scope: "since", season: "2024", week: 3 }), "Leading since 2024 Wk 3");
+  assert.strictEqual(label({ scope: "season", season: "2024", week: 15 }), "Set in 2024");
+  assert.strictEqual(label({ scope: "draft", season: "2024", week: null }), "Set in the 2024 draft");
+  assert.strictEqual(label({ scope: "since", season: "2020", week: null, before: true }), "Leading since before 2020");
+});
+
+test("rbEventWhen: timeline dates follow the record's scope", () => {
+  const ctx = setup();
+  const when = (e) => evalHtml(ctx, `rbEventWhen(${JSON.stringify(e)})`);
+  assert.strictEqual(when({ scope: "week", season: "2024", week: 14 }), "2024 Wk 14");
+  assert.strictEqual(when({ scope: "season", season: "2018", week: null }), "2018");
+  assert.strictEqual(when({ scope: "draft", season: "2025", week: null }), "2025 draft");
+  assert.strictEqual(when({ scope: "since", season: "2020", week: null, before: true }), "Before 2020");
+});
+
+test("a record with history shows when it was set, a NEW badge for recent ones, and a timeline of past holders", () => {
+  const ctx = setup();
+  const html = pageHtmlWith(ctx, "matchups", "all", HIGH_HISTORY());
+  const row = rowOf(html, "highest-team-score");
+  assert.ok(row.includes("Set 2022 Wk 3"));
+  assert.ok(row.includes('class="rb-new"'));
+  assert.ok(row.includes("Record history"));
+  assert.ok(row.includes("Broke a’s 120.0") && row.includes("Broke c’s 110.0") && row.includes("New on the books"));
+  assert.ok(row.indexOf("2022 Wk 3") < row.indexOf("2022 Wk 2") && row.indexOf("2022 Wk 2") < row.indexOf("2022 Wk 1"), "newest first");
+  assert.ok(!rowOf(html, "biggest-blowout").includes("rb-set"), "records without history are untouched");
+  const old = rowOf(pageHtmlWith(ctx, "matchups", "all", HIGH_HISTORY({ current: { isNew: false } })), "highest-team-score");
+  assert.ok(old.includes("Set 2022 Wk 3") && !old.includes("rb-new"), "no NEW badge on an older record");
+});
+
+test("history extras only show when they still describe the holder on the page, and only for All seasons", () => {
+  const ctx = setup();
+  const none = (html) => !rowOf(html, "highest-team-score").includes("rb-set") && !rowOf(html, "highest-team-score").includes("Record history");
+  assert.ok(none(pageHtmlWith(ctx, "matchups", "all", HIGH_HISTORY({ current: { holder: "zzz" } }))), "someone else holds it now");
+  assert.ok(none(pageHtmlWith(ctx, "matchups", "all", HIGH_HISTORY({ current: { when: 202305 } }))), "the same name but a different performance");
+  assert.ok(none(pageHtmlWith(ctx, "matchups", "2022", HIGH_HISTORY())), "a single-season view is not the all-time book");
+  assert.ok(none(pageHtmlWith(ctx, "matchups", "all", null)), "no history file at all");
+  assert.ok(none(pageHtmlWith(ctx, "matchups", "all", { records: { "highest-team-score": { current: null, events: [] } } })), "a record with no dated holder");
+});
+
+test("the timeline shows the six newest changes and counts the rest; names are escaped", () => {
+  const ctx = setup();
+  const events = Array.from({ length: 9 }, (_, i) => ({ season: "2022", week: 3, kind: "broke", holder: i === 0 ? "<img src=x onerror=1>" : `P${i}`, value: String(130 - i), previous: { holder: "Z", value: "1" } }));
+  const row = rowOf(pageHtmlWith(ctx, "matchups", "all", HIGH_HISTORY({ rest: { events, more: 4 } })), "highest-team-score");
+  assert.strictEqual((row.match(/class="rb-hist-when"/g) || []).length, 6);
+  assert.ok(row.includes("…and 7 earlier changes."), "3 more in this list plus 4 not kept in the file");
+  assert.ok(!row.includes("<img"));
+  assert.ok(row.includes("&lt;img"));
+});
+
+test("records page loads the history file and still works without it", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "js", "records.js"), "utf8");
+  assert.ok(src.includes("fetchJsonSafe(RECORDS_HISTORY_FILE"));
+  assert.ok(fs.readFileSync(path.join(__dirname, "..", "js", "config.js"), "utf8").includes('RECORDS_HISTORY_FILE = "data/records-history.json"'));
 });

@@ -45,6 +45,7 @@ async function renderDashboard() {
     initScrollAnimations();
 
     fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
+    fetchJsonSafe(RECORDS_FEED_FILE, null).then(renderLatestRecords);
 
     // ---- Phase 2: heavier data (full-season fetch), doesn't block the above ----
     const allH2hPairs = [...matchupPairs.map((p) => ({ ...p, idPrefix: "cur" })), ...lastWeekPairs.map((p) => ({ ...p, idPrefix: "last" }))];
@@ -418,6 +419,89 @@ function renderHistoryCallout(seasonAwards) {
   }.</div>
       </div>
     </div>`;
+}
+
+// ---------------------------------------------------------------
+// Latest Records: the newest record changes from data/records-feed.json
+// (built by scripts/build-records-feed.js). Pure HTML builder + a thin renderer.
+// ---------------------------------------------------------------
+const LATEST_RECORDS_LIMIT = 10;
+
+// What happened to the old mark, in a few words (see recordChangeNote in utils.js).
+function latestRecordNote(e) {
+  return recordChangeNote(e);
+}
+
+function latestRecordsHtml(feed, limit) {
+  const events = feed && Array.isArray(feed.events) ? feed.events.slice(0, limit || LATEST_RECORDS_LIMIT) : [];
+  if (!events.length) return `<div class="empty-state">No record changes tracked yet.</div>`;
+  const items = events
+    .map((e) => {
+      const note = [e.detail, latestRecordNote(e)].filter(Boolean).join(" \u00b7 ");
+      return `
+      <li class="lr-item">
+        <a class="lr-link" href="records.html#${encodeURIComponent(e.category)}/all/${encodeURIComponent(e.id)}">
+          <span class="lr-when"><span class="lr-season">${escapeHtml(String(e.season))}</span><span class="lr-week">Week ${escapeHtml(String(e.week))}</span></span>
+          <span class="lr-body">
+            <span class="lr-title">${escapeHtml(e.title)}</span>
+            <span class="lr-holder"><strong>${escapeHtml(e.holder)}</strong><span class="lr-value">${escapeHtml(e.value)}</span></span>
+            <span class="lr-note">${escapeHtml(note)}</span>
+          </span>
+          <span class="lr-cat">${escapeHtml(e.categoryTitle || "")}</span>
+        </a>
+      </li>`;
+    })
+    .join("");
+  const asOf = feed.asOf ? `Through ${escapeHtml(String(feed.asOf.season))} Week ${escapeHtml(String(feed.asOf.week))}. ` : "";
+  return `
+    <ol class="lr-list">${items}</ol>
+    <p class="heatmap-note">${asOf}Refreshed weekly. <a class="subtle-link" href="records.html">Open the Record Book \u2192</a></p>`;
+}
+
+function renderLatestRecords(feed) {
+  const el = document.getElementById("latest-records");
+  if (el) el.innerHTML = latestRecordsHtml(feed);
+  renderRecordsInReach(feed);
+}
+
+// ---------------------------------------------------------------
+// Records in Reach: active managers closing in on a record they don't hold yet
+// (the feed's `reach` list, built by scripts/lib/records-reach.js).
+// ---------------------------------------------------------------
+const RECORDS_IN_REACH_LIMIT = 6;
+
+function recordsInReachHtml(feed, limit) {
+  const items = feed && Array.isArray(feed.reach) ? feed.reach.slice(0, limit || RECORDS_IN_REACH_LIMIT) : [];
+  if (!items.length) return "";
+  const rows = items
+    .map((r) => {
+      const note = r.kind === "streak" ? `Streak still alive \u00b7 ${r.holder}\u2019s record is ${r.record}` : `Chasing ${r.holder}\u2019s ${r.record}`;
+      return `
+      <li class="lr-item">
+        <a class="lr-link" href="records.html#${encodeURIComponent(r.category)}/all/${encodeURIComponent(r.id)}">
+          <span class="lr-when"><span class="lr-season">${escapeHtml(String(r.gap))}</span><span class="lr-week">behind</span></span>
+          <span class="lr-body">
+            <span class="lr-title">${escapeHtml(r.title)}</span>
+            <span class="lr-holder"><strong>${escapeHtml(r.challenger)}</strong><span class="lr-value">${escapeHtml(String(r.current))}</span></span>
+            <span class="lr-note">${escapeHtml(note)}</span>
+          </span>
+          <span class="lr-cat">${escapeHtml(r.categoryTitle || "")}</span>
+        </a>
+      </li>`;
+    })
+    .join("");
+  return `
+    <ol class="lr-list">${rows}</ol>
+    <p class="heatmap-note">Active managers within range of a record they don\u2019t hold. Refreshed weekly.</p>`;
+}
+
+function renderRecordsInReach(feed) {
+  const panel = document.getElementById("records-reach-panel");
+  const el = document.getElementById("records-reach");
+  if (!panel || !el) return;
+  const html = recordsInReachHtml(feed);
+  panel.style.display = html ? "" : "none";
+  el.innerHTML = html;
 }
 
 function computeCurrentStreaks(deepWeeks, rosterInfo) {

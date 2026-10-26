@@ -33,6 +33,13 @@
   const FORMATS = RecordBook.FORMATS;
   const defs = [];
 
+  // Optional flags on a definition:
+  //   needsFinishedSeason  waits for a season to be over (draft picks, the playoff field, the champion)
+  //   rate                 a running average or percentage whose leader shuffles every week;
+  //                        the Home page's "Latest Records" list skips these
+  //   grows                a running career total per manager that only ever goes up; the Home
+  //                        page's "Records in Reach" watches how close active managers are
+  //   live(ctx)            [{key, raw}]: streaks still going right now, for "Records in Reach"
   function add(def) {
     defs.push(def);
   }
@@ -52,7 +59,7 @@
   function careerTotal(cat, section, id, title, desc, pick, opts) {
     const o = opts || {};
     add({
-      id, cat, section, title, desc,
+      id, cat, section, title, desc, grows: true,
       fmt: o.fmt || "int",
       tone: o.tone,
       dir: "desc",
@@ -74,7 +81,7 @@
   function careerRate(cat, section, id, title, desc, num, den, opts) {
     const o = opts || {};
     add({
-      id, cat, section, title, desc,
+      id, cat, section, title, desc, rate: true,
       fmt: o.fmt || "pct1",
       tone: o.tone,
       dir: o.dir || "desc",
@@ -151,6 +158,29 @@
   careerTotal("careers", "Hardware", "points-titles", "Points Titles", "Most regular-season points in a season.", (ts) => (ts.titles.points ? 1 : 0));
   careerTotal("careers", "Hardware", "allplay-titles", "Overall Record Titles",
     "Best Overall Record win percentage in a season, with ties worth a half win. Equal leaders share the title.", (ts) => (ts.allPlay ? (ts.titles.allPlay ? 1 : 0) : null));
+  // The wooden spoon: worst regular-season record of the year (points scored
+  // break a tie, fewest is worst). Only seasons whose regular season is over.
+  add({
+    id: "most-last-place-finishes", cat: "careers", section: "Hardware", grows: true, title: "Most Last-Place Finishes", desc: "Seasons ending at the bottom of the regular-season standings.", fmt: "int", dir: "desc", tone: "low",
+    compute(ctx) {
+      const out = new Map(); // key -> seasons finished last
+      groupBy(ctx.teamSeasons().filter((ts) => ts.regularComplete && ts.games > 0), (ts) => ts.season).forEach((rs, season) => {
+        if (rs.length < 2) return;
+        const ranked = [...rs].sort((a, b) => winPct(a.wins, a.losses, a.ties) - winPct(b.wins, b.losses, b.ties) || a.pf - b.pf);
+        const worst = ranked[0];
+        ranked
+          .filter((ts) => Math.abs(winPct(ts.wins, ts.losses, ts.ties) - winPct(worst.wins, worst.losses, worst.ties)) < 1e-9 && Math.abs(ts.pf - worst.pf) < 1e-9)
+          .forEach((ts) => {
+            if (!out.has(ts.key)) out.set(ts.key, []);
+            out.get(ts.key).push(season);
+          });
+      });
+      return {
+        rows: [...out.entries()].map(([key, seasons]) => ({ key, raw: seasons.length, detail: seasons.length > 4 ? plural(seasons.length, "season") : [...seasons].sort().join(", ") })),
+        note: "Last place in the regular-season standings: the lowest win percentage, with the fewest points scored breaking a tie.",
+      };
+    },
+  });
 
   // Luck & Schedule
   // Luck = real win % minus Overall Record win %, the same Luck shown on the
@@ -159,7 +189,7 @@
   const LUCK_NOTE = "Luck = real win % minus Overall Record win % (every score against every other team, every week), the same Luck shown on the Home and Season pages.";
   function luckCareer(id, title, desc, dir) {
     add({
-      id, cat: "careers", section: "Luck & Schedule", title, desc, fmt: "signedPct1", dir, tone: dir === "asc" ? "low" : undefined,
+      id, cat: "careers", section: "Luck & Schedule", title, desc, rate: true, fmt: "signedPct1", dir, tone: dir === "asc" ? "low" : undefined,
       compute(ctx) {
         const out = [];
         groupBy(ctx.teamSeasons().filter((ts) => ts.allPlay && ts.games > 0), (r) => r.key).forEach((rs, key) => {
@@ -224,6 +254,42 @@
   seasonRecord(S, "Luck & Schedule", "unluckiest-season", "Unluckiest Season", "The schedule cost the most win percentage against what the Overall Record deserved.", (ts) => ts.luck, { fmt: "signedPct1", dir: "asc", tone: "low", negativeOnly: true, note: LUCK_NOTE });
   seasonRecord(S, "Luck & Schedule", "toughest-schedule", "Toughest Schedule", "Opponent scoring indexed to that season's league average.", (ts) => ts.scheduleIndex, { fmt: "dec1" });
   seasonRecord(S, "Luck & Schedule", "easiest-schedule", "Easiest Schedule", "The lowest opponent scoring relative to the league that season.", (ts) => ts.scheduleIndex, { fmt: "dec1", dir: "asc", tone: "low" });
+
+  // Playoff Picture — who got in, who didn't, and what record it took. These
+  // need to know the whole bracket, so a season joins once it is over
+  // (`needsFinishedSeason`). A first-round bye counts as making the playoffs.
+  const PP = "Playoff Picture";
+  const PP_NOTE = "Counts a season once its playoffs are over. A first-round bye counts as making the playoffs.";
+  const madePlayoffs = (ts) => ts.playoffApp || ts.bye;
+  const seasonPct = (ts) => winPct(ts.wins, ts.losses, ts.ties);
+  const seasonRec = (ts) => recordText(ts.wins, ts.losses, ts.ties);
+  // Finished seasons where the playoff field is actually known (at least one team made it).
+  function playoffSeasons(ctx) {
+    const done = ctx.teamSeasons().filter((ts) => ts.complete && ts.games > 0);
+    const withField = new Set(done.filter(madePlayoffs).map((ts) => ts.season));
+    return done.filter((ts) => withField.has(ts.season));
+  }
+  add({
+    id: "best-record-miss-playoffs", cat: S, section: PP, needsFinishedSeason: true, title: "Best Record to Miss the Playoffs", desc: "The best regular season that still wasn't enough to get in.", fmt: (n, r) => r.rec, dir: "desc", tone: "low",
+    compute: (ctx) => ({
+      rows: playoffSeasons(ctx).filter((ts) => !madePlayoffs(ts)).map((ts) => ({ key: ts.key, raw: seasonPct(ts), tie: -ts.pf, rec: seasonRec(ts), when: Number(ts.season), detail: `${ts.season} · ${ts.pf.toFixed(1)} points scored` })),
+      note: `${PP_NOTE} Ranked by win percentage; points scored break ties.`,
+    }),
+  });
+  add({
+    id: "worst-record-make-playoffs", cat: S, section: PP, needsFinishedSeason: true, title: "Worst Record to Make the Playoffs", desc: "The weakest regular season that still got a team into the bracket.", fmt: (n, r) => r.rec, dir: "asc", tone: "low",
+    compute: (ctx) => ({
+      rows: playoffSeasons(ctx).filter(madePlayoffs).map((ts) => ({ key: ts.key, raw: seasonPct(ts), tie: ts.pf, rec: seasonRec(ts), when: Number(ts.season), detail: `${ts.season} · ${ts.pf.toFixed(1)} points scored` })),
+      note: `${PP_NOTE} Ranked by win percentage; fewer points scored ranks worse in a tie.`,
+    }),
+  });
+  add({
+    id: "fewest-wins-champion", cat: S, section: PP, needsFinishedSeason: true, title: "Fewest Wins by a Champion", desc: "The champion who needed the fewest regular-season wins to get there.", fmt: (n) => plural(Math.round(n), "win"), dir: "asc",
+    compute: (ctx) => ({
+      rows: ctx.teamSeasons().filter((ts) => ts.complete && ts.isChampion && ts.games > 0).map((ts) => ({ key: ts.key, raw: ts.wins, tie: seasonPct(ts), when: Number(ts.season), detail: `${ts.season} · ${seasonRec(ts)} in the regular season` })),
+      note: "Regular-season wins of each season's champion; a lower win percentage ranks first when wins are equal.",
+    }),
+  });
 
   // Power Rankings & playoff odds (data/power-rank-csv-history.json): each
   // team's weekly Power Rank (1 = best, shared ranks average to e.g. 1.5), PR
@@ -400,6 +466,172 @@
     id: "largest-share", cat: M, section: "Margins & Drama", title: "Largest Share of the Game", desc: "The most one-sided share of a matchup's combined scoring.", fmt: "pct1", dir: "desc",
     compute: (ctx) => ({ rows: decided(ctx).map((d) => ({ key: d.winnerKey, raw: d.winnerPts / (d.winnerPts + d.loserPts), when: when(d), detail: decidedDetail(ctx, d) })) }),
   });
+  // Biggest Upset: a lower-ranked team beating a higher-ranked one, by the Power
+  // Rankings going INTO the game. Each week's Power Rank is built from that
+  // week's results, so the game's own week would give the answer away; last
+  // week's rank is what the league saw before kickoff (which leaves Week 1 unranked).
+  const rankText = (r) => (Number.isInteger(r) ? `#${r}` : `T-${Math.floor(r)}`);
+  add({
+    id: "biggest-upset", cat: M, section: "Margins & Drama", title: "Biggest Upset", desc: "The widest Power Rank gap a winner ever overcame.", fmt: (n) => `${Number.isInteger(n) ? n : n.toFixed(1)} ${n === 1 ? "spot" : "spots"}`, dir: "desc",
+    compute(ctx) {
+      const rank = new Map();
+      ctx.powerRows().forEach((r) => rank.set(`${r.season}|${r.week}|${r.key}`, r.rank));
+      const rows = [];
+      decided(ctx).forEach((d) => {
+        if (d.week < 2) return;
+        const w = rank.get(`${d.season}|${d.week - 1}|${d.winnerKey}`);
+        const l = rank.get(`${d.season}|${d.week - 1}|${d.loserKey}`);
+        if (w == null || l == null || w <= l) return;
+        rows.push({
+          key: d.winnerKey, raw: w - l, when: when(d),
+          detail: `${rankText(w)} ${ctx.name(d.winnerKey)} beat ${rankText(l)} ${ctx.name(d.loserKey)} ${d.winnerPts.toFixed(1)}–${d.loserPts.toFixed(1)} · ${gameLabel(d)}`,
+        });
+      });
+      return { rows, note: "Ranks come from the weekly Power Rankings history (2019 on) as they stood before the game, so Week 1 and any game without a prior ranking are left out." };
+    },
+  });
+
+  // ---- Head to Head -------------------------------------------------
+  // One row per pair of managers, built from every counted meeting between
+  // them (regular season plus the games on the road to 1st/3rd place; the
+  // consolation bracket never counts) — the same games the Rivalries page uses.
+  const H2H = "Head to Head";
+  const H2H_NOTE = "Counts every regular-season and playoff meeting (consolation games excluded).";
+  function pairs(ctx) {
+    return ctx.memo("h2hPairs", () => {
+      const map = new Map();
+      playedGames(ctx).forEach((g) => {
+        const flip = g.aKey > g.bKey;
+        const lo = flip ? g.bKey : g.aKey;
+        const hi = flip ? g.aKey : g.bKey;
+        const k = `${lo}|${hi}`;
+        if (!map.has(k)) map.set(k, { lo, hi, loWins: 0, hiWins: 0, ties: 0, regLoWins: 0, regHiWins: 0, regTies: 0, regular: 0, playoff: 0, combined: 0, margin: 0, last: 0 });
+        const p = map.get(k);
+        const loPts = flip ? g.bPts : g.aPts;
+        const hiPts = flip ? g.aPts : g.bPts;
+        if (loPts > hiPts) p.loWins += 1;
+        else if (hiPts > loPts) p.hiWins += 1;
+        else p.ties += 1;
+        if (g.isPlayoff) p.playoff += 1;
+        else {
+          p.regular += 1;
+          if (loPts > hiPts) p.regLoWins += 1;
+          else if (hiPts > loPts) p.regHiWins += 1;
+          else p.regTies += 1;
+        }
+        p.combined += g.aPts + g.bPts;
+        p.margin += Math.abs(g.aPts - g.bPts);
+        p.last = Math.max(p.last, when(g));
+      });
+      return [...map.values()].map((p) => ({ ...p, games: p.regular + p.playoff }));
+    });
+  }
+  // Rate-style pair records need a few meetings to mean anything; a narrower
+  // era has fewer meetings to go around, so the bar comes down with it.
+  const minMeetings = (ctx) => (ctx.seasons.length >= 5 ? 5 : ctx.seasons.length >= 3 ? 3 : 2);
+  const pairName = (ctx, p) => `${ctx.name(p.lo)} vs ${ctx.name(p.hi)}`;
+  const meetings = (n) => plural(n, "meeting");
+
+  add({
+    id: "most-lopsided-head-to-head", cat: M, section: H2H, title: "Most Lopsided Head to Head", desc: "The widest gap in wins between two managers who keep meeting.", fmt: (n) => `+${Math.round(n)} ${Math.round(n) === 1 ? "win" : "wins"}`, dir: "desc",
+    compute: (ctx) => ({
+      rows: pairs(ctx).filter((p) => p.loWins !== p.hiWins).map((p) => {
+        const loLeads = p.loWins > p.hiWins;
+        const leader = loLeads ? p.lo : p.hi;
+        const trailer = loLeads ? p.hi : p.lo;
+        const w = Math.max(p.loWins, p.hiWins);
+        const l = Math.min(p.loWins, p.hiWins);
+        return {
+          name: `${ctx.name(leader)} vs ${ctx.name(trailer)}`, raw: w - l,
+          detail: `${ctx.name(leader)} leads ${w}-${l}${p.ties ? `-${p.ties}` : ""} · ${meetings(p.games)}`,
+        };
+      }),
+      note: `${H2H_NOTE} Ranked by the difference in wins.`,
+    }),
+  });
+
+  function combinedAverage(id, title, desc, dir, tone) {
+    add({
+      id, cat: M, section: H2H, title, desc, rate: true, fmt: "dec1", dir, tone,
+      compute(ctx) {
+        const min = minMeetings(ctx);
+        return {
+          rows: pairs(ctx).filter((p) => p.games >= min).map((p) => ({
+            name: pairName(ctx, p), raw: p.combined / p.games, detail: meetings(p.games),
+          })),
+          note: `${H2H_NOTE} Average of both teams' scores added together per meeting; needs at least ${min} meetings.`,
+        };
+      },
+    });
+  }
+  combinedAverage("highest-combined-average", "Highest Combined Points Average", "The pair whose meetings produce the most points between them, on average.", "desc");
+  combinedAverage("lowest-combined-average", "Lowest Combined Points Average", "The pair whose meetings are the lowest scoring, on average.", "asc", "low");
+
+  add({
+    id: "most-regular-season-meetings", cat: M, section: H2H, title: "Most Regular Season Meetings", desc: "The matchup the schedule keeps handing out.", fmt: (n) => meetings(Math.round(n)), dir: "desc",
+    compute: (ctx) => ({
+      rows: pairs(ctx).filter((p) => p.regular > 0).map((p) => ({ name: pairName(ctx, p), raw: p.regular, detail: `${ctx.name(p.lo)} ${p.regLoWins}-${p.regHiWins}${p.regTies ? `-${p.regTies}` : ""} ${ctx.name(p.hi)} in the regular season` })),
+      note: "Regular-season games only.",
+    }),
+  });
+  add({
+    id: "most-playoff-meetings", cat: M, section: H2H, title: "Most Playoff Meetings", desc: "Two managers who keep running into each other when it counts.", fmt: (n) => meetings(Math.round(n)), dir: "desc",
+    compute: (ctx) => ({
+      rows: pairs(ctx).filter((p) => p.playoff > 0).map((p) => ({ name: pairName(ctx, p), raw: p.playoff, detail: `${plural(p.regular + p.playoff, "meeting")} in all` })),
+      note: "Playoff games on the road to 1st or 3rd place; the consolation bracket is excluded.",
+    }),
+  });
+
+  function runLabel(a, b) {
+    if (a.season !== b.season) return `${a.season} Wk ${a.week} – ${b.season} Wk ${b.week}`;
+    return a.week === b.week ? `${a.season} Wk ${a.week}` : `${a.season} Wk ${a.week}–${b.week}`;
+  }
+  add({
+    id: "longest-head-to-head-streak", cat: M, section: H2H, title: "Longest Head to Head Win Streak", desc: "The most meetings in a row one manager has beaten the same opponent.", fmt: (n) => plural(Math.round(n), "straight win"), dir: "desc",
+    compute(ctx) {
+      const byPair = new Map();
+      [...playedGames(ctx)].sort(byTime).forEach((g) => {
+        const k = [g.aKey, g.bKey].sort().join("|");
+        if (!byPair.has(k)) byPair.set(k, { cur: null, best: null });
+        const st = byPair.get(k);
+        if (g.aPts === g.bPts) {
+          st.cur = null; // a tie ends the streak
+          return;
+        }
+        const winner = g.aPts > g.bPts ? g.aKey : g.bKey;
+        if (!st.cur || st.cur.winner !== winner) st.cur = { winner, loser: winner === g.aKey ? g.bKey : g.aKey, length: 0, start: g, end: g };
+        st.cur.length += 1;
+        st.cur.end = g;
+        if (!st.best || st.cur.length > st.best.length) st.best = st.cur;
+      });
+      // "Ongoing" = still unbroken as of the league's newest scored season.
+      const latestSeason = ctx.facts.latest && ctx.facts.latest.season;
+      const rows = [];
+      byPair.forEach((st) => {
+        const run = st.best;
+        if (!run || run.length < 2) return;
+        const ongoing = st.cur === run && run.end.season === latestSeason;
+        rows.push({
+          name: `${ctx.name(run.winner)} over ${ctx.name(run.loser)}`, raw: run.length, when: when(run.start),
+          detail: `${runLabel(run.start, run.end)}${ongoing ? " · ongoing" : ""}`,
+        });
+      });
+      return { rows, note: `${H2H_NOTE} A tie ends a streak.` };
+    },
+  });
+  add({
+    id: "closest-rivalry", cat: M, section: H2H, rate: true, title: "Closest Rivalry", desc: "The pair whose meetings are decided by the smallest margin, on average.", fmt: (n) => `${n.toFixed(1)} pts`, dir: "asc",
+    compute(ctx) {
+      const min = minMeetings(ctx);
+      return {
+        rows: pairs(ctx).filter((p) => p.games >= min).map((p) => ({
+          name: pairName(ctx, p), raw: p.margin / p.games,
+          detail: `${ctx.name(p.lo)} ${p.loWins}-${p.hiWins}${p.ties ? `-${p.ties}` : ""} ${ctx.name(p.hi)} · ${meetings(p.games)}`,
+        })),
+        note: `${H2H_NOTE} Average winning margin per meeting; needs at least ${min} meetings.`,
+      };
+    },
+  });
 
   // ============================================================
   // PLAYERS & LINEUPS
@@ -414,6 +646,22 @@
         detail: `for ${ctx.name(r.key)} · ${weekLabel(r)}${r.started ? "" : " (on the bench)"}`,
       })),
     }),
+  });
+
+  add({
+    id: "highest-scoring-benched-player", cat: P, section: "Player Performances", title: "Highest Scoring Benched Player", desc: "The biggest week ever left sitting on a bench.", fmt: "dec1", dir: "desc", tone: "low",
+    compute(ctx) {
+      const teamWeek = new Map();
+      ctx.weekTeams().forEach((t) => teamWeek.set(`${t.season}|${t.week}|${t.key}`, t));
+      return {
+        rows: ctx.playerRows().filter((r) => !r.started && r.points > 0).map((r) => {
+          const t = teamWeek.get(`${r.season}|${r.week}|${r.key}`);
+          const outcome = !t ? "" : t.result === "W" ? " · they won anyway" : t.result === "L" ? ` · they lost by ${(t.oppPoints - t.points).toFixed(1)}` : " · they tied";
+          return { name: ctx.playerName(r.pid), playerId: r.pid, raw: r.points, when: when(r), detail: `benched by ${ctx.name(r.key)} · ${weekLabel(r)}${outcome}` };
+        }),
+        note: "Any rostered player who scored while outside the starting lineup.",
+      };
+    },
   });
 
   add({
@@ -464,6 +712,63 @@
       return { rows: out };
     },
   });
+
+  // ---- Starters by position -------------------------------------------
+  const SBP = "Starters by Position";
+  const STARTER_POSITIONS = [
+    { pos: "QB", label: "QB" }, { pos: "RB", label: "RB" }, { pos: "WR", label: "WR" },
+    { pos: "TE", label: "TE" }, { pos: "K", label: "K" }, { pos: "DEF", label: "D/ST" },
+  ];
+  const posOf = (ctx, pid) => {
+    const p = ctx.facts.playerDirectory[pid];
+    return p ? p.position : null;
+  };
+  const starterDetail = (ctx, r) => `for ${ctx.name(r.key)} · ${weekLabel(r)}${r.isPlayoff ? " (playoffs)" : ""}`;
+  STARTER_POSITIONS.forEach(({ pos, label }) => {
+    [true, false].forEach((high) => {
+      add({
+        id: `${high ? "highest" : "lowest"}-${label.replace("/", "").toLowerCase()}-starter`, cat: P, section: SBP,
+        title: `${high ? "Highest" : "Lowest"} Scoring ${label} Starter`,
+        desc: high ? `The biggest week ever from a ${label} in a starting lineup.` : `The worst week ever from a ${label} in a starting lineup.`,
+        fmt: "dec1", dir: high ? "desc" : "asc", tone: high ? undefined : "low",
+        compute: (ctx) => ({
+          rows: ctx.playerRows().filter((r) => r.started && posOf(ctx, r.pid) === pos).map((r) => ({
+            name: ctx.playerName(r.pid), playerId: r.pid, raw: r.points, when: when(r), detail: starterDetail(ctx, r),
+          })),
+          note: "Starters only, in any lineup slot. Includes starters who scored nothing (injured, inactive or on a bye).",
+        }),
+      });
+    });
+  });
+  add({
+    id: "lowest-superflex-starter", cat: P, section: SBP, title: "Lowest Scoring SUPERFLEX Starter", desc: "The worst week ever from a player in the SUPERFLEX slot.", fmt: "dec1", dir: "asc", tone: "low",
+    compute: (ctx) => ({
+      rows: ctx.playerRows().filter((r) => r.started && r.slot === "SUPER_FLEX").map((r) => ({
+        name: ctx.playerName(r.pid), playerId: r.pid, raw: r.points, when: when(r), detail: `${posOf(ctx, r.pid) || "?"} ${starterDetail(ctx, r)}`,
+      })),
+      note: "The SUPERFLEX slot has been in the lineup since 2022.",
+    }),
+  });
+
+  // ---- Postseason starts ----------------------------------------------
+  const PS = "Postseason Starts";
+  function postseasonStarts(id, title, desc, keep, note) {
+    add({
+      id, cat: P, section: PS, title, desc, fmt: (n) => plural(Math.round(n), "start"), dir: "desc",
+      compute(ctx) {
+        const out = [];
+        groupBy(ctx.playerRows().filter((r) => r.started && keep(r)), (r) => r.pid).forEach((rs, pid) => {
+          const years = [...new Set(rs.map((r) => r.season))].sort();
+          out.push({ name: ctx.playerName(pid), playerId: pid, raw: rs.length, detail: `${sum(rs.map((r) => r.points)).toFixed(1)} points · ${years.length > 4 ? `${years.length} seasons` : years.join(", ")}` });
+        });
+        return { rows: out, note };
+      },
+    });
+  }
+  postseasonStarts("most-championship-starts", "Most Championship Starts", "The NFL players who keep showing up in the title game lineups.", (r) => r.final,
+    "Starts in the championship game, for either finalist.");
+  postseasonStarts("most-playoff-starts", "Most Playoff Starts", "The NFL players started most often once the playoffs begin.", (r) => r.isPlayoff,
+    "Starts in playoff games on the road to 1st or 3rd place; the consolation bracket is excluded.");
 
   add({
     id: "career-position-crown", cat: P, section: "Position Crowns", title: "Career Position Crown", desc: "Who consistently beat the league at each position.", fmt: "signed1", dir: "desc",
@@ -592,6 +897,22 @@
     const o = opts || {};
     add({
       id, cat: ST, section, title, desc, fmt: "int", dir: "desc", tone: o.tone,
+      // The runs still alive: ending in the newest scored week of a season in progress.
+      live(ctx) {
+        const latest = ctx.facts.latest;
+        const info = latest && ctx.facts.seasons.find((x) => x.season === latest.season);
+        if (!info || info.complete) return [];
+        const out = [];
+        groupBy(ctx.regularWeekTeams(), (r) => r.key).forEach((rs, key) => {
+          const sorted = [...rs].sort(byTime);
+          const last = sorted[sorted.length - 1];
+          if (!last || last.season !== latest.season || last.week !== latest.week) return;
+          let n = 0;
+          for (let i = sorted.length - 1; i >= 0 && pred(sorted[i]); i--) n += 1;
+          if (n > 0) out.push({ key, raw: n });
+        });
+        return out;
+      },
       compute(ctx) {
         const out = [];
         groupBy(ctx.regularWeekTeams(), (r) => r.key).forEach((rs, key) => {
@@ -698,7 +1019,7 @@
 
   // Activity
   add({
-    id: "most-trades", cat: FO, section: "Activity", title: "Most Trades", desc: "Career completed trades in the selected era.", fmt: "int", dir: "desc",
+    id: "most-trades", cat: FO, section: "Activity", grows: true, title: "Most Trades", desc: "Career completed trades in the selected era.", fmt: "int", dir: "desc",
     compute(ctx) {
       const out = [];
       groupBy(ctx.moveCounts(), (r) => r.key).forEach((rs, key) => {
@@ -709,7 +1030,7 @@
     },
   });
   add({
-    id: "most-roster-moves", cat: FO, section: "Activity", title: "Most Roster Moves", desc: "Adds, drops, waivers, and trades.", fmt: "int", dir: "desc",
+    id: "most-roster-moves", cat: FO, section: "Activity", grows: true, title: "Most Roster Moves", desc: "Adds, drops, waivers, and trades.", fmt: "int", dir: "desc",
     compute(ctx) {
       const out = [];
       groupBy(ctx.moveCounts(), (r) => r.key).forEach((rs, key) => {
@@ -756,6 +1077,16 @@
     id: "costliest-trade-side", cat: FO, section: "Trades", title: "Costliest Trade Side", desc: "The deals whose receipts aged the worst, in useful points a week.", fmt: "perWeek", dir: "asc", tone: "low",
     compute: (ctx) => ({ rows: ctx.tradeSides().filter((r) => r.perWeek < 0).map((r) => ({ key: r.key, raw: r.perWeek, when: when(r), detail: tradeDetail(r) })), note: TRADE_NOTE }),
   });
+  add({
+    id: "blockbuster-trades", cat: FO, section: "Trades", title: "Blockbuster Trades", desc: "The biggest trades ever made, by players changing teams.", fmt: (n) => plural(Math.round(n), "player"), dir: "desc",
+    compute: (ctx) => ({
+      rows: ctx.trades().filter((t) => t.players > 0).map((t) => ({
+        name: t.keys.map((k) => ctx.name(k)).join(" & "), raw: t.players, tie: -t.picks, when: when(t),
+        detail: `${t.week ? weekLabel(t) : `${t.season} offseason`} · ${t.sides.map((s) => `${ctx.name(s.key)} sent ${nameList(s.sent, 3)}`).join(" · ")}${t.picks ? ` · ${plural(t.picks, "pick")} also moved` : ""}`,
+      })),
+      note: "Every player who changed teams in one trade, scored or not; draft picks break ties.",
+    }),
+  });
 
   // Waivers & FAAB
   const WIRE_NOTE = "Realized value = points a player scored in the claiming manager's starting lineup after the claim, minus what a replacement-level player at that position would have scored.";
@@ -795,7 +1126,7 @@
     }),
   });
   add({
-    id: "faab-roi", cat: FO, section: "Waivers & FAAB", title: "FAAB Return on Investment", desc: "Realized waiver value per FAAB dollar spent.", fmt: "perDollar", dir: "desc",
+    id: "faab-roi", cat: FO, section: "Waivers & FAAB", rate: true, title: "FAAB Return on Investment", desc: "Realized waiver value per FAAB dollar spent.", fmt: "perDollar", dir: "desc",
     compute(ctx) {
       const out = [];
       groupBy(ctx.pickups().filter((r) => r.bid > 0), (r) => r.key).forEach((rs, key) => {
@@ -823,7 +1154,7 @@
     compute: (ctx) => ({ rows: ctx.draftPicks().filter((p) => p.delta < 0).map((p) => ({ key: p.key, raw: p.delta, when: Number(p.season) * 1000 + p.pickNo, detail: pickDetail(p) })), note: DRAFT_NOTE }),
   });
   add({
-    id: "best-career-drafter", cat: FO, section: "Draft", needsFinishedSeason: true, title: "Best Career Drafter", desc: "Average realized value per non-keeper pick.", fmt: "signed1", dir: "desc",
+    id: "best-career-drafter", cat: FO, section: "Draft", needsFinishedSeason: true, rate: true, title: "Best Career Drafter", desc: "Average realized value per non-keeper pick.", fmt: "signed1", dir: "desc",
     compute(ctx) {
       const out = [];
       groupBy(ctx.draftPicks().filter((p) => !p.isKeeper), (p) => p.key).forEach((ps, key) => {
@@ -849,27 +1180,46 @@
   }
   draftSeason("best-draft-season", "Best Draft Season", "Average realized pick value within one draft class.", "desc");
   draftSeason("worst-draft-season", "Worst Draft Season", "The draft classes with the lowest average realized pick value.", "asc", "low");
-  add({
-    id: "best-drafter-by-position", cat: FO, section: "Draft", needsFinishedSeason: true, title: "Best Drafter by Position", desc: "Career average pick value within each position.", fmt: "signed1", dir: "desc",
-    compute(ctx) {
-      const out = [];
-      groupBy(ctx.draftPicks().filter((p) => !p.isKeeper && p.position), (p) => `${p.key}|${p.position}`).forEach((ps, k) => {
-        if (ps.length < 3) return;
-        const [key, pos] = k.split("|");
-        out.push({ key, raw: sum(ps.map((p) => p.delta)) / ps.length, detail: `${pos} · ${plural(ps.length, "pick")}` });
-      });
-      return { rows: out, note: `${DRAFT_NOTE} Needs at least 3 picks at the position.` };
-    },
+  // Best Drafter by Position — one record per position. A single-season view has
+  // far fewer picks to go around, so the minimum drops with the era.
+  const minPositionPicks = (ctx) => (ctx.seasons.length >= 3 ? 3 : 1);
+  [["QB", "QB"], ["RB", "RB"], ["WR", "WR"], ["TE", "TE"], ["K", "K"], ["DEF", "D/ST"]].forEach(([pos, label]) => {
+    add({
+      id: `best-drafter-${label.replace("/", "").toLowerCase()}`, cat: FO, section: "Draft", needsFinishedSeason: true, rate: true,
+      title: `Best ${label} Drafter`, desc: `Career average pick value on ${label === "D/ST" ? "defenses" : label + "s"}.`, fmt: "signed1", dir: "desc",
+      compute(ctx) {
+        const min = minPositionPicks(ctx);
+        const out = [];
+        groupBy(ctx.draftPicks().filter((p) => !p.isKeeper && p.position === pos), (p) => p.key).forEach((ps, key) => {
+          if (ps.length < min) return;
+          out.push({ key, raw: sum(ps.map((p) => p.delta)) / ps.length, detail: plural(ps.length, "pick") });
+        });
+        return { rows: out, note: `${DRAFT_NOTE} Needs at least ${plural(min, "pick")} at the position.` };
+      },
+    });
   });
+  // Earliest Kicker / Defense Drafted — pure draft position, so every pick counts
+  // (graded or not); the season just has to be over like the rest of this section.
+  function earliestPick(id, title, desc, pos) {
+    add({
+      id, cat: FO, section: "Draft", needsFinishedSeason: true, title, desc, fmt: (n) => `Pick #${Math.round(n)}`, dir: "asc", tone: "low",
+      compute: (ctx) => ({
+        rows: ctx.draftSlots().filter((p) => p.position === pos).map((p) => ({ key: p.key, raw: p.pickNo, when: Number(p.season) * 1000 + p.pickNo, detail: pickDetail(p) })),
+        note: "Overall pick number; the season counts once it is over.",
+      }),
+    });
+  }
+  earliestPick("earliest-kicker-drafted", "Earliest Kicker Drafted", "The kicker taken higher on the board than any other.", "K");
+  earliestPick("earliest-defense-drafted", "Earliest Defense Drafted", "The D/ST taken higher on the board than any other.", "DEF");
 
   // ---------- section order within each category ----------
   // Sections show in this order regardless of the order definitions were
   // added above; within a section, records keep definition order.
   const SECTION_ORDER = {
     careers: ["Winning", "Scoring", "Playoffs", "Hardware", "Luck & Schedule"],
-    seasons: ["Best Seasons", "Lowlights", "Luck & Schedule", "Power Rankings & Playoff Odds"],
-    matchups: ["Scoring", "Margins & Drama"],
-    players: ["Player Performances", "Position Crowns", "Lineup Management", "Team Raw Stats · Careers", "Team Raw Stats · Seasons", "Team Raw Stats · Weeks"],
+    seasons: ["Best Seasons", "Lowlights", "Luck & Schedule", "Playoff Picture", "Power Rankings & Playoff Odds"],
+    matchups: ["Scoring", "Margins & Drama", "Head to Head"],
+    players: ["Player Performances", "Starters by Position", "Postseason Starts", "Position Crowns", "Lineup Management", "Team Raw Stats · Careers", "Team Raw Stats · Seasons", "Team Raw Stats · Weeks"],
     streaks: ["Weekly Streaks", "Droughts", "Season Streaks", "Milestone Wall"],
     "front-office": ["Activity", "Trades", "Waivers & FAAB", "Draft"],
   };

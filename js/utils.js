@@ -196,3 +196,14 @@ function sparklinePoints(values, width, height, pad) {
     })
     .join(" ");
 }
+
+// What happened to the old mark when a record changed hands, in a few words
+// (used by the Home page's Latest Records and the Records page's timelines).
+// `e` is an event from data/records-feed.json / records-history.json.
+function recordChangeNote(e) {
+  const p = e.previous;
+  if (!p) return "New on the books";
+  if (e.kind === "broke-own") return `Topped their own ${p.value}`;
+  if (e.kind === "took-over") return `Took the lead from ${p.holder}`;
+  return `Broke ${p.holder}\u2019s ${p.value}`;
+}
