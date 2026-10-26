@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=e16498d098" />
+  <link rel="stylesheet" href="css/styles.css?v=a752c720bd" />
 </head>
 <body>
   <nav class="site-nav">
@@ -31,7 +31,6 @@
       <li><a class="nav-link active" href="rivalries.html">Rivalries</a></li>
       <li><a class="nav-link" href="records.html">Records</a></li>
       <li><a class="nav-link" href="player.html">Players</a></li>
-      <li><a class="nav-link" href="newsletters.html">Newsletters</a></li>
     </ul>
   </nav>
 
@@ -49,7 +48,10 @@
         <label for="rivalry-select-a">Manager A</label>
         <select id="rivalry-select-a"></select>
       </div>
-      <div class="rivalry-vs">VS</div>
+      <div class="rivalry-vs">
+        <button type="button" id="rivalry-swap" class="rivalry-swap" aria-label="Swap the two managers" title="Swap">&#8646;</button>
+        <span>VS</span>
+      </div>
       <div class="rivalry-select-group">
         <label for="rivalry-select-b">Manager B</label>
         <select id="rivalry-select-b"></select>
@@ -57,15 +59,28 @@
     </div>
   </div>
 
+  <div class="wrap">
+    <p class="rivalry-why" id="rivalry-why" style="display:none;"></p>
+  </div>
+
+  <div class="wrap" id="rivalry-hotlist-panel" style="display:none;">
+    <details class="panel hotlist-panel" id="rivalry-hotlist-details">
+      <summary><h2>Common Rivalries</h2></summary>
+      <p class="heatmap-note" style="margin: 12px 0;">The league's biggest series: lots of meetings, an even record, playoff games, games lately. Tap one to open it.</p>
+      <div class="hot-rivalries" id="rivalry-hotlist"></div>
+    </details>
+  </div>
+
   <main>
     <div id="rivalry-content"></div>
   </main>
 
   <script src="js/nav.js?v=60775b6708"></script>
-  <script src="js/config.js?v=478edb7f28"></script>
-  <script src="js/utils.js?v=88e7a8f1c2"></script>
-  <script src="js/sleeper-api.js?v=b4008382c1"></script>
-  <script src="js/deep-history.js?v=a89b92a94f"></script>
-  <script src="js/rivalries.js?v=c51acd1633"></script>
+  <script src="js/config.js?v=ef2ef34ffa"></script>
+  <script src="js/utils.js?v=c973da75f6"></script>
+  <script src="js/my-team.js?v=04eff2e6b1"></script>
+  <script src="js/sleeper-api.js?v=f5475cf9d8"></script>
+  <script src="js/deep-history.js?v=6e6b750ec0"></script>
+  <script src="js/rivalries.js?v=fc986edd6e"></script>
 </body>
 </html>

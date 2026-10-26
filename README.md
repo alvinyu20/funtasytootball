@@ -1,8 +1,7 @@
 # Your League Site
 
 A static site that pulls live standings, matchups, and history straight from
-Sleeper's public API — no server, no database, no hosting bill. Newsletters
-live as simple files you (or I) add to over the season.
+Sleeper's public API — no server, no database, no hosting bill.
 
 ## 1. Set your league ID (required)
 
@@ -63,31 +62,6 @@ https://YOUR_USERNAME.github.io/YOUR_REPO/
 **Stats & standings:** nothing to do — every page pulls fresh data from
 Sleeper on every visit.
 
-**Newsletters:** message me with the week's highlights (or ask me to
-summarize the week from your league's data) and I'll draft the write-up.
-Add it as a new entry at the top of `data/newsletters.json`:
-
-```json
-{
-  "slug": "week-4-recap",
-  "issue": "Week 4",
-  "title": "A Title For The Week",
-  "date": "2026-09-29",
-  "summary": "One line shown in the list preview.",
-  "content": "The full recap text. Use \n\n for paragraph breaks."
-}
-```
-
-Then push it:
-
-```bash
-git add .
-git commit -m "Add week 4 newsletter"
-git push
-```
-
-The new issue shows up automatically — no other wiring needed.
-
 **Pre-Sleeper seasons:** fill in `data/manual-history.json` with your old
 years (champion, and optionally the full standings table), commit, and push.
 They'll merge into the History page's champions ledger and, if you included
@@ -116,8 +90,6 @@ They'll merge into the History page's champions ledger and, if you included
   Front Office), each a list of records you can click open for its top 10,
   filterable by All seasons, Last 3 seasons, or any single season (see
   "Record Book" below)
-- `newsletters.html` / `js/newsletters.js` — lists issues from
-  `data/newsletters.json`; clicking one opens its full text on the same page
 - `js/sleeper-api.js` — every call to Sleeper's API lives here
 - `js/deep-history.js` — the heavier engine behind Teams, Season, and
   Records: pulls every season's weekly scores, starting lineups,
@@ -137,21 +109,17 @@ that consistent one way or the other everywhere.
 
 These pages pull a lot more data than the rest of the site — every week's
 scores and lineups, every trade and waiver claim, and the full draft board.
-To keep that fast:
+To keep that fast (see "Fast First Load" below for the details):
 
-- **Finished seasons are cached in the visitor's browser** (`localStorage`)
-  after the first load, since a completed season's data never changes.
-  Repeat visits skip straight to the cache.
-- **The current, in-progress season is always fetched fresh.**
-- The full NFL player directory (~5MB, used to turn player IDs into names
-  and positions) is also cached and only re-fetched once a week.
-- The Season page only fetches the ONE year you're viewing, so it's fast
-  even on a first visit — Teams and Records need every season at once
-  (for career totals), so those two are the ones with a longer first load.
-
-First-ever visit to Teams or Records may take several seconds for a
-league with many seasons — there's a status line showing progress while
-it works. Every visit after that is fast.
+- **Finished seasons come from the repo's own backup** (`data/sleeper-archive/`),
+  not from Sleeper. One small same-origin file per season, all downloaded at once.
+- **The current, in-progress season is always fetched live** from Sleeper, so
+  scores, lineups and moves are as fresh as Sleeper's.
+- **Player names and positions** come from a small file
+  (`data/players-slim.json`), not Sleeper's 14 MB player directory.
+- The Season page only fetches the ONE year you're viewing; Teams and Records
+  need every season at once (for career totals), and the others use the same
+  shared loading.
 
 **Draft value stats** (best late-round steal / biggest bust) compare a
 player's total points that season to which round they were drafted in
@@ -1791,7 +1759,7 @@ Six new sections, all live/computed — nothing manual to maintain:
   actual playoff cutoff (from the league's own `playoff_teams` setting),
   so who's in and who's out is obvious at a glance.
 - **Hot & Cold** — win/loss streaks of 2+ games, computed from this
-  season's actual results.
+  season's finished weeks.
 - **Recent Activity** — the last several trades and adds (waiver or free
   agent), pulled from this week's and last week's transactions.
 - **From The Archives** — a rotating callout from `season-awards.json`,
@@ -2066,7 +2034,7 @@ page is showing, so a stale file can never label the wrong person.
 
 ## Latest Records (Home page)
 
-The Home page lists the 10 most recently set records, from
+The Home page lists the 5 most recently set records, from
 `data/records-feed.json`. The Record Book can only say what the records are
 *now*, so `scripts/build-records-feed.js` rebuilds it as it stood after every
 scored week of every season (`scripts/lib/records-replay.js`): it cuts the saved
@@ -2085,10 +2053,12 @@ just extending their own mark isn't a new event.
 
 ### Records in Reach (Home page)
 
-Below Latest Records, a short list (up to 6) of active managers closing in on a
-record they don't hold. Only managers who played in the latest season count; each
-record shows its single closest challenger, and the list is sorted by how close
-(gap relative to the record).
+Beside Latest Records, a short list (5 on screen) of active managers closing in on a
+record they don't hold. Only managers who played in the latest season count. The
+feed lists every manager within range, with each record's closest chaser flagged
+`primary`; everyone sees the closest chaser per record (sorted by how close, gap
+relative to the record), and once a manager picks "My team" their own chases come
+first.
 
 - *Career totals* (records flagged `grows: true` in `js/record-defs.js`, such as
   Career Wins or Most Trades): in reach when the gap is within 5% of the record,
@@ -2119,6 +2089,217 @@ exists those records show "Awaiting data". Run it once from the Actions tab
 every Tuesday. Or run `node scripts/build-team-raw-stats.js` locally and
 commit the result.
 
+## Fast First Load (Slim Players, Backup-Based Season Chain)
+
+Teams, Records, Season, Draft, Trades, Rivalries, History and the Home page used
+to take around **9 seconds** to show anything on a phone-speed connection, and
+reloading didn't help. Measured here with a simulated 8 Mbps / 120 ms phone
+connection against this league's real data, they now take about **3 seconds**
+(Records on a fast connection: 4.3 s -> 1.6 s), and the data pulled from Sleeper
+on a visit dropped from about 2 MB to about 60 KB. Three causes, three fixes:
+
+1. **The player directory.** Every page downloaded Sleeper's full NFL player
+   directory (14 MB unzipped, about 2 MB over the wire) on every visit. The code
+   meant to cache it in the browser, but 14 MB never fits in `localStorage`, so
+   the cache write silently failed and the "repeat visits are fast" promise
+   never held for it. The pages only ever read five fields from it (`full_name`,
+   `first_name`, `last_name`, `position`, `team`; checked by running every page
+   against a directory that logs what is touched). `scripts/build-fast-data.js`
+   now writes `data/players-slim.json`: those five fields for every QB/RB/WR/TE/K/DEF/FB
+   (plus any position a lineup slot calls for, and **anyone who has ever appeared in
+   this league's lineups, rosters, draft or transactions, at any position**).
+   About 4,400 players, 80 KB zipped. If the file is missing the site falls back
+   to the full directory, now trimmed to the same fields so the browser cache
+   works.
+2. **The season chain.** To list the seasons, the site walked Sleeper's
+   `previous_league_id` chain one season at a time, four live requests each
+   (about 28 requests in a row). Every finished season is already in
+   `data/sleeper-archive/`, so `SleeperAPI.getSeasonChain` now reads those from
+   the backup, all at once, using `data/sleeper-archive/index.json` (a list of the
+   seasons). Only the current league is requested from Sleeper. Details worth
+   knowing: a backup saved before its season finished (status not "complete") is
+   ignored in favor of a live fetch; each backup file is downloaded once per page
+   and shared with the per-season loader; and because Sleeper shows a manager's
+   *current* display name and avatar even on old seasons, those two fields are
+   refreshed from the live current league onto the backed-up seasons (team names
+   stay per season).
+3. **The season in progress.** Its weeks were fetched one at a time (17 requests
+   in a row, since Sleeper lists every future week as an empty schedule) and its
+   transactions four at a time. Week 1 is now fetched first (a season that hasn't
+   started still costs one request), then the other weeks six at a time, trimmed
+   at the first empty or failed week exactly as before. The draft board loads
+   alongside instead of after.
+
+`scripts/build-fast-data.js` runs in the weekly "Sleeper Data Pipeline" workflow
+right after the backup, and commits `data/players-slim.json` and
+`data/sleeper-archive/index.json` with it. Run it by hand after a manual
+backup: `node scripts/build-fast-data.js`. `npm test` checks that both files are
+current, that the slim list covers every player in the archive, and that award
+photos still match the same players.
+
+Things to know:
+
+- **A brand-new player can show as "Unknown Player" until the next Tuesday.**
+  The slim list is rebuilt weekly with the backup. A player Sleeper added to its
+  directory after the last run (a fresh practice-squad signing, say) and that a
+  manager then picks up mid-week has no name in the list yet. Running the pipeline
+  from the Actions tab refreshes it right away; a daily refresh could be added if
+  this ever bites.
+- **Old seasons are as fresh as their last backup.** That was already true of
+  the per-season data; it is now true of each season's standings, rosters and
+  playoff bracket too. They can't change after a season is complete.
+- **Not measured against the real sites.** The timings come from a simulated
+  network (this environment can't reach Sleeper or GitHub Pages) using gzip sizes
+  of your actual files; real numbers will differ, but the drop in requests and
+  bytes doesn't depend on the simulation.
+
+## Fresh & Finished: Freshness Chips, a Week-First Home, and "My Team"
+
+Four changes that came out of a review of the live site.
+
+**1. Freshness chips.** Every panel whose numbers come from a weekly
+snapshot now carries a small tag saying which week it covers and how it
+updates — e.g. `Snapshot · Through Week 6 · Oct 20 · updates Tuesdays`.
+"Through Week N" always means the last *finished* week, so it can sit
+next to Home's "Week 7" (the week being played) without contradicting it.
+A chip turns amber when the data is more than one finished week behind
+the NFL calendar (the Sleeper week), or — for ROS ranks — more than 10
+days old. The helper is `freshnessChipHtml` in
+`js/utils.js` (styles: `.fresh-chip` in `css/styles.css`). Chips are on:
+Home (Standings, ROS ranks, Hot & Cold, Power Rankings, Latest Records,
+Records in Reach, This Week / Last Week), the Power Rankings page and the
+Records page (record dates).
+
+**Why Standings and Power Rankings used to disagree.** Sleeper's roster
+Record and Points For only count a week once it is final, but the weekly
+matchup data already holds the half-played week's scores. Home built
+*Overall, Luck, Avg/Wk and SOS* from the weekly data (so they included the
+half-played week) and *Record and PF* from the roster (so they didn't):
+one row could read 4-1 with an Overall of 49 games. Home now cuts
+everything built from weekly data (Overall, Luck, Avg/Wk, SOS and Hot &
+Cold streaks) at the same week the Record covers (`completedWeekCount`,
+`onlyCompletedWeeks` in `js/dashboard.js`). The Season page's table for the
+*current* season still uses every week with points — it is a different
+view and was left alone.
+
+**2. Member-facing copy.** Anything written for whoever builds the site
+(file names, script names, "ask for a draft", "cached in your browser")
+was replaced or removed. `tests/fresh-home.test.js` scans every page's
+visible text and every user-facing string in `js/` for those phrases, so
+they can't creep back.
+
+**3. Home leads with the week.** Order: league pulse strip → This Week's
+Matchups (with Featured Matchup and Hot & Cold beside them) → Standings →
+Power Rankings + Recent Activity → Latest Records + Records in Reach (5
+each) → From the Archives (a slim strip) → Last Week's Matchups
+(collapsed on phones). The pulse strip replaces the big wordmark (the nav
+already carries it): the week, when waivers run next, the week's top score
+and closest game (both from the last *finished* week), and your own
+matchup. (An earlier version also showed "games on now" and a newsletter
+card; both were removed in the next round, below.)
+- *Next waivers* uses the league's waiver day from Sleeper and
+  `WAIVER_CLEAR_HOUR_ET` in `js/config.js` (3 AM ET, measured from about
+  90% of the league's completed claims in 2023–2026; Sleeper doesn't
+  publish the hour).
+
+**4. My team.** The star in the top bar (every page) opens a picker of
+the league's managers. The choice is saved in that browser only
+(`localStorage`, key `funtasy.myTeam`) — there is no login. Once picked:
+your matchup is pinned first (This Week and Last Week) with a "Your
+matchup" label and shown in the pulse strip; your row gets a gold edge and
+a YOU tag in every table (the odds heatmap, Season/Teams/Rivalries/Draft
+tables, Records lists…) and your name is tinted anywhere it appears on its
+own; your Records in Reach come first. `js/my-team.js` finds your rows by
+looking for your username as the whole text of a cell or label (Home's
+Standings cells carry `data-username` because they show team names), and
+keeps up with content a page draws later. To make a new list highlight
+automatically, just render usernames; to highlight a cell that shows
+something else, give it `data-username="..."`.
+
+Records in Reach now lists *every* manager within range of a record
+(flagged `primary` for each record's closest chaser), so your own chase
+shows even when someone else is closer on that record. Everyone else sees
+only the closest chaser per record, five at a time. `data/records-feed.json`
+is rebuilt by the Tuesday workflow (or `node scripts/build-records-feed.js`).
+
+## Finished Games Only, Newsletters Out, and a Mobile & Layout Pass
+
+**Newsletters are gone.** The Newsletters page, its nav link on every page,
+the Home callout, `js/newsletters.js` and `data/newsletters.json` were
+removed, and the "games on now" indicator went with them. Older sections
+below that mention newsletters or live games describe things that no
+longer exist. If you are updating an existing repo from a zip, delete
+`newsletters.html`, `js/newsletters.js` and `data/newsletters.json` by hand
+(unzipping on top of a repo doesn't remove files).
+
+**A matchup only counts once it is final.** A half-played week already has
+partial scores in Sleeper's data, and those used to leak into Seasons, Head
+to Head, Records, Teams and the player pages. One rule now decides which
+weeks are finished, `DeepHistory.completedThroughWeek` in
+`js/deep-history.js`:
+- Sleeper's clock: the week in progress is `nflState.week`, so everything
+  before it is final (Sleeper moves it on early Tuesday, once Monday night
+  is over).
+- Regular season: the rosters' win/loss records only count a week once it
+  is final, so the most games any roster has played is a second opinion;
+  the smaller of the two wins. It can hide a week a little late but never
+  show one early.
+- Playoffs: records stop moving, so the clock alone decides.
+- Seasons Sleeper marks complete count everything; seasons not yet drafted
+  count nothing; with no information at all, nothing counts (the cautious
+  choice).
+
+The live pages apply it in `fetchSeasonDeep`. The build scripts apply the
+same function (via `scripts/lib/finished-weeks.js`, which loads the site's
+own file rather than keeping a copy): the records replay, `build-team-raw-
+stats.js` and `build-player-index.js`. `backup-sleeper-data.js` now records
+`nflWeek` (the clock at the time of the backup) in each season's saved
+entry so offline builds know which week was in progress; archives saved
+before this change fall back to the rosters' records. Two things to know:
+- The player index and team raw stats pick the rule up the next time their
+  workflows run, and `nflWeek` appears in the archive after the next backup.
+- The "remaining games" simulator behind Power Rankings still treats the
+  in-progress week as remaining, which is what you want for a forecast.
+
+**Matchup cards (Home).** Each card has a status label: *Final*, *In
+progress* or *Upcoming* (Sleeper has no projections, so there is no
+"Projected"). A finished game marks the winner `W +margin` and the loser
+`L`; a game in progress says who leads and by how much; nothing is marked
+before kickoff. A manager with no team name is shown once instead of
+twice. Featured Matchup now uses the same status and result wording as the
+cards beside it, and the footnote ("picked for the best combined record on
+the slate") is true: the pick is `featuredMatchupPair` in `js/utils.js`,
+which the Rivalries page also reads so they always agree.
+
+**Phones.** The Draft Board has a view switch: *Board* (the grid, still
+the default on wide screens), *By round* and *By team* (the default on a
+phone, remembered per browser as `funtasy.draftView`). Tables use a thin
+themed scrollbar instead of the bright native one. Standings, Power
+Rankings and the odds heatmap keep their first column(s) pinned while you
+pan (`sticky-cols-1` / `sticky-cols-2` on the table); the odds heatmap
+draws a gold line after the last playoff spot and fits through that column
+at 390px. Home's Standings keeps Team pinned and tucks PA, Avg/Wk and
+Overall behind a "Show all columns" button on phones so Luck, ROS and SOS are on screen.
+
+**Rivalries and Players.** Rivalries opens on, in order: a link, your own
+hottest rivalry (if you picked a team), this week's featured matchup (if
+those two have met), then the league's hottest rivalry, and says which in an
+"Opening on:" line. There is a swap button and a Common Rivalries list (a
+folded panel on phones). "Hot" is `rivalryHeat` in `js/rivalries.js`: more
+meetings, an even series, playoff games and recent games all add heat;
+ties are settled by meetings then name so the order never changes between
+visits. Closest Meeting and Biggest Blowout collapse into one card when
+they are the same game. Players opens on three leaderboards from the
+existing index: Most Rostered (ties on games fall to starts, then owners,
+because many players have been on a roster every week), Best Career, and
+Trending (points over the last three finished weeks).
+
+**Layout.** Stacked cards always have a 24px gap (`.panel + .panel` and
+the wrap rules, with grids exempt because their own gap does the spacing);
+Season labels an in-progress year "Standings · Through Week N" instead of
+"Final Standings"; From the Archives is a slim strip. From 1000px up the
+nav is a persistent tab bar; the hamburger stays on tablets and phones.
+
 ## Why Visitors Used To Need A Hard Refresh (Cache-Busting)
 
 GitHub Pages tells browsers they may keep any file for 10 minutes
@@ -2142,7 +2323,7 @@ Two fixes, neither needing a build step on the server:
 - **Data files always revalidate.** `fetchJsonSafe` (used for everything under
   `data/`) now fetches with `cache: "no-cache"`: the browser asks the server
   "changed?" each time. Unchanged files return a tiny 304 and are reused;
-  a file a workflow just committed (power rankings, injuries, newsletters,
+  a file a workflow just committed (power rankings, injuries, records,
   raw stats) downloads immediately.
 
 What this can't fix: the HTML page itself is still cached by GitHub Pages
@@ -2165,6 +2346,5 @@ up to a day.
   you want that added.
 - Win/lose streaks are computed across season boundaries (a streak can
   carry from the end of one season into the start of the next).
-- Newsletters are added by hand today. If you want it hands-off, I can set
-  up a GitHub Action that runs weekly, pulls that week's results, and drafts
-  a newsletter automatically — just ask.
+- Sleeper doesn't publish projections, so a game that hasn't finished shows
+  as "In progress" or "Upcoming" rather than "Projected".
