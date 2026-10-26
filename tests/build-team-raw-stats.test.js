@@ -37,8 +37,12 @@ test("sumStarterStats tolerates players missing from the stats feed and non-nume
   assert.deepStrictEqual(out.u1, [0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0]);
 });
 
-const archive = (status, weeks, playoffStart = 15) => ({
+// `nflWeek` is the week Sleeper had in progress when the archive was saved (a season in
+// progress only counts the weeks before it).
+const archive = (status, weeks, playoffStart = 15, nflWeek = 99) => ({
   league: { status, settings: { playoff_week_start: playoffStart } },
+  rosters: [],
+  nflWeek,
   weeks: weeks.map((w) => ({ week: w, matchups: [{ roster_id: 1, points: w === 17 ? 0 : 100 }] })),
 });
 
@@ -48,6 +52,14 @@ test("regularWeeksOf keeps scored weeks before the playoffs and drops playoff an
   const a = archive("in_season", [1, 2, 3]);
   a.weeks[2].matchups[0].points = 0;
   assert.deepStrictEqual(regularWeeksOf(a), [1, 2]);
+});
+
+test("regularWeeksOf leaves out the week still in progress, partial box scores and all", () => {
+  // Sleeper says week 3 is under way: it already has scores, but it is not a result yet.
+  assert.deepStrictEqual(regularWeeksOf(archive("in_season", [1, 2, 3], 15, 3)), [1, 2]);
+  assert.deepStrictEqual(regularWeeksOf(archive("in_season", [1, 2, 3], 15, 4)), [1, 2, 3]);
+  // A finished season is never trimmed.
+  assert.deepStrictEqual(regularWeeksOf(archive("complete", [1, 2, 3], 15, 3)), [1, 2, 3]);
 });
 
 test("weeksToFetch never re-downloads stored weeks of a finished season but refreshes a season in progress", () => {

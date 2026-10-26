@@ -129,7 +129,21 @@ async function fetchSeasonRaw(seasonEntry, lastFantasyWeek) {
     draft = null;
   }
 
-  return {
+  // The week Sleeper says is in progress right now. Everything before it is
+  // final; the week itself already holds partial scores, so the pages and
+  // build scripts that read this file use it to leave that week out until
+  // it is over (see DeepHistory.completedThroughWeek).
+  let nflWeek = null;
+  if (seasonEntry.league.status !== "complete") {
+    try {
+      const state = await sleeperGet(`/state/nfl`);
+      if (state && String(state.season) === String(seasonEntry.league.season)) nflWeek = state.week;
+    } catch (err) {
+      // no clock: readers fall back to the rosters' win/loss records
+    }
+  }
+
+  const saved = {
     league: seasonEntry.league,
     rosters: seasonEntry.rosters,
     users: seasonEntry.users,
@@ -139,6 +153,8 @@ async function fetchSeasonRaw(seasonEntry, lastFantasyWeek) {
     draft,
     backedUpAt: new Date().toISOString(),
   };
+  if (nflWeek != null) saved.nflWeek = nflWeek;
+  return saved;
 }
 
 async function main() {

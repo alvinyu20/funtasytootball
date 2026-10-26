@@ -24,6 +24,8 @@ function fixtureBase(ctx, extra) {
     weeks: input.deepSeasons[i].weeks,
     transactions: [],
     draft: null,
+    // A season still in progress was saved after its last scored week was final.
+    ...(entry.league.status === "complete" ? {} : { nflWeek: Math.max(0, ...input.deepSeasons[i].weeks.map((w) => w.week)) + 1 }),
   }));
   return { RecordBook: ctx.RecordBook, DeepHistory: ctx.DeepHistory, archives, playerDirectory: input.playerDirectory, manual: null, powerRanks: null, rawStats: null, ...extra };
 }
@@ -205,16 +207,27 @@ const sampleEvent = (over) => ({
   kind: "broke", holder: "Alvin", value: "212.4", detail: "vs Teddy · 2026 Wk 5", previous: { holder: "Teddy", value: "205.1" }, ...over,
 });
 
-test("Latest Records: shows the newest ten with the date, record, holder, value and category, each linking to its record", () => {
+test("Latest Records: shows the newest five with the date, record, holder, value and category, each linking to its record", () => {
   const ctx = homeCtx();
   const events = Array.from({ length: 14 }, (_, i) => sampleEvent({ id: `rec-${i}`, title: `Record ${i}`, week: 14 - i }));
   ctx.__feed = { asOf: { season: "2026", week: 5 }, events };
   const html = runInLoadedContext(ctx, `latestRecordsHtml(__feed)`);
-  assert.strictEqual((html.match(/class="lr-item"/g) || []).length, 10);
-  assert.ok(html.includes("Record 0") && html.includes("Record 9") && !html.includes("Record 10"));
+  assert.strictEqual((html.match(/class="lr-item"/g) || []).length, 5);
+  assert.ok(html.includes("Record 0") && html.includes("Record 4") && !html.includes("Record 5"));
   assert.ok(html.includes('href="records.html#matchups/all/rec-0"'));
   assert.ok(html.includes("212.4") && html.includes(">Matchups<") && html.includes("Week 14"));
-  assert.ok(html.includes("Through 2026 Week 5"));
+  assert.ok(html.includes("Open the Record Book"));
+});
+
+test("Latest Records: the 'through which week' tag is a freshness chip, amber when the feed trails the NFL calendar", () => {
+  const ctx = homeCtx();
+  const chip = (asOf, season, week) => runInLoadedContext(ctx, `feedFreshChip(${JSON.stringify(asOf)}, ${JSON.stringify(season)}, ${week})`);
+  assert.ok(chip({ season: "2026", week: 6 }, "2026", 6).includes("Through Week 6 \u00b7 updates Tuesdays"));
+  assert.ok(chip({ season: "2026", week: 6 }, "2026", 6).includes("fresh-snap"));
+  assert.ok(chip({ season: "2026", week: 5 }, "2026", 7).includes("fresh-behind"), "two finished weeks behind");
+  assert.ok(chip({ season: "2025", week: 17 }, "2026", 3).includes("2025 \u00b7 Through Week 17"), "a past season is named, never amber");
+  assert.ok(!chip({ season: "2025", week: 17 }, "2026", 3).includes("fresh-behind"));
+  assert.strictEqual(chip(null, "2026", 6), "");
 });
 
 test("Latest Records: says what happened to the old mark", () => {
@@ -434,7 +447,11 @@ test("data/records-history.json: a timeline per record, newest first, tied to re
 test("data/records-feed.json: Records in Reach, closest first, each pointing at a real record", () => {
   const feed = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "records-feed.json"), "utf8"));
   assert.ok(Array.isArray(feed.reach));
-  assert.ok(feed.reach.length <= 6);
+  assert.ok(feed.reach.length <= 40);
+  // every record's closest chaser is flagged, and only one chaser per record is
+  const primaries = feed.reach.filter((r) => r.primary);
+  assert.strictEqual(new Set(primaries.map((r) => r.id)).size, primaries.length);
+  assert.strictEqual(new Set(feed.reach.map((r) => r.id)).size, primaries.length, "a record with chasers always has a flagged closest one");
   const ids = new Set(JSON.parse(runInLoadedContext(engine(), `JSON.stringify(RecordBook.DEFS.map((d) => d.id))`)));
   feed.reach.forEach((r) => {
     assert.ok(ids.has(r.id));
@@ -455,6 +472,45 @@ test("Records in Reach: who is chasing what, with the gap, linking to the record
   assert.ok(html.includes("Chasing Anthony’s 12,345.6"));
   assert.ok(html.includes("Streak still alive") && html.includes("Anthony’s record is 9"));
   assert.ok(html.includes('href="records.html#careers/all/career-points"'));
+});
+
+test("Records in Reach: shows five, and only each record's closest chaser unless a team is picked", () => {
+  const ctx = homeCtx();
+  const primaries = Array.from({ length: 7 }, (_, i) => sampleReach({ id: `rec-${i}`, title: `Rec ${i}`, challenger: `Mgr${i}`, primary: true, ratio: 0.01 * (i + 1) }));
+  const feed = { reach: [primaries[0], sampleReach({ id: "rec-0", title: "Rec 0", challenger: "Second", primary: false, ratio: 0.011 }), ...primaries.slice(1)] };
+  ctx.__feed = feed;
+  const html = runInLoadedContext(ctx, `recordsInReachHtml(__feed)`);
+  assert.strictEqual((html.match(/class="lr-item"/g) || []).length, 5);
+  assert.ok(html.includes("Mgr0") && html.includes("Mgr4") && !html.includes("Mgr5"));
+  assert.ok(!html.includes("Second"), "a runner-up on someone else's record stays out");
+});
+
+test("Records in Reach: a picked team's own chases come first (even as runner-up), then everyone's closest", () => {
+  const ctx = homeCtx();
+  ctx.__feed = {
+    reach: [
+      sampleReach({ id: "a", title: "Rec A", challenger: "Mgr1", primary: true, ratio: 0.01 }),
+      sampleReach({ id: "b", title: "Rec B", challenger: "Mgr2", primary: true, ratio: 0.02 }),
+      sampleReach({ id: "a", title: "Rec A", challenger: "Me", primary: false, ratio: 0.03 }),
+      sampleReach({ id: "c", title: "Rec C", challenger: "me", primary: true, ratio: 0.04 }),
+    ],
+  };
+  const html = runInLoadedContext(ctx, `recordsInReachHtml(__feed, null, " ME ")`);
+  const order = [...html.matchAll(/<span class="lr-title">([^<]*)</g)].map((m) => m[1]);
+  assert.deepStrictEqual(order, ["Rec A", "Rec C", "Rec A", "Rec B"], "mine (two), then the others' closest");
+  const challengers = [...html.matchAll(/<strong>([^<]*)<\/strong>/g)].map((m) => m[1]);
+  assert.deepStrictEqual(challengers, ["Me", "me", "Mgr1", "Mgr2"]);
+  assert.ok(html.includes("Your chases are listed first."));
+});
+
+test("Records in Reach: a picked team with nothing in range is told so, and still sees the league's chases", () => {
+  const ctx = homeCtx();
+  ctx.__feed = { reach: [sampleReach({ id: "a", challenger: "Mgr1", primary: true })] };
+  const html = runInLoadedContext(ctx, `recordsInReachHtml(__feed, null, "someone-else")`);
+  assert.ok(html.includes("You have no records within range right now"));
+  assert.ok(html.includes("Mgr1"));
+  const plain = runInLoadedContext(ctx, `recordsInReachHtml(__feed)`);
+  assert.ok(!plain.includes("Your chases") && !plain.includes("no records within range"));
 });
 
 test("Records in Reach: empty or missing means no panel content, and names are escaped", () => {

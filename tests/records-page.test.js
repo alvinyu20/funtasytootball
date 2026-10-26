@@ -116,7 +116,8 @@ test("record rows: records that need the raw-stats file show 'Awaiting data' (no
   const html = pageHtml(ctx, "players", "all");
   assert.match(html, /rb-row rb-static" data-record="raw-career-pass_yd"[\s\S]*?Awaiting data/);
   assert.ok(!/<details[^>]*raw-career-pass_yd/.test(html));
-  assert.strictEqual((html.match(/Build Team Raw Stats/g) || []).length, 1);
+  assert.strictEqual((html.match(/Team Raw Stats records/g) || []).length, 1);
+  assert.ok(!/GitHub|Actions|workflow/i.test(html), "no builder instructions on a page members read");
 });
 
 test("record rows: when only an unfinished season is selected, season records say they unlock later", () => {
@@ -191,7 +192,7 @@ test("renderRecords: an unknown season in the URL falls back to All seasons", as
 test("renderRecords: with no seasons it shows the error instead of an empty page", async () => {
   const ctx = await renderPage("#careers", false);
   assert.match(ctx.document.getElementById("records-root").innerHTML, /Couldn't load league records/);
-  assert.match(ctx.document.getElementById("records-error").textContent, /Couldn't load any seasons/);
+  assert.match(ctx.document.getElementById("records-error").textContent, /Couldn't load the league's seasons/);
 });
 
 const MANUAL = `input.manual = ${JSON.stringify(fixtureManual())};`;

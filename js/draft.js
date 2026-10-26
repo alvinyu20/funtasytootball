@@ -9,7 +9,7 @@ async function renderDraftPage() {
   try {
     const [seasonChain, playerDirectory] = await Promise.all([SleeperAPI.getSeasonChain(LEAGUE_ID), SleeperAPI.getPlayerDirectory()]);
     if (seasonChain.length === 0) {
-      throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
+      throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
     }
     SEASON_CHAIN = seasonChain;
     PLAYER_DIRECTORY = playerDirectory;
@@ -190,6 +190,104 @@ function renderDraftBoardTable(board) {
     </div>`;
 }
 
+// ---------------------------------------------------------------
+// Three ways to read the same board. The grid is the real draft board (one
+// column per team) and is the right view on a wide screen; on a phone it
+// shows about two teams at a time, so the page opens on a list instead:
+// "By round" (the pick order, round by round) or "By team" (each team's
+// whole draft, top to bottom).
+// ---------------------------------------------------------------
+const DRAFT_VIEWS = ["grid", "round", "team"];
+const DRAFT_VIEW_KEY = "funtasy.draftView";
+const DRAFT_VIEW_LABELS = { grid: "Board", round: "By round", team: "By team" };
+
+function defaultDraftView(viewportWidth) {
+  return viewportWidth != null && viewportWidth <= 720 ? "round" : "grid";
+}
+
+function readDraftView() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(DRAFT_VIEW_KEY);
+  } catch (err) {
+    // storage blocked: just use the default
+  }
+  if (DRAFT_VIEWS.includes(saved)) return saved;
+  return defaultDraftView(typeof window !== "undefined" ? window.innerWidth : null);
+}
+
+function saveDraftView(view) {
+  try {
+    localStorage.setItem(DRAFT_VIEW_KEY, view);
+  } catch (err) {
+    // fine: the choice just lasts for this visit
+  }
+}
+
+function draftViewToggleHtml(active) {
+  return `
+    <div class="view-toggle" role="tablist" aria-label="Draft board view">
+      ${DRAFT_VIEWS.map(
+        (v) => `<button type="button" role="tab" class="view-toggle-btn${v === active ? " active" : ""}" data-draft-view="${v}" aria-selected="${v === active ? "true" : "false"}">${DRAFT_VIEW_LABELS[v]}</button>`
+      ).join("")}
+    </div>`;
+}
+
+function draftListRowHtml(p, owner) {
+  const gradeClass = p.grade === "S" ? " draft-cell-s-grade" : p.grade === "A" ? " draft-cell-a-grade" : "";
+  return `
+      <div class="draft-list-row${gradeClass}"${owner ? ` data-username="${escapeHtml(owner)}"` : ""}>
+        <span class="draft-list-pick">${p.round}.${p.pickInRound}</span>
+        <span class="draft-list-pos ${posClassFor(p.position)}">${escapeHtml(p.position || "")}</span>
+        <span class="draft-list-player">${playerLinkHtml(p.playerId, escapeHtml(p.player))}</span>
+        <span class="draft-list-grade">${gradeBadgeHtml(p.grade)}</span>
+        ${owner ? `<span class="draft-list-owner">${escapeHtml(owner)}</span>` : ""}
+      </div>`;
+}
+
+// By round: Round 1 pick 1 to the last pick, each round under its own heading.
+function renderDraftByRound(board) {
+  const byRound = new Map();
+  board.allPicks.forEach((p) => {
+    if (!byRound.has(p.round)) byRound.set(p.round, []);
+    byRound.get(p.round).push(p);
+  });
+  return [...byRound.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(
+      ([round, picks]) => `
+    <section class="draft-list-group">
+      <h3 class="draft-list-heading">Round ${round}</h3>
+      ${picks.sort((a, b) => (a.pickNo || 0) - (b.pickNo || 0)).map((p) => draftListRowHtml(p, p.ownerUsername)).join("")}
+    </section>`
+    )
+    .join("");
+}
+
+// By team: every team's picks in round order. The first team is open; the rest fold away.
+function renderDraftByTeam(board) {
+  const me = typeof MyTeam !== "undefined" ? MyTeam.normalize(MyTeam.get()) : "";
+  const names = board.columns.map((c) => c.username || c.teamName);
+  const openIdx = Math.max(0, names.findIndex((n) => me && MyTeam.normalize(n) === me));
+  return board.columns
+    .map((col, i) => {
+      const name = names[i];
+      const picks = [...col.picks].sort((a, b) => (a.round || 0) - (b.round || 0));
+      return `
+    <details class="draft-list-group draft-team"${i === openIdx ? " open" : ""}>
+      <summary><span class="draft-team-name" data-username="${escapeHtml(name)}">${escapeHtml(name)}</span><span class="draft-team-count">${picks.length} picks</span></summary>
+      ${picks.map((p) => draftListRowHtml(p, null)).join("")}
+    </details>`;
+    })
+    .join("");
+}
+
+function draftViewBodyHtml(board, view) {
+  if (view === "round") return `<div class="draft-list">${renderDraftByRound(board)}</div>`;
+  if (view === "team") return `<div class="draft-list">${renderDraftByTeam(board)}</div>`;
+  return renderDraftBoardTable(board);
+}
+
 function renderSelectedDraft() {
   const content = document.getElementById("draft-content");
   const season = decodeURIComponent(location.hash.replace(/^#/, ""));
@@ -208,6 +306,7 @@ function renderSelectedDraft() {
     return;
   }
 
+  const view = readDraftView();
   content.innerHTML = `
     <div class="wrap">
       <div class="draft-legend">
@@ -217,8 +316,18 @@ function renderSelectedDraft() {
       </div>
     </div>
     ${renderTopPicks(topPicksForBoard(board))}
-    <div class="wrap-wide">${renderDraftBoardTable(board)}</div>`;
+    <div class="wrap-wide draft-view">
+      ${draftViewToggleHtml(view)}
+      <div id="draft-view-body">${draftViewBodyHtml(board, view)}</div>
+    </div>`;
 
+  content.querySelectorAll("[data-draft-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-draft-view");
+      saveDraftView(next);
+      renderSelectedDraft();
+    });
+  });
   initScrollAnimations();
 }
 

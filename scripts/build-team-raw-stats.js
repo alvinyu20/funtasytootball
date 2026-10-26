@@ -44,6 +44,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { finishedWeeksOf } = require("./lib/finished-weeks");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const ARCHIVE_DIR = path.join(REPO_ROOT, "data", "sleeper-archive");
@@ -89,8 +90,12 @@ function sumStarterStats(matchups, rosters, playerStats, statKeys = STAT_KEYS) {
 // playoffs: anything before settings.playoff_week_start.
 function regularWeeksOf(archive) {
   const playoffStart = Number(archive && archive.league && archive.league.settings && archive.league.settings.playoff_week_start) || null;
-  return ((archive && archive.weeks) || [])
-    .filter((w) => w && Array.isArray(w.matchups) && w.matchups.some((m) => (m.points || 0) > 0))
+  // Only finished weeks: a week in progress has partial box scores.
+  return finishedWeeksOf(
+    archive,
+    ((archive && archive.weeks) || []).filter((w) => w && Array.isArray(w.matchups) && w.matchups.some((m) => (m.points || 0) > 0)),
+    archive && archive.nflWeek
+  )
     .map((w) => Number(w.week))
     .filter((week) => playoffStart == null || week < playoffStart);
 }

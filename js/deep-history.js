@@ -112,6 +112,52 @@ const DeepHistory = {
   },
 
   /*
+    Which weeks of a season are FINISHED -- the one rule every page that
+    counts results (Seasons, Teams, Head to Head / Rivalries, Records,
+    Draft grades, the Home standings...) shares, so a half-played week never
+    shows up in a record, a streak or a head-to-head line until its last
+    game is final.
+
+    Returns the last finished week number (0 = none yet), or Infinity for a
+    season Sleeper marks complete.
+
+      - Sleeper's own clock: `nflWeek` is the week in progress, so everything
+        before it is final. Sleeper moves it forward early Tuesday, once
+        Monday night is over.
+      - Regular season: the rosters' win/loss records only count a week once
+        it is final, so the most games any roster has played is a second
+        opinion. The smaller of the two wins, which can only ever hide a
+        week a little late, never show one early.
+      - Playoffs: records stop moving after the regular season, so the clock
+        alone decides.
+      - No clock (an archive saved before the backup started recording it):
+        the rosters' records stand in for it. With neither, nothing counts.
+  */
+  completedThroughWeek({ league, rosters, nflWeek }) {
+    const status = league && league.status;
+    if (status === "complete") return Infinity;
+    if (status === "pre_draft" || status === "drafting") return 0;
+    // null = the rosters carry no win/loss record at all (so they can't vouch for anything)
+    let games = null;
+    (rosters || []).forEach((r) => {
+      const s = r && r.settings;
+      if (!s || typeof s.wins !== "number") return;
+      games = Math.max(games == null ? 0 : games, s.wins + (s.losses || 0) + (s.ties || 0));
+    });
+    const clock = nflWeek != null && Number(nflWeek) >= 1 ? Number(nflWeek) - 1 : null;
+    if (games == null) return clock == null ? 0 : clock;
+    if (clock == null) return games;
+    const playoffStart = league && league.settings ? league.settings.playoff_week_start : null;
+    if (playoffStart && clock >= playoffStart) return clock;
+    return Math.min(clock, games);
+  },
+
+  // Keeps only the weeks that are final (see completedThroughWeek).
+  finishedWeeksOnly(weeks, through) {
+    return (weeks || []).filter((w) => w.week <= through);
+  },
+
+  /*
     Fetches everything for one season. Returns:
     { leagueId, season, weeks: [{week, matchups}], transactions: [...], draft: {draftId, picks} | null }
 
@@ -164,7 +210,13 @@ const DeepHistory = {
       // backed up yet) or any other fetch problem gracefully, falling
       // through to the live fetch below with no special handling
       // needed here.
-      const archived = await fetchJsonSafe(`data/sleeper-archive/${league.season}.json`, null);
+      //
+      // SleeperAPI.getArchivedSeason also refuses a copy saved before the
+      // season finished (the weekly backup hasn't caught up yet), so this
+      // can't serve a half-played season as if it were done. And because
+      // the season chain already downloaded these files, this is usually
+      // a lookup, not a second download.
+      const archived = await SleeperAPI.getArchivedSeason(league.season, leagueId);
       if (archived) {
         const scheduleWeeks = archived.weeks || [];
         const weeks = scheduleWeeks.filter(({ matchups }) => matchups.some((m) => (m.points || 0) > 0));
@@ -188,48 +240,78 @@ const DeepHistory = {
 
     onProgress && onProgress(league.season, "fetching");
 
-    // Walk weeks 1..LAST_FANTASY_WEEK until we hit a week with no data at
-    // all. Sleeper generates the whole season's matchup pairings upfront,
-    // so this array is often non-empty for future weeks too — it just has
-    // no score yet. We keep everything fetched as `scheduleWeeks` (needed
-    // for the Monte Carlo playoff simulator's remaining schedule), and
-    // separately filter down to `weeks` — weeks where a game has actually
-    // been played — since that's what every other stat on the site should
-    // be built from.
-    const scheduleWeeksRaw = [];
-    for (let week = 1; week <= LAST_FANTASY_WEEK; week++) {
-      let matchups;
+    // The draft board only needs the league id, so it loads alongside the
+    // weeks below instead of after them.
+    const draftPromise = (async () => {
       try {
-        matchups = await SleeperAPI.getMatchups(leagueId, week);
+        const drafts = await SleeperAPI.getDrafts(leagueId);
+        if (drafts && drafts.length > 0) {
+          const picks = await SleeperAPI.getDraftPicks(drafts[0].draft_id);
+          return { draftId: drafts[0].draft_id, picks };
+        }
       } catch (err) {
-        break;
+        // no draft board available
       }
-      if (!matchups || matchups.length === 0) break;
-      scheduleWeeksRaw.push({ week, matchups });
+      return null;
+    })();
+
+    // Collect weeks 1..LAST_FANTASY_WEEK, stopping at the first week with no
+    // data at all. Sleeper generates the whole season's matchup pairings
+    // upfront, so this array is often non-empty for future weeks too — it
+    // just has no score yet. We keep everything fetched as `scheduleWeeks`
+    // (needed for the Monte Carlo playoff simulator's remaining schedule),
+    // and separately filter down to `weeks` — weeks where a game has
+    // actually been played — since that's what every other stat on the
+    // site should be built from.
+    //
+    // Week 1 goes first on its own, so a season that hasn't started (no
+    // matchups yet) costs one request. After that the rest are fetched
+    // six at a time rather than one after another: for a season in
+    // progress that is every week of the schedule, which used to be a
+    // line of 17 requests. The result is trimmed at the first empty or
+    // failed week, so it is the same list the one-at-a-time walk built.
+    const fetchWeek = (week) => SleeperAPI.getMatchups(leagueId, week).catch(() => null);
+    const scheduleWeeksRaw = [];
+    const firstWeek = await fetchWeek(1);
+    if (firstWeek && firstWeek.length > 0) {
+      scheduleWeeksRaw.push({ week: 1, matchups: firstWeek });
+      const laterWeeks = Array.from({ length: Math.max(0, LAST_FANTASY_WEEK - 1) }, (_, i) => i + 2);
+      const later = await mapWithConcurrency(laterWeeks, 6, fetchWeek);
+      for (let i = 0; i < later.length; i++) {
+        if (!later[i] || later[i].length === 0) break;
+        scheduleWeeksRaw.push({ week: laterWeeks[i], matchups: later[i] });
+      }
     }
-    const weeksRaw = scheduleWeeksRaw.filter(({ matchups }) => matchups.some((m) => (m.points || 0) > 0));
+    // Only FINISHED weeks count as results. A week in progress already has
+    // partial scores in it, and counting them would put an unfinished
+    // matchup into a head-to-head record, a streak or a record book.
+    // (scheduleWeeks keeps every week -- the simulator needs the schedule.)
+    let nflWeek = null;
+    if (!isComplete) {
+      try {
+        const state = await SleeperAPI.getNflState();
+        if (state && String(state.season) === String(league.season)) nflWeek = state.week;
+      } catch (err) {
+        // no clock: the rosters' records decide which weeks are final
+      }
+    }
+    const finishedThrough = DeepHistory.completedThroughWeek({ league, rosters: seasonEntry.rosters, nflWeek });
+    const weeksRaw = DeepHistory.finishedWeeksOnly(
+      scheduleWeeksRaw.filter(({ matchups }) => matchups.some((m) => (m.points || 0) > 0)),
+      finishedThrough
+    );
 
     // Transactions, one call per week we found ANY data for (so this
     // still includes the current in-progress week). Limited concurrency
     // so we're not firing 15+ requests at once.
     const txPerWeek = await mapWithConcurrency(
       scheduleWeeksRaw.map((w) => w.week),
-      4,
+      6,
       (week) => SleeperAPI.getTransactions(leagueId, week).catch(() => [])
     );
     const transactions = txPerWeek.flat().filter(Boolean);
 
-    // Draft board (a league normally has exactly one draft per season).
-    let draft = null;
-    try {
-      const drafts = await SleeperAPI.getDrafts(leagueId);
-      if (drafts && drafts.length > 0) {
-        const picks = await SleeperAPI.getDraftPicks(drafts[0].draft_id);
-        draft = { draftId: drafts[0].draft_id, picks };
-      }
-    } catch (err) {
-      draft = null;
-    }
+    const draft = await draftPromise;
 
     const result = { leagueId, season: league.season, weeks: weeksRaw, scheduleWeeks: scheduleWeeksRaw, transactions, draft };
 

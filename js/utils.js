@@ -207,3 +207,84 @@ function recordChangeNote(e) {
   if (e.kind === "took-over") return `Took the lead from ${p.holder}`;
   return `Broke ${p.holder}\u2019s ${p.value}`;
 }
+
+// ---------------------------------------------------------------
+// Freshness chips: the small "Through Week 6 · updates Tuesdays" tag on
+// every panel whose numbers come from a weekly snapshot instead of live
+// from Sleeper, so nobody has to wonder which week they're looking at.
+//   label    short kind of data ("Snapshot", "Live", "ROS ranks")
+//   through  last COMPLETED week the numbers include
+//   current  the NFL week Sleeper says it is now (optional); a snapshot
+//            more than one completed week behind turns amber
+//   date     "2026-10-07" style date to show as "Oct 7"
+//   note     the update rhythm ("updates Tuesdays")
+//   tone     force "live" | "snap" | "behind"
+//   title    hover text
+// ---------------------------------------------------------------
+const FRESH_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// "2026-10-07" (or a full ISO stamp) -> "Oct 7". Reads the date part
+// as written, so it never shifts a day with the viewer's time zone.
+function shortDateLabel(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  if (!m) return "";
+  return `${FRESH_MONTHS[Number(m[2]) - 1]} ${Number(m[3])}`;
+}
+
+// Whole days between a "2026-10-07"-style date and `now` (ms); null if unreadable.
+function daysSinceDate(iso, now) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  if (!m) return null;
+  const then = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const base = now == null ? Date.now() : now;
+  return Math.floor((base - then) / 86400000);
+}
+
+function freshnessChipHtml(o) {
+  const opts = o || {};
+  const parts = [];
+  if (opts.label) parts.push(opts.label);
+  if (opts.through != null && opts.through !== "") parts.push(Number(opts.through) > 0 ? `Through Week ${opts.through}` : "Season starts Week 1");
+  else if (opts.week != null && opts.week !== "") parts.push(`Week ${opts.week}`);
+  const dateText = opts.date ? shortDateLabel(opts.date) : "";
+  if (dateText) parts.push(dateText);
+  if (opts.note) parts.push(opts.note);
+  if (!parts.length) return "";
+  let tone = opts.tone;
+  if (!tone) {
+    tone = "snap";
+    const behindByWeeks = opts.through != null && opts.current != null && Number(opts.through) < Number(opts.current) - 1;
+    if (behindByWeeks) tone = "behind";
+  }
+  const title = opts.title ? ` title="${escapeHtml(opts.title)}"` : "";
+  return `<span class="fresh-chip fresh-${escapeHtml(tone)}"${title}>${escapeHtml(parts.join(" · "))}</span>`;
+}
+
+// The matchup worth featuring: the pair with the best combined record on the slate
+// (first one wins a tie). rawMatchups are Sleeper's matchup rows for one week;
+// standings carry { rosterId, wins }. Returns { a, b, sa, sb } with the higher
+// scorer as `a`, or null when no pair is posted. Home's Featured Matchup and the
+// Rivalries page's opening pair both read this, so they always agree.
+function featuredMatchupPair(rawMatchups, standings) {
+  const byRoster = new Map((standings || []).map((t) => [t.rosterId, t]));
+  const groups = new Map();
+  (rawMatchups || []).forEach((m) => {
+    if (m.matchup_id == null) return;
+    if (!groups.has(m.matchup_id)) groups.set(m.matchup_id, []);
+    groups.get(m.matchup_id).push(m);
+  });
+  let best = null;
+  let bestWins = -1;
+  groups.forEach((pair) => {
+    if (pair.length < 2) return;
+    const [a, b] = pair.slice().sort((x, y) => (y.points || 0) - (x.points || 0));
+    const sa = byRoster.get(a.roster_id) || null;
+    const sb = byRoster.get(b.roster_id) || null;
+    const combined = (sa ? sa.wins : 0) + (sb ? sb.wins : 0);
+    if (combined > bestWins) {
+      bestWins = combined;
+      best = { a, b, sa, sb };
+    }
+  });
+  return best;
+}

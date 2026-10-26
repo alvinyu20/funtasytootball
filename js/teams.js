@@ -21,7 +21,7 @@ async function renderTeams() {
     ]);
 
     if (seasonChain.length === 0) {
-      throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
+      throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
     }
 
     SEASON_AWARDS = seasonAwards;

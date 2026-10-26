@@ -13,9 +13,12 @@ async function renderPowerRankings() {
   const content = document.getElementById("pr-content");
 
   try {
+    // The NFL week is only used to tell if the snapshot is running behind;
+    // the page works fine without it.
+    const nflStatePromise = typeof SleeperAPI !== "undefined" ? SleeperAPI.getNflState().catch(() => null) : Promise.resolve(null);
     const snapshot = await fetchJsonSafe(POWER_RANKINGS_SNAPSHOT_FILE, null);
     if (!snapshot || !snapshot.rows || !snapshot.rows.length) {
-      throw new Error(`No data in ${POWER_RANKINGS_SNAPSHOT_FILE} yet — run node scripts/update-power-rankings.js first.`);
+      throw new Error("The first Power Rankings land after Week 1 is final \u2014 check back Tuesday.");
     }
 
     document.title = (SITE_TITLE || "League") + " — Power Rankings";
@@ -28,18 +31,19 @@ async function renderPowerRankings() {
       return;
     }
 
-    document.getElementById("sb-title").textContent = `${snapshot.season} · Week ${snapshot.week}`;
+    document.getElementById("sb-title").textContent = `${snapshot.season} · After Week ${snapshot.week}`;
     document.getElementById("sb-sub").textContent = `${snapshot.rows.length} teams · ${snapshot.playoffTeams} make the playoffs${snapshot.byeTeams ? `, top ${snapshot.byeTeams} get a bye` : ""}`;
 
-    const powerRankHistory = await fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} });
+    const [powerRankHistory, nflState] = await Promise.all([fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} }), nflStatePromise]);
     const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(snapshot.season)]) || {};
     const lastWeekRanks = seasonHistory[String(snapshot.week - 1)] || null;
+    const sameSeason = nflState && String(nflState.season) === String(snapshot.season);
 
     content.style.display = "";
-    content.innerHTML = renderContent(snapshot, lastWeekRanks);
+    content.innerHTML = renderContent(snapshot, lastWeekRanks, sameSeason ? nflState.week : null);
   } catch (err) {
     console.error(err);
-    errorBox.textContent = "Couldn't load power rankings — " + err.message;
+    errorBox.textContent = err.message && /first Power Rankings/.test(err.message) ? err.message : "Couldn't load the Power Rankings. Give it a minute and refresh the page.";
     errorBox.style.display = "block";
   }
 }
@@ -71,8 +75,8 @@ function renderPowerTable(snapshot, lastWeekRanks) {
       (r) => `
     <tr>
       <td class="rank" data-label="Rank">#${formatRank(r.powerRank)}</td>
+      <td class="team-cell"${r.username ? ` data-username="${escapeHtml(r.username)}"` : ""}>${escapeHtml(r.teamName)}</td>
       <td data-label="Δ">${deltaBadge(r, lastWeekRanks)}</td>
-      <td class="team-cell">${escapeHtml(r.teamName)}</td>
       <td data-label="PR Score">${r.prScore.toFixed(2)}</td>
       <td data-label="Record">${r.record}</td>
       <td data-label="Overall">${r.overallRecord}</td>
@@ -94,10 +98,10 @@ function renderPowerTable(snapshot, lastWeekRanks) {
   // very tall wall of label/value rows.
   return `
     <div class="heatmap-table-wrap stay-scrollable">
-      <table class="stat-table compact-mobile">
+      <table class="stat-table compact-mobile sticky-cols-2">
         <thead>
           <tr>
-            <th>Rank</th><th>Δ</th><th>Team</th><th>PR Score</th><th>Record</th><th>Overall</th>
+            <th>Rank</th><th>Team</th><th>Δ</th><th>PR Score</th><th>Record</th><th>Overall</th>
             <th>Luck</th><th>Avg PPG</th><th>Std Dev</th><th>Playoff%</th><th>Bye%</th><th>ROS</th><th>Boom</th><th>Bust</th>
           </tr>
         </thead>
@@ -121,26 +125,47 @@ function probCell(pct, rank) {
 
 function renderOddsTable(snapshot) {
   const n = snapshot.rows.length;
-  const header = Array.from({ length: n }, (_, i) => `<th>${i + 1}</th>`).join("");
+  const line = snapshot.playoffTeams > 0 && snapshot.playoffTeams < n ? snapshot.playoffTeams : 0; // last column that still makes the playoffs
+  const cut = (i) => (line && i + 1 === line ? " playoff-edge" : "");
+  const header = Array.from({ length: n }, (_, i) => `<th class="${i + 1 <= line ? "in-playoffs" : ""}${cut(i)}">${i + 1}</th>`).join("");
   const rows = snapshot.rows
-    .map((r) => `<tr><td class="team-cell">${escapeHtml(r.teamName)}</td>${(r.finishDistribution || []).map((pct, i) => probCell(pct, i + 1)).join("")}</tr>`)
+    .map((r) => {
+      const cells = (r.finishDistribution || []).map((pct, i) => probCell(pct, i + 1).replace("<td class=\"", `<td class="${line && i + 1 === line ? "playoff-edge " : ""}`)).join("");
+      return `<tr><td class="team-cell"${r.username ? ` data-username="${escapeHtml(r.username)}"` : ""}>${escapeHtml(r.teamName)}</td>${cells}</tr>`;
+    })
     .join("");
   return `
     <div class="heatmap-table-wrap stay-scrollable">
-      <table class="stat-table compact-mobile">
+      <table class="stat-table compact-mobile sticky-cols-1 odds-table">
         <thead><tr><th>Team</th>${header}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="heatmap-note">Probability of finishing in each final position, from a 1,000-run simulation as of the last update — columns are final rank (1st, 2nd, …).</p>`;
+    <p class="heatmap-note">Probability of finishing in each final position, from a 1,000-run simulation of the rest of the season — columns are final rank (1st, 2nd, …).${
+      line ? ` The gold line after ${ordinal(line)} place is the playoff cutoff.` : ""
+    }</p>`;
 }
 
-function renderContent(snapshot, lastWeekRanks) {
+// "Snapshot · Through Week 6 · Oct 13 · updates Tuesdays". Amber when the
+// NFL calendar has moved on by more than the one week a snapshot normally lags.
+function snapshotChip(snapshot, nflWeek) {
+  return freshnessChipHtml({
+    label: "Snapshot",
+    through: snapshot.week,
+    current: nflWeek,
+    date: snapshot.generatedAt,
+    note: "updates Tuesdays",
+    title: "Built after each week's final game, so it never mixes in a half-played week",
+  });
+}
+
+function renderContent(snapshot, lastWeekRanks, nflWeek) {
+  const chip = snapshotChip(snapshot, nflWeek);
   return `
     <div class="wrap"><div class="panel">
-      <h2>Power Rankings</h2>
+      <div class="panel-head"><h2>Power Rankings</h2>${chip}</div>
       ${renderPowerTable(snapshot, lastWeekRanks)}
-      <p class="heatmap-note">Weighted composite of record, all-play record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better. Updated ${escapeHtml(formatGeneratedAt(snapshot.generatedAt))} — see the footer for how to refresh this.</p>
+      <p class="heatmap-note">Weighted composite of record, all-play record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better.</p>
     </div></div>
 
     <div class="yard-divider">
@@ -149,7 +174,7 @@ function renderContent(snapshot, lastWeekRanks) {
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
-      <h2>Finish Probability By Rank</h2>
+      <div class="panel-head"><h2>Finish Probability By Rank</h2>${chip}</div>
       ${renderOddsTable(snapshot)}
     </div></div>
   `;
@@ -168,7 +193,7 @@ function renderPreseasonContent(snapshot) {
     .join("");
   return `
     <div class="wrap"><div class="panel">
-      <h2>Preseason Power Rankings</h2>
+      <div class="panel-head"><h2>Preseason Power Rankings</h2>${freshnessChipHtml({ label: "Preseason", note: "updates Tuesdays once games start", tone: "snap" })}</div>
       <div class="heatmap-table-wrap stay-scrollable">
         <table class="stat-table compact-mobile">
           <thead><tr><th>Rank</th><th>Team</th><th>Team Name</th></tr></thead>

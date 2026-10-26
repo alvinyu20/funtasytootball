@@ -28,6 +28,27 @@ async function sleeperGet(path) {
   return data;
 }
 
+/*
+  Static backup access (data/sleeper-archive/, refreshed weekly by the data
+  pipeline). A finished season can't change on Sleeper's end, so the backup
+  is exactly as correct as asking Sleeper again and far faster: one
+  same-origin file instead of a chain of live requests. Each file is only
+  fetched once per page view, however many callers ask for it.
+*/
+const _archiveCache = new Map();
+function archiveFetchOnce(key, path) {
+  if (!_archiveCache.has(key)) _archiveCache.set(key, fetchJsonSafe(path, null));
+  return _archiveCache.get(key);
+}
+
+// The only player-directory fields the site reads (every page, checked by
+// running them against a directory that logs what gets touched).
+const SLIM_PLAYER_FIELDS = ["full_name", "first_name", "last_name", "position", "team"];
+// Positions a fantasy roster in this league can hold. Anyone else only
+// makes the slim directory by appearing in the league's own history (the
+// build script passes those ids in as keepIds).
+const SLIM_PLAYER_POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF", "FB"];
+
 const SleeperAPI = {
   getLeague: (leagueId) => sleeperGet(`/league/${leagueId}`),
   getRosters: (leagueId) => sleeperGet(`/league/${leagueId}/rosters`),
@@ -40,18 +61,30 @@ const SleeperAPI = {
   getDraftPicks: (draftId) => sleeperGet(`/draft/${draftId}/picks`),
 
   /*
-    The full NFL player directory is ~5MB and Sleeper explicitly asks
-    that it not be fetched more than once a day per client, so this is
-    cached in localStorage (not the in-memory _cache, which resets on
-    every page load) with a timestamp. Reused across every page and
-    every visit until it's a week old.
+    The player directory (player ID -> name/position/team) every page uses
+    to turn IDs into names.
+
+    Sleeper's full directory is ~14 MB unzipped (about 2 MB over the wire).
+    That is too big for localStorage, so caching it silently failed and every
+    page on every visit downloaded it again. The pages only ever read five
+    fields from it, so the weekly data pipeline writes a slim copy
+    (data/players-slim.json, ~80 KB zipped, see scripts/build-fast-data.js)
+    and that is what gets loaded now.
+
+    If the slim file is missing, this falls back to the old route (browser
+    cache, then Sleeper live, then the repo's full backup) but trims the
+    result to the slim fields, so at least the browser cache works.
   */
   async getPlayerDirectory() {
-    const CACHE_KEY = "sleeper_players_nfl_v1";
-    const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
+    const slimPath = typeof PLAYERS_SLIM_FILE === "string" ? PLAYERS_SLIM_FILE : "data/players-slim.json";
+    const slimFile = await fetchJsonSafe(slimPath, null);
+    if (slimFile && slimFile.players && typeof slimFile.players === "object") return slimFile.players;
+
+    const CACHE_KEY = "sleeper_players_nfl_v2";
+    const MAX_AGE_MS = 24 * 60 * 60 * 1000; // Sleeper asks for at most one full download a day per client
     try {
       const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-      if (cached && Date.now() - cached.fetchedAt < MAX_AGE_MS) {
+      if (cached && cached.players && Date.now() - cached.fetchedAt < MAX_AGE_MS) {
         return cached.players;
       }
     } catch (err) {
@@ -73,12 +106,53 @@ const SleeperAPI = {
       players = archived;
     }
 
+    const slim = SleeperAPI.slimPlayerDirectory(players);
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), players }));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ fetchedAt: Date.now(), players: slim }));
     } catch (err) {
       console.warn("Couldn't cache player directory (localStorage full/unavailable):", err);
     }
-    return players;
+    return slim;
+  },
+
+  // Trims a full Sleeper player directory to the fields the site reads and
+  // to the players a roster here could hold. `positions` adds extra
+  // positions (say, IDP slots); `keepIds` keeps those players whatever their
+  // position. Entries keep the full directory's order.
+  slimPlayerDirectory(players, { positions = [], keepIds = [] } = {}) {
+    const wanted = new Set([...SLIM_PLAYER_POSITIONS, ...positions]);
+    const keep = new Set(Array.from(keepIds, String));
+    const out = {};
+    Object.keys(players || {}).forEach((pid) => {
+      const p = players[pid];
+      if (!p || typeof p !== "object") return;
+      const alsoPlays = Array.isArray(p.fantasy_positions) ? p.fantasy_positions : [];
+      if (!keep.has(pid) && !wanted.has(p.position) && !alsoPlays.some((x) => wanted.has(x))) return;
+      const entry = {};
+      SLIM_PLAYER_FIELDS.forEach((f) => {
+        if (p[f] != null && p[f] !== "") entry[f] = p[f];
+      });
+      out[pid] = entry;
+    });
+    return out;
+  },
+
+  // The whole saved list of seasons in the backup, or null if there is none.
+  getArchiveIndex() {
+    const file = typeof SLEEPER_ARCHIVE_INDEX_FILE === "string" ? SLEEPER_ARCHIVE_INDEX_FILE : "data/sleeper-archive/index.json";
+    return archiveFetchOnce("index", file).then((idx) => (Array.isArray(idx) ? idx : null));
+  },
+
+  // The backed-up copy of one season, or null when there isn't one the site
+  // can trust: no file, a different league, or a copy saved before the
+  // season finished (status not "complete") that the weekly backup hasn't
+  // refreshed yet.
+  async getArchivedSeason(season, leagueId) {
+    const data = await archiveFetchOnce(`season:${season}`, `data/sleeper-archive/${season}.json`);
+    const league = data && data.league;
+    if (!league || league.status !== "complete") return null;
+    if (leagueId != null && String(league.league_id) !== String(leagueId)) return null;
+    return data;
   },
 
   playerName(playerDirectory, playerId) {
@@ -115,14 +189,46 @@ const SleeperAPI = {
     ordered OLDEST -> NEWEST. Stops when previous_league_id is empty,
     missing, or "0". Caps at 40 seasons as a safety net against a
     corrupt/circular chain.
+
+    The starting (current) league always comes live from Sleeper. Every
+    earlier season that the backup holds as finished (see getArchiveIndex /
+    getArchivedSeason) is read from the backup instead, all downloaded in
+    parallel, with no Sleeper requests at all. A season the backup doesn't
+    have, or has only mid-season, is fetched live exactly as before.
   */
   async getSeasonChain(startLeagueId) {
     const seasons = [];
+    const fromBackup = []; // positions in `seasons` that were read from the backup
     let currentId = startLeagueId;
     let guard = 0;
 
+    // Start the backup downloads as soon as the (tiny) index arrives, in
+    // parallel with the live request for the current league below.
+    const indexPromise = SleeperAPI.getArchiveIndex();
+    indexPromise
+      .then((idx) => {
+        (idx || []).forEach((e) => {
+          if (e && e.status === "complete" && e.season != null) SleeperAPI.getArchivedSeason(e.season, e.leagueId);
+        });
+      })
+      .catch(() => {});
+    let index = null;
+
     while (currentId && currentId !== "0" && guard < 40) {
       guard++;
+
+      if (seasons.length > 0) {
+        if (index === null) index = (await indexPromise) || [];
+        const hit = index.find((e) => e && String(e.leagueId) === String(currentId));
+        const data = hit ? await SleeperAPI.getArchivedSeason(hit.season, currentId) : null;
+        if (data && Array.isArray(data.rosters) && Array.isArray(data.users)) {
+          seasons.push({ league: data.league, rosters: data.rosters, users: data.users, bracket: data.bracket || [] });
+          fromBackup.push(seasons.length - 1);
+          currentId = data.league.previous_league_id;
+          continue;
+        }
+      }
+
       let league;
       try {
         league = await SleeperAPI.getLeague(currentId);
@@ -140,6 +246,20 @@ const SleeperAPI = {
 
       seasons.push({ league, rosters, users, bracket });
       currentId = league.previous_league_id;
+    }
+
+    // Sleeper's league-users list always shows a manager's CURRENT display
+    // name and avatar, even for an old season. The backup froze those at
+    // backup time, so bring them up to date from the live current league
+    // (team names stay per season, as they are on Sleeper).
+    if (fromBackup.length && seasons[0] && !fromBackup.includes(0)) {
+      const live = new Map((seasons[0].users || []).map((u) => [u.user_id, u]));
+      fromBackup.forEach((i) => {
+        seasons[i].users = seasons[i].users.map((u) => {
+          const now = live.get(u.user_id);
+          return now ? { ...u, display_name: now.display_name, avatar: now.avatar } : u;
+        });
+      });
     }
 
     return seasons.reverse(); // oldest -> newest

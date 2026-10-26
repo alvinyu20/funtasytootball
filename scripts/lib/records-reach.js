@@ -11,11 +11,13 @@
             when the record is at most three weeks away.
 
   Only managers who played in the newest season count: a retired manager
-  can't catch anybody. Each record contributes its closest challenger, and
-  the closest few across the book are kept.
+  can't catch anybody. Every manager within range of a record is listed, the
+  closest one flagged `primary` — the Home page shows the primary ones to
+  everybody, and puts a manager's own chases first once they've picked their
+  team. The closest few across the book are kept.
 */
 
-const REACH_LIMIT = 6;
+const REACH_LIMIT = 40;
 const STREAK_MAX_GAP = 3;
 const STREAK_MIN_LENGTH = 3;
 
@@ -51,7 +53,7 @@ function reachItems(RecordBook, facts, opts) {
     if (!lead.key || !(lead.raw > 0)) return;
     const fmt = typeof def.fmt === "function" ? def.fmt : RecordBook.FORMATS[def.fmt || "int"];
 
-    let best = null;
+    const chasers = [];
     rows.forEach((r) => {
       if (!r.key || r.key === lead.key || !active.has(r.key) || !Number.isFinite(r.raw)) return;
       const gap = lead.raw - r.raw;
@@ -61,23 +63,26 @@ function reachItems(RecordBook, facts, opts) {
         ? lead.raw <= 20 ? gap <= 1 : gap / lead.raw <= 0.05
         : gap <= STREAK_MAX_GAP && r.raw >= STREAK_MIN_LENGTH;
       if (!near) return;
-      if (!best || gap < best.gap) best = { key: r.key, raw: r.raw, gap };
+      chasers.push({ key: r.key, raw: r.raw, gap });
     });
-    if (!best) return;
+    chasers.sort((a, b) => a.gap - b.gap);
 
-    items.push({
-      id: def.id,
-      title: def.title,
-      category: def.cat,
-      categoryTitle: category.title,
-      section: def.section,
-      kind: def.grows ? "total" : "streak",
-      challenger: ctx.name(best.key),
-      current: fmt(best.raw, {}),
-      holder: lead.name,
-      record: lead.valueText,
-      gap: fmt(best.gap, {}),
-      ratio: best.gap / lead.raw,
+    chasers.forEach((best, idx) => {
+      items.push({
+        id: def.id,
+        title: def.title,
+        category: def.cat,
+        categoryTitle: category.title,
+        section: def.section,
+        kind: def.grows ? "total" : "streak",
+        challenger: ctx.name(best.key),
+        current: fmt(best.raw, {}),
+        holder: lead.name,
+        record: lead.valueText,
+        gap: fmt(best.gap, {}),
+        ratio: best.gap / lead.raw,
+        primary: idx === 0,
+      });
     });
   });
 

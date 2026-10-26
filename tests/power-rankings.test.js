@@ -96,7 +96,7 @@ test("renderOddsTable: one column per possible finishing position, matching the 
   const ctx = setup();
   const snapshot = { rows: [fakeRow({ teamName: "A", finishDistribution: [100, 0, 0] }), fakeRow({ teamName: "B", finishDistribution: [0, 100, 0] }), fakeRow({ teamName: "C", finishDistribution: [0, 0, 100] })] };
   const html = ctx.renderOddsTable(snapshot);
-  const headerCols = [...html.matchAll(/<th>(\d+)<\/th>/g)].map((m) => m[1]);
+  const headerCols = [...html.matchAll(/<th class="[^"]*">(\d+)<\/th>/g)].map((m) => m[1]);
   assert.deepStrictEqual(headerCols, ["1", "2", "3"]);
 });
 

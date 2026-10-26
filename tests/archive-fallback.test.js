@@ -13,7 +13,8 @@ test("fetchSeasonDeep: prefers the static archive for a completed season when on
   const { DeepHistory } = ctx;
 
   const archiveContent = {
-    league: { league_id: "L1", season: "2023" },
+    // status "complete" matters: a backup saved before its season finished is not served as a finished season.
+    league: { league_id: "L1", season: "2023", status: "complete" },
     rosters: [{ roster_id: 1 }],
     users: [{ user_id: "u1" }],
     bracket: [],

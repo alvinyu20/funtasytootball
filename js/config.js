@@ -37,13 +37,6 @@ const SITE_TITLE = "";
 const MANUAL_HISTORY_FILE = "data/manual-history.json";
 
 /*
-  NEWSLETTERS_FILE
-  -----------------
-  Path to the newsletter index. See data/newsletters.json.
-*/
-const NEWSLETTERS_FILE = "data/newsletters.json";
-
-/*
   SEASON_AWARDS_FILE
   --------------------
   Path to manually-voted "Season End Awards" (Best FA Pickup, Worst Draft
@@ -137,6 +130,31 @@ const RECORDS_FEED_FILE = "data/records-feed.json";
 const RECORDS_HISTORY_FILE = "data/records-history.json";
 
 /*
+  PLAYERS_SLIM_FILE
+  --------------------
+  The NFL player directory the pages actually load: every fantasy-relevant
+  player (and anyone who has ever appeared in this league) with just the
+  five fields the site reads — name parts, position, team. About 80 KB
+  instead of the ~2 MB (14 MB unzipped) full directory Sleeper serves, which
+  also never fit in the browser's storage, so every page had to re-download
+  it. Built by scripts/build-fast-data.js after the weekly Sleeper backup;
+  if the file is missing the site falls back to the full directory.
+*/
+const PLAYERS_SLIM_FILE = "data/players-slim.json";
+
+/*
+  SLEEPER_ARCHIVE_INDEX_FILE
+  --------------------
+  A tiny list of the seasons in data/sleeper-archive/ (season, league id,
+  previous league id, status) so the site can read every finished season
+  from the backup in one parallel step instead of walking Sleeper's
+  previous_league_id chain one live request at a time. Built by
+  scripts/build-fast-data.js; if it's missing the site walks the chain live
+  like it always did.
+*/
+const SLEEPER_ARCHIVE_INDEX_FILE = "data/sleeper-archive/index.json";
+
+/*
   PLAYER_INDEX_FILE
   --------------------
   Precomputed player ownership history (Sleeper era only) — who owned
@@ -145,6 +163,17 @@ const RECORDS_HISTORY_FILE = "data/records-history.json";
   NFL Player search page. Regenerate with `node scripts/build-player-index.js`.
 */
 const PLAYER_INDEX_FILE = "data/player-index.json";
+
+/*
+  WAIVER_CLEAR_HOUR_ET
+  --------------------
+  The hour (Eastern Time, 24-hour clock) that waivers clear on your league's
+  waiver day. Sleeper doesn't publish this, so it's measured from the league's
+  own history: about 90% of completed waiver claims in 2023-2026 processed
+  around 3 AM ET. The Home page's "Next waivers" countdown uses it together
+  with the league's waiver day from Sleeper.
+*/
+const WAIVER_CLEAR_HOUR_ET = 3;
 
 /*
   LAST_FANTASY_WEEK

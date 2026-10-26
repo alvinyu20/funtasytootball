@@ -817,7 +817,7 @@
 
   // Team raw stats — fed by data/team-raw-stats.json (scripts/build-team-raw-stats.js).
   const RAW_DESC = "Raw production from submitted starting lineups.";
-  const RAW_PENDING = "Waiting on data — run the “Build Team Raw Stats” workflow once (GitHub → Actions → Run workflow) and this fills in.";
+  const RAW_PENDING = "Still being compiled — this fills in after the next weekly update.";
   const RAW_NOTE = "Regular-season starting lineups only.";
   RecordBook.RAW_STATS.forEach((stat) => {
     add({

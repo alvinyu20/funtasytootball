@@ -35,7 +35,7 @@ async function renderSeasonPage() {
       fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
     ]);
     if (seasonChain.length === 0) {
-      throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
+      throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
     }
 
     SEASON_CHAIN = seasonChain;
@@ -193,7 +193,7 @@ async function renderSelectedSeason() {
     document.title = (SITE_TITLE || leagueName || "League") + " — " + summary.season + " Season";
     document.getElementById("sb-title").textContent = summary.season + " Season";
     document.getElementById("sb-sub").textContent =
-      summary.status === "complete" ? `${summary.weeksPlayed} weeks played` : `In progress · ${summary.weeksPlayed} weeks so far`;
+      summary.status === "complete" ? `${summary.weeksPlayed} weeks played` : `In progress \u00b7 through Week ${summary.weeksPlayed}`;
   } catch (err) {
     console.error(err);
     progressBox.style.display = "none";
@@ -1024,7 +1024,7 @@ function renderPowerRankHistorySection(season) {
       key: "rank",
       label: "Power Rank By Week",
       chart: Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, rankMode: true, formatter: (v) => v.toFixed(0) }),
-      note: `Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season haven't been identified yet and are labeled by their preseason rank — see data/power-rank-csv-history.json." : ""}`,
+      note: `Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season couldn't be matched to a manager and are labeled by their preseason rank." : ""}`,
     },
     yearData.scores && {
       key: "score",
@@ -1115,6 +1115,12 @@ function renderAwardsSection(season) {
     <div class="wrap">
       <div class="records-grid">${cards}</div>
     </div>`;
+}
+
+// The title over the standings table. A season still in progress isn't "final" yet.
+function standingsLabel(s) {
+  if (s.season === "All-Time" || s.status === "complete") return "Final Standings";
+  return s.weeksPlayed ? `Standings \u00b7 Through Week ${s.weeksPlayed}` : "Standings";
 }
 
 function renderSummary(s) {
@@ -1268,12 +1274,12 @@ function renderSummary(s) {
 
     <div class="yard-divider">
       <span class="tick"></span><div class="line"></div>
-      <span class="label">Final Standings</span>
+      <span class="label">${escapeHtml(standingsLabel(s))}</span>
       <div class="line"></div>
     </div>
     <div class="wrap"><div class="panel">
       <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile">
+        <table class="stat-table compact-mobile sticky-cols-2">
           <thead><tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th>PA</th><th>Avg/Wk</th><th>Overall</th><th>Luck</th>${isTotal ? "" : "<th>SOS</th>"}</tr></thead>
           <tbody>${standingsRows}</tbody>
         </table>

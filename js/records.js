@@ -145,6 +145,17 @@ function rbEventWhen(e) {
   return `${e.season} Wk ${e.week}`;
 }
 
+// "2026 record dates · Through Week 5 · updates Tuesdays": the Set-on dates and NEW
+// badges come from the weekly history file, so say which week they run through.
+function rbShowHistoryFreshness(history) {
+  const el = document.getElementById("records-fresh");
+  if (!el) return;
+  const asOf = history && history.asOf;
+  el.innerHTML = asOf && asOf.week != null
+    ? freshnessChipHtml({ label: `${asOf.season} record dates`, through: asOf.week, note: "updates Tuesdays", title: "The records themselves are worked out live; the Set dates and NEW badges are rebuilt every Tuesday" })
+    : "";
+}
+
 // The history for a record, but only if it still describes the holder the
 // page is showing: the file is rebuilt weekly, so after a fresh week of play
 // the live numbers can run ahead of it, and a stale date is worse than none.
@@ -279,7 +290,7 @@ function rbCategoryHtml(opts) {
     );
   }
   if (rawPending) {
-    notices.push("The Team Raw Stats records are waiting on data — run the “Build Team Raw Stats” workflow once (GitHub → Actions → Run workflow) and they fill in.");
+    notices.push("The Team Raw Stats records (passing yards, receptions, touchdowns and more) are still being compiled — they fill in after the next weekly update.");
   }
 
   return `
@@ -417,9 +428,10 @@ async function renderRecords() {
       fetchJsonSafe(RECORDS_HISTORY_FILE, null),
     ]);
     RB_STATE.history = history && history.records ? history : null;
+    rbShowHistoryFreshness(RB_STATE.history);
 
     if (seasonChain.length === 0) {
-      throw new Error("Couldn't load any seasons. Double-check LEAGUE_ID in js/config.js.");
+      throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
     }
 
     const latest = seasonChain[seasonChain.length - 1].league;

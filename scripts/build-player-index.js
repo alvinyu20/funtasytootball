@@ -34,6 +34,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { finishedWeeksOf } = require("./lib/finished-weeks");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const CONFIG_PATH = path.join(REPO_ROOT, "js", "config.js");
@@ -97,7 +98,7 @@ async function loadSeasonWeeks(seasonEntry, lastFantasyWeek) {
   if (fs.existsSync(archivePath)) {
     try {
       const archived = JSON.parse(fs.readFileSync(archivePath, "utf8"));
-      if (Array.isArray(archived.weeks)) return archived.weeks;
+      if (Array.isArray(archived.weeks)) return finishedWeeksOf({ league: archived.league || seasonEntry.league, rosters: archived.rosters || seasonEntry.rosters }, archived.weeks, archived.nflWeek);
     } catch (err) {
       console.warn(`${season}: archive file unreadable (${err.message}) — fetching live instead.`);
     }
@@ -114,7 +115,7 @@ async function loadSeasonWeeks(seasonEntry, lastFantasyWeek) {
     if (!matchups || matchups.length === 0) break;
     weeks.push({ week, matchups });
   }
-  return weeks;
+  return finishedWeeksOf(seasonEntry, weeks, null);
 }
 
 function loadArchivedPlayerDirectory() {

@@ -17,14 +17,19 @@
   functions against a tiny fixture league.
 */
 
+const { finishedWeeksOf } = require("./finished-weeks");
+
 const EPS = 1e-9;
 
 // "Played" the way DeepHistory.fetchSeasonDeep decides it: a week with at
-// least one real score in it.
+// least one real score in it that is also FINISHED. A week in progress has
+// partial scores and must not be replayed as if it were a result.
 function playedWeeks(archive) {
-  return (archive.weeks || [])
-    .filter(({ matchups }) => (matchups || []).some((m) => (m.points || 0) > 0))
-    .sort((a, b) => a.week - b.week);
+  return finishedWeeksOf(
+    archive,
+    (archive.weeks || []).filter(({ matchups }) => (matchups || []).some((m) => (m.points || 0) > 0)),
+    archive.nflWeek
+  ).sort((a, b) => a.week - b.week);
 }
 
 // Every (season, week) there is something to replay, oldest first.

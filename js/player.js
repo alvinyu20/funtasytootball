@@ -15,10 +15,11 @@ async function renderPlayers() {
     document.title = (SITE_TITLE || "League") + " — NFL Players";
     document.getElementById("sb-sub").textContent = playerCount
       ? `${playerCount} player${playerCount === 1 ? "" : "s"} who've started for a team, Sleeper era`
-      : "No player data yet — run scripts/build-player-index.js to generate it.";
+      : "Player data is still being built — check back after the next weekly update.";
 
     initPlayerSearch();
     initRandomPlayerButton();
+    renderPlayerBoards();
     renderFromHash();
     window.addEventListener("hashchange", renderFromHash);
   } catch (err) {
@@ -27,6 +28,127 @@ async function renderPlayers() {
     errorBox.textContent = "Couldn't load player data — " + err.message;
     errorBox.style.display = "block";
   }
+}
+
+// ---------------------------------------------------------------
+// What the page shows before anybody has searched: three leaderboards
+// built from the same index the search reads. Click a name to open
+// that player.
+// ---------------------------------------------------------------
+const BOARD_SIZE = 8;
+const TRENDING_WEEKS = 3;
+
+// The newest weeks that were actually played: a week counts once somebody
+// scored in it (rows for weeks still to come carry zeros).
+function recentPlayedWeeks(index, count) {
+  const played = new Set();
+  Object.values(index || {}).forEach((p) =>
+    (p.weekly || []).forEach((w) => {
+      if ((w.points || 0) !== 0) played.add(`${w.season}|${w.week}`);
+    })
+  );
+  return [...played]
+    .map((k) => {
+      const [season, week] = k.split("|");
+      return { season, week: Number(week) };
+    })
+    .sort((a, b) => Number(a.season) - Number(b.season) || a.week - b.week)
+    .slice(-count);
+}
+
+function playerLeaderboards(index, size) {
+  const limit = size || BOARD_SIZE;
+  const rows = Object.entries(index || {}).map(([id, p]) => ({ id, p }));
+  // `tiebreak` matters for Most Rostered: every week of league history is a
+  // possible game on a roster, so a pile of players sit on that maximum
+  // together. Ranking those by alphabet would just crown whoever's name
+  // sorts first, so ties fall to games actually started, then owners.
+  const top = (list, valueOf, tiebreak) =>
+    list
+      .map((r) => ({ ...r, value: valueOf(r.p) }))
+      .filter((r) => r.value > 0)
+      .sort(
+        (a, b) =>
+          b.value - a.value ||
+          (tiebreak ? tiebreak(b.p) - tiebreak(a.p) : 0) ||
+          String(a.p.name).localeCompare(String(b.p.name))
+      )
+      .slice(0, limit);
+
+  const startsOf = (p) => ((p.totals && p.totals.gamesStarted) || 0) * 1000 + ((p.totals && p.totals.owners) || 0);
+  const rostered = top(rows, (p) => (p.totals && p.totals.gamesOwned) || 0, startsOf).map((r) => ({
+    id: r.id,
+    name: r.p.name,
+    position: r.p.position,
+    valueText: `${r.value} games`,
+    sub: `${r.p.totals.owners} owner${r.p.totals.owners === 1 ? "" : "s"} · ${r.p.totals.gamesStarted || 0} starts`,
+  }));
+
+  const career = top(rows, (p) => (p.totals && p.totals.totalPoints) || 0).map((r) => ({
+    id: r.id,
+    name: r.p.name,
+    position: r.p.position,
+    valueText: `${Math.round(r.value).toLocaleString("en-US")} pts`,
+    sub: `${r.p.totals.ppg != null ? r.p.totals.ppg.toFixed(1) : "—"} ppg · ${r.p.totals.gamesPlayed} games played`,
+  }));
+
+  const weeks = recentPlayedWeeks(index, TRENDING_WEEKS);
+  const inWindow = new Set(weeks.map((w) => `${w.season}|${w.week}`));
+  const newest = weeks[weeks.length - 1];
+  const trending = top(rows, (p) =>
+    (p.weekly || []).filter((w) => inWindow.has(`${w.season}|${w.week}`)).reduce((sum, w) => sum + (w.points || 0), 0)
+  ).map((r) => {
+    const latest = (r.p.weekly || []).find((w) => newest && w.season === newest.season && w.week === newest.week);
+    const lastSpan = (r.p.spans || [])[(r.p.spans || []).length - 1];
+    const owner = latest && latest.owned && lastSpan ? lastSpan.ownerName : null;
+    return {
+      id: r.id,
+      name: r.p.name,
+      position: r.p.position,
+      valueText: `${r.value.toFixed(1)} pts`,
+      sub: owner ? `on ${owner}'s roster` : "free agent",
+    };
+  });
+
+  return { rostered, career, trending, weeks };
+}
+
+function leaderboardHtml(title, note, rows) {
+  const list = rows.length
+    ? rows
+        .map(
+          (r, i) => `
+      <a class="rank-list-row player-board-row" href="#${encodeURIComponent(r.id)}">
+        <span class="rank-num">${i + 1}</span>
+        <span class="desc">${escapeHtml(r.name)}${r.position ? ` <span class="muted-inline">${escapeHtml(r.position)}</span>` : ""}<span class="sub">${escapeHtml(r.sub)}</span></span>
+        <span class="val">${escapeHtml(r.valueText)}</span>
+      </a>`
+        )
+        .join("")
+    : `<div class="empty-state">Nothing to rank yet.</div>`;
+  return `
+    <div class="panel player-board">
+      <h2>${escapeHtml(title)}</h2>
+      <p class="heatmap-note" style="margin: -6px 0 10px;">${escapeHtml(note)}</p>
+      <div class="rank-list">${list}</div>
+    </div>`;
+}
+
+function renderPlayerBoards() {
+  const el = document.getElementById("player-empty-view");
+  if (!el) return;
+  const boards = playerLeaderboards(PLAYER_INDEX);
+  if (!boards.rostered.length && !boards.career.length) return; // keep the plain "search above" message
+  const w = boards.weeks;
+  const span = w.length ? (w.length === 1 ? `Week ${w[0].week}` : `Weeks ${w[0].week}\u2013${w[w.length - 1].week}`) : "";
+  el.classList.remove("panel");
+  el.innerHTML = `
+    <p class="heatmap-note" style="margin: 0 0 14px;">Search above, or start with the players this league leans on most.</p>
+    <div class="player-boards">
+      ${leaderboardHtml("Most Rostered", "Games on a roster in this league's Sleeper-era history", boards.rostered)}
+      ${leaderboardHtml("Best Career", "Total fantasy points while playing", boards.career)}
+      ${leaderboardHtml("Trending", span ? `Points over the last ${w.length} finished week${w.length === 1 ? "" : "s"} (${w[w.length - 1].season} ${span})` : "Points over the latest finished weeks", boards.trending)}
+    </div>`;
 }
 
 function initRandomPlayerButton() {
