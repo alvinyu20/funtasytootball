@@ -148,7 +148,7 @@ test("Hot & Cold + Power Rankings panels: the live render path filters to finish
   const hot = ctx.document.getElementById("hotcold-fresh").innerHTML;
   assert.ok(hot.includes("Through Week 4") && hot.includes("fresh-behind"), "week 6 is being played, so a week-4 panel is flagged");
   const pr = ctx.document.getElementById("pr-fresh").innerHTML;
-  assert.ok(pr.includes("Snapshot") && pr.includes("Through Week 4") && pr.includes("updates Tuesdays"));
+  assert.ok(pr.includes("Snapshot") && pr.includes("Through Week 4") && pr.includes("updates with each ROS refresh") && !pr.includes("Tuesday"));
 });
 
 // ---- league pulse --------------------------------------------------------------------------------
@@ -426,7 +426,7 @@ test("Power Rankings page: a snapshot chip beside the table title, with no refre
   };
   ctx.__s = snapshot;
   const html = runInLoadedContext(ctx, `renderContent(__s, null, 7)`);
-  assert.ok(html.includes("Snapshot · Through Week 6 · Oct 20 · updates Tuesdays"));
+  assert.ok(html.includes("Snapshot · Through Week 6 · Oct 20 · updates with each ROS refresh"));
   assert.ok(html.includes("fresh-snap") && !html.includes("fresh-behind"));
   assert.ok(!/footer|script|data\//i.test(visibleHtml(html)));
   assert.ok(runInLoadedContext(ctx, `renderContent(__s, null, 9)`).includes("fresh-behind"), "week 9 is being played; week 6 is stale");

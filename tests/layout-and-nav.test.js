@@ -133,3 +133,12 @@ test("Home's Standings table pins Team and tucks the extra columns behind the 'm
   assert.ok(html.includes('id="standings-more"'));
   assert.ok((html.match(/class="col-more"/g) || []).length >= 3);
 });
+
+test("Home no longer has the From The Archives strip: no markup, no renderer, no styles (the season-awards data still feeds the Season and Teams pages)", () => {
+  assert.ok(!/history-callout|history-strip|From The Archives/i.test(read("index.html")));
+  const dashboard = read("js/dashboard.js");
+  assert.ok(!/renderHistoryCallout|history-callout/.test(dashboard));
+  assert.ok(!/SEASON_AWARDS_FILE/.test(dashboard), "Home no longer downloads season-awards.json for it");
+  assert.ok(!/history-callout|history-strip/.test(read("css/styles.css")));
+  assert.ok(/SEASON_AWARDS_FILE/.test(read("js/season.js")) && /SEASON_AWARDS_FILE/.test(read("js/teams.js")), "other pages still use the awards file");
+});

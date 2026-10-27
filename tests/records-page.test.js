@@ -86,7 +86,7 @@ test("category page: the season filter keeps its place in each pill's link and m
   assert.ok(html.includes("Showing <strong>2022</strong>"));
 });
 
-test("record rows: value, holder and an expandable top-10 list; lowlight records get the red accent", () => {
+test("record rows: value, holder and an expandable top-10 list; lowlight records get the orange accent", () => {
   const ctx = setup();
   const html = pageHtml(ctx, "careers", "all");
   const win = html.slice(html.indexOf('data-record="career-wins"'));
@@ -266,7 +266,7 @@ test("Seasons page has a Power Rankings & Playoff Odds section with the seven ne
   );
   const clinch = html.slice(html.indexOf('data-record="earliest-playoff-clinch"'));
   assert.match(clinch.slice(0, 1200), /rb-value">Week 2</);
-  // the "worst" extremes carry the red lowlight accent
+  // the "worst" extremes carry the orange lowlight accent
   assert.match(html, /<details class="rb-row rb-low" data-record="highest-pr-score"/);
   assert.match(html, /<details class="rb-row rb-low" data-record="most-weeks-last-pr"/);
   assert.match(html, /<details class="rb-row" data-record="lowest-pr-score"/);

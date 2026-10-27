@@ -246,8 +246,11 @@ the draft, when there's nothing to rank yet.
 Power Rank, Power Score (2024+), and Playoff Odds (2024+) week by week,
 recovered from your old tracking spreadsheets and put in
 `data/power-rank-csv-history.json`. Only shows up for years that have
-data in that file (currently 2021–2025; 2020 is intentionally omitted —
-that data was never recovered). Note: `Pathieu` (2021–2022) and `paty23`
+data in that file (2019–2025 are the recovered years, with scores and
+odds from 2021; the **current season is rebuilt by the Power Rankings
+Update workflow whenever you push a new `data/team-strength.json`**, see
+"Current-season Power Rank History" and "Power Rankings Run Only When You
+Say So" below). Note: `Pathieu` (2021–2022) and `paty23`
 (2023+) are two different people, both named Patrick — Pathieu left the
 league and paty23 joined afterward — so they're kept as separate entries
 in the data, not merged into one.
@@ -1762,9 +1765,8 @@ Six new sections, all live/computed — nothing manual to maintain:
   season's finished weeks.
 - **Recent Activity** — the last several trades and adds (waiver or free
   agent), pulled from this week's and last week's transactions.
-- **From The Archives** — a rotating callout from `season-awards.json`,
-  picked deterministically by the day of the year (stable within a day,
-  different the next).
+- ~~From The Archives~~ — a daily callout from `season-awards.json`. It was
+  removed from Home (the awards file still feeds the Season and Teams pages).
 
 Streaks and the Power Rankings snapshot need this season's full weekly
 history, which the Home page didn't fetch before — it now pulls the
@@ -1836,7 +1838,11 @@ has — no new manual input needed:
   single-season scoring performances, by weekly-score standard
   deviation.
 - **Toughest/Easiest Schedule** — the highest and lowest average
-  opponent score faced across a single season.
+  opponent score faced across a single season. (That number is exactly
+  Points Against per game, which is also what Home's and Seasons' "SOS"
+  column shows. For the current season, the Power Rankings page now has a
+  truer version; see "Strength of Schedule, Weekly Scores, Lineup Slots and
+  a Blue/Orange Color Scheme" below.)
 
 ## Power Rankings
 
@@ -2159,7 +2165,8 @@ Four changes that came out of a review of the live site.
 
 **1. Freshness chips.** Every panel whose numbers come from a weekly
 snapshot now carries a small tag saying which week it covers and how it
-updates — e.g. `Snapshot · Through Week 6 · Oct 20 · updates Tuesdays`.
+updates — e.g. `Snapshot · Through Week 6 · Oct 20 · updates with each ROS refresh`
+(Power Rankings panels; the others say `updates Tuesdays`).
 "Through Week N" always means the last *finished* week, so it can sit
 next to Home's "Week 7" (the week being played) without contradicting it.
 A chip turns amber when the data is more than one finished week behind
@@ -2191,7 +2198,7 @@ they can't creep back.
 **3. Home leads with the week.** Order: league pulse strip → This Week's
 Matchups (with Featured Matchup and Hot & Cold beside them) → Standings →
 Power Rankings + Recent Activity → Latest Records + Records in Reach (5
-each) → From the Archives (a slim strip) → Last Week's Matchups
+each) → Last Week's Matchups
 (collapsed on phones). The pulse strip replaces the big wordmark (the nav
 already carries it): the week, when waivers run next, the week's top score
 and closest game (both from the last *finished* week), and your own
@@ -2297,8 +2304,141 @@ Trending (points over the last three finished weeks).
 **Layout.** Stacked cards always have a 24px gap (`.panel + .panel` and
 the wrap rules, with grids exempt because their own gap does the spacing);
 Season labels an in-progress year "Standings · Through Week N" instead of
-"Final Standings"; From the Archives is a slim strip. From 1000px up the
+"Final Standings"; From the Archives is gone from Home. From 1000px up the
 nav is a persistent tab bar; the hamburger stays on tablets and phones.
+
+## Current-season Power Rank History (and From the Archives removed)
+
+**The current season was missing its three Power Rank charts.** The Season
+page draws them from `data/power-rank-csv-history.json`, and the weekly
+script (`scripts/update-power-rankings.js`) does rebuild that file's entry
+for the in-progress year. The workflow's commit step, though, only staged
+the snapshot and `power-rank-history.json`, so the rebuilt file was thrown
+away every Tuesday and 2026 never appeared. The workflow now stages all
+three files (`.github/workflows/update-power-rankings.yml`; a test checks
+that every file the script writes is in that `git add`). **Copy the updated
+workflow file into your repo along with the rest.**
+
+A second bug would have made the charts wrong once they showed up: the
+script re-runs `computePowerRankings` once per finished week, but that
+function reads each team's record from the rosters, which hold *today's*
+record, so every past week was ranked on the latest record and its playoff
+simulation counted later weeks twice. `rostersAsOfWeek` in the script now
+rebuilds each roster's record and points as of the week being computed
+(regular season only, ties counted, cents kept). The newest week reuses the
+result the snapshot was just built from, so the chart ends exactly on the
+Power Rankings page (the odds simulation is random, so a second run would
+differ slightly).
+
+2026 was seeded now from the committed archive (Weeks 1–5, matching the
+Oct 13 snapshot), so the charts show immediately. The next Power Rankings
+run (a pushed `team-strength.json` or Run workflow) rebuilds the whole entry
+through the latest finished week. Because 2026
+data now exists, the Records feed also picks up this season's Power
+Ranking records (Highest / Lowest Power Ranking Score) on its next build.
+
+**From the Archives is removed from Home** (markup, renderer and styles).
+`data/season-awards.json` stays: the Season and Teams pages still use it.
+
+## Strength of Schedule, Weekly Scores, Lineup Slots and a Blue/Orange Color Scheme
+
+Three sections now sit under the Power Rankings table and the Finish
+Probability heatmap: **Strength of Schedule** (two panels), **Every Week, One
+Dot** and **Where Each Lineup Is Strong Or Thin**. They came from the mockup
+PDF; the numbers on the page are computed from the real games (Week 5 as of
+the first build; the mockups were Week 7, so nothing matches them digit for
+digit).
+
+**Where the numbers come from.** `scripts/update-power-rankings.js` now writes
+a fourth file next to the snapshot, `data/power-rankings-extras.json`, using
+the pure functions in `scripts/lib/pr-extras.js`. The page only reads it, same
+rule as the rest of the page (no live calculation, never a half-played week).
+The file carries the snapshot's season and week, and the page drops the
+sections entirely if they don't match the snapshot above them. The workflow's
+`git add` lists the new file (a test checks that every file the script writes
+is staged, and that the committed file has the snapshot's week). **Copy the
+updated `update-power-rankings.yml` into your repo with the rest.**
+
+- **Schedule Faced So Far.** The old SOS column is really Points Against per
+  game (the average score the team's opponents put up against it), so it
+  just repeats PA/G. *True SOS* is, for every game a team played, the
+  opponent's average score in all of its **other** games (this game left out),
+  averaged over the season. Hardest first; a hollow ring marks the old PA/G
+  number, the filled dot the true one, with both ranks on the right. Rows that
+  move 4+ spots between the two are tinted (the threshold is a third of the
+  league, never under 3). The sentence underneath names the biggest flip.
+  True SOS needs two finished weeks (an opponent needs another game to be
+  averaged), so Week 1 shows only the Road Ahead panel.
+- **Road Ahead.** The rest of each team's regular-season schedule from
+  Sleeper, with every opponent rated by its points per game so far, shown as
+  distance from the league average (orange bar = harder than average, blue =
+  easier). It's a proxy, not a projection; the on-page note says so.
+- **Every Week, One Dot.** One dot per finished regular-season week, a white bar
+  for the team's average, a dashed line for the league average, and
+  low / high on the right. Sorted by average, the average equals the Power
+  Rankings table's Avg PPG. Hover a row for every week's score. The sentence
+  underneath names the steadiest team and the wildest, by the gap between best
+  and worst week.
+- **Lineup slot heatmap.** For each starter slot (QB, RB1, RB2, WR1, WR2, TE,
+  FLEX, SFLX, K, DEF in the league's own lineup order) the team's average
+  minus the league's average for that slot, plus the sum across the slots in a
+  "vs Avg" column. It reuses `DeepHistory.buildPositionTable`, the same slot
+  labelling as Seasons' By Starting Slot (the best RB goes in RB1 even if he
+  started in FLEX). One fixed color scale, saturating at +/-10 points per game,
+  so a color means the same thing in every cell.
+
+All three sections use regular-season weeks only, to agree with the table's
+Avg PPG, and the "My team" highlight picks up the matching row in each. On a
+phone the schedule and score rows put the name and the numbers on one line
+with the plot under them; the slot table scrolls sideways with Team pinned.
+
+**Blue is good, orange is bad, everywhere.** The heatmap colors are the
+mockup's: orange `#7C5D31`, a dark neutral `#1C4036` that melts into the panel,
+and blue `#336B7A` (sampled from its legend). One scale now covers every
+heatmap on the site (`heatColor` in `js/utils.js`, with `--heat-low/-mid/-high`
+in the stylesheet; Rank still runs the other way round so rank 1 is blue). The
+rest of the green/red is swapped for a single pair of tokens, `--good #4EA8DD`
+and `--bad #F0A340`: luck and the up/down arrows, "in progress" and live
+labels, grade badges (blue to pale to orange), a record's lowlight accent, the
+playoff-odds chart's Clinched / Eliminated callouts, and the legend sentences
+under the heatmaps. Left alone on purpose, because they say *who*, not *good
+or bad*: the WR color on the draft board, the mascot's toot puff, the team
+line colors in the charts, and the error message's rust color. A test
+(`tests/color-scheme.test.js`) fails if a green- or red-hued color comes back
+anywhere else.
+
+## Power Rankings Run Only When You Say So
+
+The Power Rankings Update workflow (`.github/workflows/update-power-rankings.yml`)
+no longer has a Tuesday schedule. It runs in exactly two cases:
+
+1. **You push a change to `data/team-strength.json`** (the weekly FantasyPros
+   ROS ranks). That is the normal weekly step: type in the ranks, bump
+   `asOf`, commit, push. Do it after Monday night's game is final and
+   Sleeper has rolled to the next week (early Tuesday). Run earlier, it just
+   rebuilds the previous week. If the ranks didn't change, still change
+   `asOf`: GitHub only starts the run when the file itself changed.
+2. **You press "Run workflow"** on that workflow in the repo's Actions tab
+   (`workflow_dispatch`). Use it after copying new site code into the repo, or
+   when the ranks didn't move. Delete that one line from the workflow if you
+   never want the button.
+
+Each run rewrites four files: the snapshot, `power-rank-history.json`,
+`power-rank-csv-history.json` and `power-rankings-extras.json`, from live
+Sleeper results. The workflow's own commit doesn't start another run
+(GitHub ignores pushes made with its built-in token), and a push that only
+touches other files, including this zip's code, never starts one either.
+A test (`update-power-rankings.test.js`) fails if a `schedule:`/`cron:` line
+comes back or if any other file is added to the trigger list.
+
+What this changes on the site: the Power Rankings page, the Home Power Rankings
+panel, the Season page's Power Rank charts and the three Strength of Schedule
+sections only move when one of those two things happens, and their chips say
+`updates with each ROS refresh`. They turn amber once they are more than one
+finished week behind Sleeper's calendar. Everything else (Standings, matchups,
+Seasons, Records dates) is unchanged; the other workflows keep their Tuesday
+schedules, including the Records feed (which reads the Power Rank charts' file,
+so Power Ranking records follow whatever the last Power Rankings run wrote).
 
 ## Why Visitors Used To Need A Hard Refresh (Cache-Busting)
 

@@ -134,15 +134,15 @@ test("findPlayoffOddsAnnotations: returns EVERY team's own clinch/elimination, n
   const teamB = annotations.find((a) => a.seriesName === "teamB");
   assert.strictEqual(teamA.pointIndex, 1, "teamA clinches at week index 1");
   assert.strictEqual(teamB.pointIndex, 2, "teamB clinches later, at week index 2 — its own moment, not teamA's");
-  assert.strictEqual(teamA.color, "var(--gold)");
-  assert.strictEqual(teamB.color, "var(--gold)");
+  assert.strictEqual(teamA.color, "var(--good)");
+  assert.strictEqual(teamB.color, "var(--good)");
 
   const teamC = annotations.find((a) => a.seriesName === "teamC");
   const teamD = annotations.find((a) => a.seriesName === "teamD");
   assert.strictEqual(teamC.pointIndex, 2, "teamC is eliminated at week index 2");
   assert.strictEqual(teamD.pointIndex, 2, "teamD is also eliminated at week index 2, its own separate annotation");
-  assert.strictEqual(teamC.color, "var(--rust)");
-  assert.strictEqual(teamD.color, "var(--rust)");
+  assert.strictEqual(teamC.color, "var(--bad)");
+  assert.strictEqual(teamD.color, "var(--bad)");
 });
 
 test("findPlayoffOddsAnnotations: a team still undecided (never reaches either extreme) gets no annotation at all", () => {

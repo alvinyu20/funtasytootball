@@ -16,31 +16,31 @@ function fakePositionTable() {
   };
 }
 
-test("renderPositionTable: uses the same muted, semi-transparent heatColor() everywhere else on the site now uses, not a hard opaque color", () => {
+test("renderPositionTable: uses the same shared heatColor() scale as every other heatmap on the site", () => {
   const ctx = setup();
   const html = ctx.renderPositionTable(fakePositionTable());
   const cells = [...html.matchAll(/style="background:(rgba\([^)]+\))"/g)].map((m) => m[1]);
   assert.strictEqual(cells.length, 2);
-  cells.forEach((c) => assert.match(c, /^rgba\(\d+, \d+, \d+, 0\.\d+\)$/, "should be a muted rgba color, not an opaque rgb one"));
+  cells.forEach((c) => assert.match(c, /^rgba\(\d+, \d+, \d+, [\d.]+\)$/, "should be an rgba fill from heatColor()"));
 });
 
-test("renderPositionTable: the higher value in a column is green-dominant, the lower is red-dominant, matching the standard (non-inverted) direction", () => {
+test("renderPositionTable: the higher value in a column is blue-dominant, the lower is orange-dominant, matching the standard (non-inverted) direction", () => {
   const ctx = setup();
   const html = ctx.renderPositionTable(fakePositionTable());
   const cells = [...html.matchAll(/style="background:(rgba\([^)]+\))">([\d.]+)</g)].map((m) => ({ color: m[1], value: m[2] }));
   const best = cells.find((c) => c.value === "25.5");
   const worst = cells.find((c) => c.value === "12.0");
   assert.ok(best && worst);
-  const [br, bg] = best.color.match(/[\d.]+/g).map(Number);
-  const [wr, wg] = worst.color.match(/[\d.]+/g).map(Number);
-  assert.ok(bg > br, "the higher value should be green-dominant");
-  assert.ok(wr > wg, "the lower value should be red-dominant");
+  const [br, , bb] = best.color.match(/[\d.]+/g).map(Number);
+  const [wr, , wb] = worst.color.match(/[\d.]+/g).map(Number);
+  assert.ok(bb > br, "the higher value should be blue-dominant");
+  assert.ok(wr > wb, "the lower value should be orange-dominant");
 });
 
-test("renderPositionTable: the note accurately describes green=best, red=worst, not the stale gold/rust wording", () => {
+test("renderPositionTable: the note accurately describes blue=best, orange=worst, not the stale gold/rust wording", () => {
   const ctx = setup();
   const html = ctx.renderPositionTable(fakePositionTable());
-  assert.ok(html.includes("green is that column's best, red is its worst"));
+  assert.ok(html.includes("blue is that column's best, orange is its worst"));
   assert.ok(!html.includes("gold"));
   assert.ok(!html.includes("rust"));
 });

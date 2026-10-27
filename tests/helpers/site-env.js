@@ -41,6 +41,7 @@ const JS_DIR = path.join(__dirname, "..", "..", "js");
 // isn't otherwise reachable from outside the vm at all, which is a
 // real, easy-to-miss gotcha specific to this loading approach.
 const KNOWN_EXPORTS = {
+  "utils.js": ["HEAT_LOW", "HEAT_MID", "HEAT_HIGH"],
   "charts.js": ["Charts", "MULTI_LINE_COLORS"],
   "deep-history.js": ["DeepHistory"],
   "sleeper-api.js": ["SleeperAPI"],

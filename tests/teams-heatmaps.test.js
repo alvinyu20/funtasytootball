@@ -52,7 +52,7 @@ function heatCells(html) {
   return [...html.matchAll(/<td class="heat-cell"[^>]*style="background:(rgba\([^)]+\))"[^>]*>([^<]*)</g)].map((m) => ({ color: m[1], text: m[2] }));
 }
 
-test("renderManagerDetail: Head-to-Head Records' Win % column is colored with a heatmap, best matchup green-ish and worst red-ish", () => {
+test("renderManagerDetail: Head-to-Head Records' Win % column is colored with a heatmap, best matchup blue-ish and worst orange-ish", () => {
   const ctx = setup();
   const manager = fakeManager({
     headToHead: [
@@ -67,10 +67,10 @@ test("renderManagerDetail: Head-to-Head Records' Win % column is colored with a 
   const best = cells.find((c) => c.text === "80%");
   const worst = cells.find((c) => c.text === "20%");
   assert.ok(best && worst, "both win% cells should be heat-colored");
-  const [br, bg] = best.color.match(/[\d.]+/g).map(Number);
-  const [wr, wg] = worst.color.match(/[\d.]+/g).map(Number);
-  assert.ok(bg > br, "the 80% (best) cell should be green-dominant");
-  assert.ok(wr > wg, "the 20% (worst) cell should be red-dominant");
+  const [br, , bb] = best.color.match(/[\d.]+/g).map(Number);
+  const [wr, , wb] = worst.color.match(/[\d.]+/g).map(Number);
+  assert.ok(bb > br, "the 80% (best) cell should be blue-dominant");
+  assert.ok(wr > wb, "the 20% (worst) cell should be orange-dominant");
 });
 
 test("renderManagerDetail: Playoff Head-to-Head's Win % column is independently colored from the regular Head-to-Head table", () => {
@@ -94,7 +94,7 @@ test("renderManagerDetail: an empty Head-to-Head list shows the empty state, not
   assert.strictEqual(heatCells(h2hSection).length, 0);
 });
 
-test("renderManagerDetail: Season By Season's Rank column is colored with an INVERTED heatmap -- rank 1 (best) is green, the worst rank is red", () => {
+test("renderManagerDetail: Season By Season's Rank column is colored with an INVERTED heatmap -- rank 1 (best) is blue, the worst rank is orange", () => {
   const ctx = setup();
   const manager = fakeManager({
     seasons: [
@@ -142,17 +142,17 @@ test("renderManagerDetail: Season By Season's Rank column is colored with an INV
   assert.strictEqual(cells.length, 2);
   const rank1 = cells.find((c) => c.rank === "1");
   const rank10 = cells.find((c) => c.rank === "10");
-  const [r1r, r1g] = rank1.color.match(/[\d.]+/g).map(Number);
-  const [r10r, r10g] = rank10.color.match(/[\d.]+/g).map(Number);
-  assert.ok(r1g > r1r, "rank 1 (best) should be green-dominant");
-  assert.ok(r10r > r10g, "rank 10 (worst) should be red-dominant");
+  const [r1r, , r1b] = rank1.color.match(/[\d.]+/g).map(Number);
+  const [r10r, , r10b] = rank10.color.match(/[\d.]+/g).map(Number);
+  assert.ok(r1b > r1r, "rank 1 (best) should be blue-dominant");
+  assert.ok(r10r > r10b, "rank 10 (worst) should be orange-dominant");
 });
 
-test("renderManagerDetail: heat-cell colors use rgba with a muted alpha, matching the site-wide 'see-through' heatmap style", () => {
+test("renderManagerDetail: heat-cell colors are rgba fills from the shared blue/orange heat scale", () => {
   const ctx = setup();
   const manager = fakeManager({ headToHead: [{ opponentName: "yulovesyou", wins: 5, losses: 5, ties: 0 }] });
   const html = ctx.renderManagerDetail(manager);
   const cells = heatCells(html);
   assert.ok(cells.length > 0);
-  cells.forEach((c) => assert.match(c.color, /^rgba\(\d+, \d+, \d+, 0\.\d+\)$/));
+  cells.forEach((c) => assert.match(c.color, /^rgba\(\d+, \d+, \d+, [\d.]+\)$/));
 });
