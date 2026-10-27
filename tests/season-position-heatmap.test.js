@@ -24,7 +24,7 @@ test("renderPositionTable: uses the same shared heatColor() scale as every other
   cells.forEach((c) => assert.match(c, /^rgba\(\d+, \d+, \d+, [\d.]+\)$/, "should be an rgba fill from heatColor()"));
 });
 
-test("renderPositionTable: the higher value in a column is blue-dominant, the lower is orange-dominant, matching the standard (non-inverted) direction", () => {
+test("renderPositionTable: the higher value in a column is yellow-dominant, the lower is blue-dominant, matching the standard (non-inverted) direction", () => {
   const ctx = setup();
   const html = ctx.renderPositionTable(fakePositionTable());
   const cells = [...html.matchAll(/style="background:(rgba\([^)]+\))">([\d.]+)</g)].map((m) => ({ color: m[1], value: m[2] }));
@@ -33,14 +33,14 @@ test("renderPositionTable: the higher value in a column is blue-dominant, the lo
   assert.ok(best && worst);
   const [br, , bb] = best.color.match(/[\d.]+/g).map(Number);
   const [wr, , wb] = worst.color.match(/[\d.]+/g).map(Number);
-  assert.ok(bb > br, "the higher value should be blue-dominant");
-  assert.ok(wr > wb, "the lower value should be orange-dominant");
+  assert.ok(br > bb, "the higher value should be yellow-dominant");
+  assert.ok(wb > wr, "the lower value should be blue-dominant");
 });
 
-test("renderPositionTable: the note accurately describes blue=best, orange=worst, not the stale gold/rust wording", () => {
+test("renderPositionTable: the note accurately describes yellow=best, blue=worst, not the stale gold/rust wording", () => {
   const ctx = setup();
   const html = ctx.renderPositionTable(fakePositionTable());
-  assert.ok(html.includes("blue is that column's best, orange is its worst"));
+  assert.ok(html.includes("yellow is that column's best, blue is its worst"));
   assert.ok(!html.includes("gold"));
   assert.ok(!html.includes("rust"));
 });

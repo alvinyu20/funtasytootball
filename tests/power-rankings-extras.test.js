@@ -247,12 +247,12 @@ test("Lineup slot heatmap: cells show the signed gap, colored on one fixed scale
   assert.deepStrictEqual(cells.map((x) => x.text), ["+8.1", "-1.3", "—", "-12.0", "+10.6", "+4.0"]);
   assert.strictEqual(cells[2].bg, undefined, "no fill on an empty slot");
   assert.strictEqual(cells[0].bg, c.divergingHeatColor(8.14, 10));
-  assert.strictEqual(cells[3].bg, "rgb(124, 93, 49)", "-12 is past the scale, so it's the full orange");
-  assert.strictEqual(cells[4].bg, "rgb(51, 107, 122)", "+10.6 is past the scale, so it's the full blue");
+  assert.strictEqual(cells[3].bg, "rgb(51, 107, 122)", "-12 is past the scale, so it's the full blue");
+  assert.strictEqual(cells[4].bg, "rgb(124, 93, 49)", "+10.6 is past the scale, so it's the full yellow");
   assert.ok(html.includes("title=\"P QB: 28.1 PPG (league 20.0)\""));
 });
 
-test("Lineup slot heatmap: the vs Avg total is blue when positive, orange when negative", () => {
+test("Lineup slot heatmap: the vs Avg total is yellow when positive, blue when negative", () => {
   const c = setup();
   const html = c.renderSlotHeatmap(slotsFixture(), CHIP);
   assert.ok(html.includes('<span class="luck-positive">+6.8</span>'));

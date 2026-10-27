@@ -126,7 +126,21 @@ test("Head to Head and Records: a game still being played is in nobody's record"
 });
 
 // ---- the archive-reading build scripts ------------------------------------------------------------------
-const archive2026 = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "sleeper-archive", "2026.json"), "utf8"));
+// The saved 2026 archive moves on every week, so these tests don't read it as it stands: they take it as it
+// stood after Week 5 (later weeks back to empty schedule shells, each roster's record rebuilt from Weeks 1-5,
+// Sleeper's clock on Week 6), which is the situation the assertions below describe.
+const liveArchive2026 = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "sleeper-archive", "2026.json"), "utf8"));
+const archive2026 = (() => {
+  const { rostersAsOfWeek } = require("../scripts/update-power-rankings.js");
+  const playedThroughFive = liveArchive2026.weeks.filter((w) => w.week <= 5);
+  return {
+    ...JSON.parse(JSON.stringify(liveArchive2026)),
+    league: { ...liveArchive2026.league, status: "in_season" },
+    nflWeek: 6,
+    rosters: rostersAsOfWeek(liveArchive2026.rosters, playedThroughFive, 5, liveArchive2026.league.settings.playoff_week_start),
+    weeks: liveArchive2026.weeks.map((w) => (w.week <= 5 ? w : { ...w, matchups: w.matchups.map((m) => ({ ...m, points: 0 })) })),
+  };
+})();
 const withPartialWeek = (extra = {}) => {
   const copy = JSON.parse(JSON.stringify(archive2026));
   const wk = copy.weeks.find((w) => w.week === 6);

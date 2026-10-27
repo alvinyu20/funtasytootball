@@ -52,7 +52,7 @@ function heatCells(html) {
   return [...html.matchAll(/<td class="heat-cell"[^>]*style="background:(rgba\([^)]+\))"[^>]*>([^<]*)</g)].map((m) => ({ color: m[1], text: m[2] }));
 }
 
-test("renderManagerDetail: Head-to-Head Records' Win % column is colored with a heatmap, best matchup blue-ish and worst orange-ish", () => {
+test("renderManagerDetail: Head-to-Head Records' Win % column is colored with a heatmap, best matchup yellow-ish and worst blue-ish", () => {
   const ctx = setup();
   const manager = fakeManager({
     headToHead: [
@@ -69,8 +69,8 @@ test("renderManagerDetail: Head-to-Head Records' Win % column is colored with a 
   assert.ok(best && worst, "both win% cells should be heat-colored");
   const [br, , bb] = best.color.match(/[\d.]+/g).map(Number);
   const [wr, , wb] = worst.color.match(/[\d.]+/g).map(Number);
-  assert.ok(bb > br, "the 80% (best) cell should be blue-dominant");
-  assert.ok(wr > wb, "the 20% (worst) cell should be orange-dominant");
+  assert.ok(br > bb, "the 80% (best) cell should be yellow-dominant");
+  assert.ok(wb > wr, "the 20% (worst) cell should be blue-dominant");
 });
 
 test("renderManagerDetail: Playoff Head-to-Head's Win % column is independently colored from the regular Head-to-Head table", () => {
@@ -94,7 +94,7 @@ test("renderManagerDetail: an empty Head-to-Head list shows the empty state, not
   assert.strictEqual(heatCells(h2hSection).length, 0);
 });
 
-test("renderManagerDetail: Season By Season's Rank column is colored with an INVERTED heatmap -- rank 1 (best) is blue, the worst rank is orange", () => {
+test("renderManagerDetail: Season By Season's Rank column is colored with an INVERTED heatmap -- rank 1 (best) is yellow, the worst rank is blue", () => {
   const ctx = setup();
   const manager = fakeManager({
     seasons: [
@@ -144,8 +144,8 @@ test("renderManagerDetail: Season By Season's Rank column is colored with an INV
   const rank10 = cells.find((c) => c.rank === "10");
   const [r1r, , r1b] = rank1.color.match(/[\d.]+/g).map(Number);
   const [r10r, , r10b] = rank10.color.match(/[\d.]+/g).map(Number);
-  assert.ok(r1b > r1r, "rank 1 (best) should be blue-dominant");
-  assert.ok(r10r > r10b, "rank 10 (worst) should be orange-dominant");
+  assert.ok(r1r > r1b, "rank 1 (best) should be yellow-dominant");
+  assert.ok(r10b > r10r, "rank 10 (worst) should be blue-dominant");
 });
 
 test("renderManagerDetail: heat-cell colors are rgba fills from the shared blue/orange heat scale", () => {

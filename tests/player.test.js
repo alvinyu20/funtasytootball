@@ -414,7 +414,7 @@ function heatCells(html) {
   return [...html.matchAll(/<td class="heat-cell" data-label="PPG" style="background:(rgba\([^)]+\))">([\d.]+)</g)].map((m) => ({ color: m[1], ppg: m[2] }));
 }
 
-test("renderOwnershipHistory: By Span's PPG column is heat-colored relative to this player's own spans, best span blue-ish and worst orange-ish", () => {
+test("renderOwnershipHistory: By Span's PPG column is heat-colored relative to this player's own spans, best span yellow-ish and worst blue-ish", () => {
   const ctx = setup();
   const html = ctx.renderOwnershipHistory(fakePlayer());
   const bySpanSection = html.slice(html.indexOf('data-chart-panel="by-span"'), html.indexOf('data-chart-panel="cumulative"'));
@@ -425,8 +425,8 @@ test("renderOwnershipHistory: By Span's PPG column is heat-colored relative to t
   assert.ok(best && worst);
   const [br, , bb] = best.color.match(/[\d.]+/g).map(Number);
   const [wr, , wb] = worst.color.match(/[\d.]+/g).map(Number);
-  assert.ok(bb > br, "the highest-PPG span should be blue-dominant");
-  assert.ok(wr > wb, "the lowest-PPG span should be orange-dominant");
+  assert.ok(br > bb, "the highest-PPG span should be yellow-dominant");
+  assert.ok(wb > wr, "the lowest-PPG span should be blue-dominant");
 });
 
 test("renderOwnershipHistory: Cumulative's PPG column is heat-colored independently, scaled to the combined per-owner totals, not the raw per-span values", () => {
@@ -440,10 +440,10 @@ test("renderOwnershipHistory: Cumulative's PPG column is heat-colored independen
   const yulo = cells.find((c) => c.ppg === "16.5");
   assert.ok(yulo, "yulovesyou's combined 16.5 PPG should be present");
   const [yr, , yb] = yulo.color.match(/[\d.]+/g).map(Number);
-  assert.ok(yb > yr, "yulovesyou (the higher combined PPG) should be blue-dominant");
+  assert.ok(yr > yb, "yulovesyou (the higher combined PPG) should be yellow-dominant");
 });
 
-test("renderOwnershipHistory: heat-cell colors on both PPG columns are rgba fills from the shared blue/orange heat scale", () => {
+test("renderOwnershipHistory: heat-cell colors on both PPG columns are rgba fills from the shared yellow/blue heat scale", () => {
   const ctx = setup();
   const html = ctx.renderOwnershipHistory(fakePlayer());
   const cells = heatCells(html);

@@ -1,6 +1,6 @@
 /*
-  Good is blue, bad is orange, everywhere. The site used to say good/bad with
-  green/red; this keeps that from creeping back: no green- or red-hued color in
+  Good is yellow, bad is blue, everywhere. The site used to say good/bad with
+  green/red (and, for a day, blue/orange); this keeps green/red from creeping back: no green- or red-hued color in
   the stylesheet or the page scripts, apart from a short list of colors that are
   identity rather than judgment (the WR position color, the mascot's toot puff,
   the team line palette in charts.js).
@@ -45,7 +45,7 @@ function judgmentColors(source) {
   return found;
 }
 
-test("the color checker itself: it flags greens and reds and lets blues, oranges, golds and neutrals through", () => {
+test("the color checker itself: it flags greens and reds and lets blues, yellows, golds and neutrals through", () => {
   assert.deepStrictEqual(judgmentColors("a{color:#5CB85C} b{color:#D9534F} c{color:rgba(88, 196, 127, .4)} d{color:hsl(120, 60%, 40%)}"), ["#5CB85C", "#D9534F", "rgba(88, 196, 127", "an hsl() color"]);
   assert.deepStrictEqual(judgmentColors("a{color:#4EA8DD} b{color:#F0A340} c{color:#E8B23D} d{color:#1C4036} e{color:rgba(255,255,255,0.04)} f{color:#4F8F6B}"), []);
 });
@@ -63,13 +63,14 @@ test("no green or red left in the page scripts (the team line palette in charts.
 
 test("good and bad are one pair of tokens, and every good/bad style uses them", () => {
   const css = read("css/styles.css");
-  assert.match(css, /--good: #4EA8DD;/);
-  assert.match(css, /--bad: #F0A340;/);
+  assert.match(css, /--good: #F0A340;/);
+  assert.match(css, /--bad: #4EA8DD;/);
   assert.match(css, /\.luck-positive \{ color: var\(--good\);/);
   assert.match(css, /\.luck-negative \{ color: var\(--bad\);/);
   assert.match(css, /\.matchup-status\.st-progress \{ color: var\(--good\); \}/);
   assert.match(css, /\.result-leads \{ color: var\(--good\);/);
   assert.match(css, /\.fresh-live \{ color: var\(--good\);/);
+  assert.match(css, /\.fresh-behind \{ color: var\(--bad\);/, "a chip that is behind is the bad color, not a second yellow");
   assert.match(css, /\.rb-row\.rb-low \{ border-left-color: var\(--bad\); \}/, "a record's lowlight accent is the bad color");
 });
 
@@ -83,11 +84,11 @@ test("no page text still explains a heatmap as green and red", () => {
   }
 });
 
-test("the blue/orange legend wording is on the pages that color by best and worst", () => {
-  assert.ok(read("js/season.js").includes("blue is that column's best, orange is its worst"));
-  assert.ok(read("js/player.js").includes("blue is their best, orange is their worst"));
-  assert.ok(read("js/teams.js").includes("Blue is your best matchup win rate, orange is your worst."));
-  assert.ok(read("js/teams.js").includes("blue is your best finish, orange is your worst"));
+test("the yellow/blue legend wording is on the pages that color by best and worst", () => {
+  assert.ok(read("js/season.js").includes("yellow is that column's best, blue is its worst"));
+  assert.ok(read("js/player.js").includes("yellow is their best, blue is their worst"));
+  assert.ok(read("js/teams.js").includes("Yellow is your best matchup win rate, blue is your worst."));
+  assert.ok(read("js/teams.js").includes("yellow is your best finish, blue is your worst"));
 });
 
 test("playoff odds chart callouts: clinched is the good color and eliminated is the bad color", () => {
@@ -96,6 +97,6 @@ test("playoff odds chart callouts: clinched is the good color and eliminated is 
   assert.match(src, /Eliminated — Wk \$\{i \+ 1\}`, color: "var\(--bad\)"/);
 });
 
-test("Rank heatmaps still run the other way round: the best (lowest) rank gets the blue end", () => {
+test("Rank heatmaps still run the other way round: the best (lowest) rank gets the yellow end", () => {
   assert.match(read("js/teams.js"), /heatColor\(s\.rank, rankMin, rankMax, HEAT_HIGH, HEAT_MID, HEAT_LOW\)/);
 });

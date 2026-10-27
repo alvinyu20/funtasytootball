@@ -1842,7 +1842,7 @@ has — no new manual input needed:
   Points Against per game, which is also what Home's and Seasons' "SOS"
   column shows. For the current season, the Power Rankings page now has a
   truer version; see "Strength of Schedule, Weekly Scores, Lineup Slots and
-  a Blue/Orange Color Scheme" below.)
+  a Yellow/Blue Color Scheme" below.)
 
 ## Power Rankings
 
@@ -2169,7 +2169,7 @@ updates — e.g. `Snapshot · Through Week 6 · Oct 20 · updates with each ROS 
 (Power Rankings panels; the others say `updates Tuesdays`).
 "Through Week N" always means the last *finished* week, so it can sit
 next to Home's "Week 7" (the week being played) without contradicting it.
-A chip turns amber when the data is more than one finished week behind
+A chip turns blue (the site's "bad" color; it was amber until yellow became "good") when the data is more than one finished week behind
 the NFL calendar (the Sleeper week), or — for ROS ranks — more than 10
 days old. The helper is `freshnessChipHtml` in
 `js/utils.js` (styles: `.fresh-chip` in `css/styles.css`). Chips are on:
@@ -2340,7 +2340,7 @@ Ranking records (Highest / Lowest Power Ranking Score) on its next build.
 **From the Archives is removed from Home** (markup, renderer and styles).
 `data/season-awards.json` stays: the Season and Teams pages still use it.
 
-## Strength of Schedule, Weekly Scores, Lineup Slots and a Blue/Orange Color Scheme
+## Strength of Schedule, Weekly Scores, Lineup Slots and a Yellow/Blue Color Scheme
 
 Three sections now sit under the Power Rankings table and the Finish
 Probability heatmap: **Strength of Schedule** (two panels), **Every Week, One
@@ -2371,7 +2371,7 @@ updated `update-power-rankings.yml` into your repo with the rest.**
   averaged), so Week 1 shows only the Road Ahead panel.
 - **Road Ahead.** The rest of each team's regular-season schedule from
   Sleeper, with every opponent rated by its points per game so far, shown as
-  distance from the league average (orange bar = harder than average, blue =
+  distance from the league average (blue bar = harder than average, yellow =
   easier). It's a proxy, not a projection; the on-page note says so.
 - **Every Week, One Dot.** One dot per finished regular-season week, a white bar
   for the team's average, a dashed line for the league average, and
@@ -2392,20 +2392,25 @@ Avg PPG, and the "My team" highlight picks up the matching row in each. On a
 phone the schedule and score rows put the name and the numbers on one line
 with the plot under them; the slot table scrolls sideways with Team pinned.
 
-**Blue is good, orange is bad, everywhere.** The heatmap colors are the
-mockup's: orange `#7C5D31`, a dark neutral `#1C4036` that melts into the panel,
-and blue `#336B7A` (sampled from its legend). One scale now covers every
-heatmap on the site (`heatColor` in `js/utils.js`, with `--heat-low/-mid/-high`
-in the stylesheet; Rank still runs the other way round so rank 1 is blue). The
-rest of the green/red is swapped for a single pair of tokens, `--good #4EA8DD`
-and `--bad #F0A340`: luck and the up/down arrows, "in progress" and live
-labels, grade badges (blue to pale to orange), a record's lowlight accent, the
+**Yellow is good, blue is bad, everywhere.** The heatmap colors are the
+mockup's: blue `#336B7A` for the weak end, a dark neutral `#1C4036` that melts
+into the panel, and yellow `#7C5D31` for the strong end (sampled from its
+legend). One scale now covers every heatmap on the site (`heatColor` in
+`js/utils.js`, with `--heat-low/-mid/-high` in the stylesheet; Rank still runs
+the other way round so rank 1 is yellow). The rest of the green/red is swapped
+for a single pair of tokens, `--good #F0A340` and `--bad #4EA8DD`: luck and the
+up/down arrows, "in progress" and live labels, grade badges (yellow to pale to
+blue), a record's lowlight accent, the
 playoff-odds chart's Clinched / Eliminated callouts, and the legend sentences
 under the heatmaps. Left alone on purpose, because they say *who*, not *good
 or bad*: the WR color on the draft board, the mascot's toot puff, the team
 line colors in the charts, and the error message's rust color. A test
 (`tests/color-scheme.test.js`) fails if a green- or red-hued color comes back
 anywhere else.
+
+(The first version of this had it the other way round, blue good and orange
+bad. It was flipped on 2026-10-27 at the user's request: the same two colors,
+just swapped, so only the meaning moved.)
 
 ## Power Rankings Run Only When You Say So
 
@@ -2434,7 +2439,7 @@ comes back or if any other file is added to the trigger list.
 What this changes on the site: the Power Rankings page, the Home Power Rankings
 panel, the Season page's Power Rank charts and the three Strength of Schedule
 sections only move when one of those two things happens, and their chips say
-`updates with each ROS refresh`. They turn amber once they are more than one
+`updates with each ROS refresh`. They turn blue once they are more than one
 finished week behind Sleeper's calendar. Everything else (Standings, matchups,
 Seasons, Records dates) is unchanged; the other workflows keep their Tuesday
 schedules, including the Records feed (which reads the Power Rank charts' file,

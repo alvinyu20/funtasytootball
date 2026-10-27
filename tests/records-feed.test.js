@@ -219,13 +219,13 @@ test("Latest Records: shows the newest five with the date, record, holder, value
   assert.ok(html.includes("Open the Record Book"));
 });
 
-test("Latest Records: the 'through which week' tag is a freshness chip, amber when the feed trails the NFL calendar", () => {
+test("Latest Records: the 'through which week' tag is a freshness chip, blue when the feed trails the NFL calendar", () => {
   const ctx = homeCtx();
   const chip = (asOf, season, week) => runInLoadedContext(ctx, `feedFreshChip(${JSON.stringify(asOf)}, ${JSON.stringify(season)}, ${week})`);
   assert.ok(chip({ season: "2026", week: 6 }, "2026", 6).includes("Through Week 6 \u00b7 updates Tuesdays"));
   assert.ok(chip({ season: "2026", week: 6 }, "2026", 6).includes("fresh-snap"));
   assert.ok(chip({ season: "2026", week: 5 }, "2026", 7).includes("fresh-behind"), "two finished weeks behind");
-  assert.ok(chip({ season: "2025", week: 17 }, "2026", 3).includes("2025 \u00b7 Through Week 17"), "a past season is named, never amber");
+  assert.ok(chip({ season: "2025", week: 17 }, "2026", 3).includes("2025 \u00b7 Through Week 17"), "a past season is named, never behind");
   assert.ok(!chip({ season: "2025", week: 17 }, "2026", 3).includes("fresh-behind"));
   assert.strictEqual(chip(null, "2026", 6), "");
 });

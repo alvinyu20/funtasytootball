@@ -39,15 +39,15 @@ test("heatColor: a lower alpha can still be asked for, for a see-through tint", 
   assert.strictEqual(channels(heatColor(50, 0, 100, undefined, undefined, undefined, 0.4))[3], 0.4);
 });
 
-test("heatColor: the lowest value in range gets the orange end of the scale, the highest gets blue, by default", () => {
+test("heatColor: the lowest value in range gets the blue end of the scale, the highest gets yellow, by default", () => {
   const [lr, , lb] = channels(heatColor(0, 0, 100));
   const [hr, , hb] = channels(heatColor(100, 0, 100));
-  assert.ok(lr > lb, "the low end of the default scale should be orange-dominant");
-  assert.ok(hb > hr, "the high end of the default scale should be blue-dominant");
+  assert.ok(lb > lr, "the low end of the default scale should be blue-dominant");
+  assert.ok(hr > hb, "the high end of the default scale should be yellow-dominant");
   // exactly the site's three scale colors at the ends and in the middle
-  assert.deepStrictEqual(channels(heatColor(0, 0, 100)).slice(0, 3), [0x7c, 0x5d, 0x31]);
+  assert.deepStrictEqual(channels(heatColor(0, 0, 100)).slice(0, 3), [0x33, 0x6b, 0x7a]);
   assert.deepStrictEqual(channels(heatColor(50, 0, 100)).slice(0, 3), [0x1c, 0x40, 0x36]);
-  assert.deepStrictEqual(channels(heatColor(100, 0, 100)).slice(0, 3), [0x33, 0x6b, 0x7a]);
+  assert.deepStrictEqual(channels(heatColor(100, 0, 100)).slice(0, 3), [0x7c, 0x5d, 0x31]);
 });
 
 test("heatColor: a middle value lands on the dark neutral, so only the extremes pull the eye", () => {
@@ -55,31 +55,31 @@ test("heatColor: a middle value lands on the dark neutral, so only the extremes 
   assert.ok(r < 60 && g < 80 && b < 80, "the midpoint is a dark shade, not a bright one");
 });
 
-test("heatColor: a value a quarter of the way up sits between the orange end and the neutral", () => {
-  const [r] = channels(heatColor(25, 0, 100));
-  assert.ok(r > 0x1c && r < 0x7c, `red channel ${r} should be between the neutral and the orange end`);
+test("heatColor: a value a quarter of the way up sits between the blue end and the neutral", () => {
+  const [, , b] = channels(heatColor(25, 0, 100));
+  assert.ok(b > 0x36 && b < 0x7a, `blue channel ${b} should be between the neutral and the blue end`);
 });
 
 test("heatColor: swapping the low/high hex arguments inverts which end is 'good' -- used for metrics like Rank where lower is better", () => {
-  // Blue passed as the LOW color, orange as the HIGH color -- inverts the usual direction.
+  // Yellow passed as the LOW color, blue as the HIGH color -- inverts the usual direction.
   const lowValueColor = heatColor(1, 1, 10, HEAT_HIGH, HEAT_MID, HEAT_LOW);
   const highValueColor = heatColor(10, 1, 10, HEAT_HIGH, HEAT_MID, HEAT_LOW);
   const [lr, , lb] = channels(lowValueColor);
   const [hr, , hb] = channels(highValueColor);
-  assert.ok(lb > lr, "the LOW value (e.g. rank 1) should land on the blue end when colors are swapped");
-  assert.ok(hr > hb, "the HIGH value (e.g. last place) should land on the orange end when colors are swapped");
+  assert.ok(lr > lb, "the LOW value (e.g. rank 1) should land on the yellow end when colors are swapped");
+  assert.ok(hb > hr, "the HIGH value (e.g. last place) should land on the blue end when colors are swapped");
 });
 
-test("divergingHeatColor: zero is the neutral, +limit is the full blue, -limit the full orange, and it saturates beyond the limit", () => {
+test("divergingHeatColor: zero is the neutral, +limit is the full yellow, -limit the full blue, and it saturates beyond the limit", () => {
   const rgb = (c) => c.match(/\d+/g).map(Number);
   assert.deepStrictEqual(rgb(divergingHeatColor(0, 10)), [0x1c, 0x40, 0x36]);
-  assert.deepStrictEqual(rgb(divergingHeatColor(10, 10)), [0x33, 0x6b, 0x7a]);
-  assert.deepStrictEqual(rgb(divergingHeatColor(-10, 10)), [0x7c, 0x5d, 0x31]);
-  assert.deepStrictEqual(rgb(divergingHeatColor(25, 10)), rgb(divergingHeatColor(10, 10)), "beyond +limit stays at the full blue");
-  assert.deepStrictEqual(rgb(divergingHeatColor(-99, 10)), rgb(divergingHeatColor(-10, 10)), "beyond -limit stays at the full orange");
-  const [r5, , b5] = rgb(divergingHeatColor(5, 10));
-  const [r0, , b0] = rgb(divergingHeatColor(0, 10));
-  assert.ok(b5 > b0 && r5 < 0x7c, "half-way up is between the neutral and the full blue");
+  assert.deepStrictEqual(rgb(divergingHeatColor(10, 10)), [0x7c, 0x5d, 0x31]);
+  assert.deepStrictEqual(rgb(divergingHeatColor(-10, 10)), [0x33, 0x6b, 0x7a]);
+  assert.deepStrictEqual(rgb(divergingHeatColor(25, 10)), rgb(divergingHeatColor(10, 10)), "beyond +limit stays at the full yellow");
+  assert.deepStrictEqual(rgb(divergingHeatColor(-99, 10)), rgb(divergingHeatColor(-10, 10)), "beyond -limit stays at the full blue");
+  const [r5] = rgb(divergingHeatColor(5, 10));
+  const [r0] = rgb(divergingHeatColor(0, 10));
+  assert.ok(r5 > r0 && r5 < 0x7c, "half-way up is between the neutral and the full yellow");
 });
 
 test("the site's heat scale in utils.js is the same trio as the CSS tokens", () => {
@@ -89,12 +89,12 @@ test("the site's heat scale in utils.js is the same trio as the CSS tokens", () 
   assert.ok(css.includes(`--heat-high: ${HEAT_HIGH};`));
 });
 
-test("gradeBadgeHtml: best grade is blue, worst is orange, never green or red, and every grade gets its own shade", () => {
+test("gradeBadgeHtml: best grade is yellow, worst is blue, never green or red, and every grade gets its own shade", () => {
   const bg = (g) => gradeBadgeHtml(g).match(/background:rgb\((\d+), (\d+), (\d+)\)/).slice(1).map(Number);
   const [sr, , sb] = bg("S");
   const [fr, , fb] = bg("F");
-  assert.ok(sb > sr, "S is blue-dominant");
-  assert.ok(fr > fb, "F is orange-dominant");
+  assert.ok(sr > sb, "S is yellow-dominant");
+  assert.ok(fb > fr, "F is blue-dominant");
   const shades = new Set(["S", "A", "B", "C", "D", "F"].map((g) => bg(g).join(",")));
   assert.strictEqual(shades.size, 6);
   assert.ok(!gradeBadgeHtml("S").includes("hsl("));

@@ -27,7 +27,7 @@ test("freshness chip: says which week it covers and how it updates, in one consi
   assert.strictEqual(chip({}), "");
 });
 
-test("freshness chip: turns amber only when the data is more than one finished week behind", () => {
+test("freshness chip: turns blue (the bad color) only when the data is more than one finished week behind", () => {
   const ctx = loadSiteModules(["config.js", "utils.js"]);
   const tone = (through, current) => {
     const html = runInLoadedContext(ctx, `freshnessChipHtml({ through: ${through}, current: ${current} })`);
@@ -37,7 +37,7 @@ test("freshness chip: turns amber only when the data is more than one finished w
   assert.strictEqual(tone(7, 7), "snap");
   assert.strictEqual(tone(5, 7), "behind");
   assert.strictEqual(tone(1, 7), "behind");
-  assert.strictEqual(runInLoadedContext(ctx, `freshnessChipHtml({ through: 3 })`).includes("fresh-behind"), false, "no current week known: never amber");
+  assert.strictEqual(runInLoadedContext(ctx, `freshnessChipHtml({ through: 3 })`).includes("fresh-behind"), false, "no current week known: never behind");
   assert.ok(runInLoadedContext(ctx, `freshnessChipHtml({ label: "x", tone: "behind" })`).includes("fresh-behind"), "a forced tone wins");
 });
 
