@@ -1,19 +1,28 @@
 name: Power Rankings Update
 
-# Runs automatically whenever data/team-strength.json changes (i.e. you
-# type in that week's FantasyPros ROS ranks and commit) — so updating ROS
-# *is* the trigger, no separate step needed. Also runs Tuesday mornings as
-# a safety net for weeks where team-strength.json doesn't change but a
-# game week still completed. update-power-rankings.js is safe to run any
-# time: if the current week isn't complete yet per Sleeper, it exits
-# without touching either output file.
+# Runs when you change data/team-strength.json (type in that week's
+# FantasyPros ROS ranks, bump "asOf", commit and push) -- updating ROS *is*
+# the trigger. There is deliberately no schedule: nothing here runs on its
+# own, so the rankings only move when you say so. Update the file after
+# Monday night's game is final and Sleeper has rolled to the next week
+# (early Tuesday); earlier than that and the run just rebuilds the previous
+# week. "Run workflow" in the Actions tab does the same thing by hand
+# (handy if the ranks didn't change this week, or after copying new site
+# code into the repo). Delete the workflow_dispatch line if you never want
+# a manual button.
+#
+# The script writes four files (the snapshot, the week-over-week rank
+# history, the Season page's Power Rank History charts, and the extras behind
+# the Strength of Schedule / Weekly Scores / Lineup Slot sections) and all
+# four must be staged below, or the missing one is regenerated on every run
+# and never saved. update-power-rankings.js is safe to run any time: if the
+# current week isn't complete yet per Sleeper, it exits without touching
+# either output file.
 on:
   push:
     branches: [main]
     paths:
       - "data/team-strength.json"
-  schedule:
-    - cron: "0 11 * * 2" # Tuesdays, after the injuries pipeline (update-injuries.yml runs at 9:00)
   workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
 
 permissions:
@@ -40,7 +49,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/power-rankings-snapshot.json data/power-rank-history.json
+          git add data/power-rankings-snapshot.json data/power-rank-history.json data/power-rank-csv-history.json data/power-rankings-extras.json
           if git diff --staged --quiet; then
             echo "No changes to power rankings data — nothing to commit."
           else

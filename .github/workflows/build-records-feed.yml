@@ -1,0 +1,50 @@
+name: Build Records Feed
+
+# Rebuilds the two files behind the Record Book's history features:
+#   data/records-feed.json     Home page "Latest Records" and "Records in Reach"
+#   data/records-history.json  Records page "Set 2024 Wk 14", NEW badges and
+#                              each record's "Record history" timeline
+# The script replays the league's whole saved history one week at a
+# time (data/sleeper-archive/) to work out when each Record Book record was
+# set, so it has to run AFTER the weekly Sleeper backup has saved the newest
+# week (sleeper-data-pipeline.yml, 10:00 UTC Tuesdays) and after the power
+# rankings and raw stats refresh (11:00 UTC). It takes about 20 seconds.
+#
+# Run it by hand any time from the Actions tab -> "Build Records Feed" ->
+# Run workflow, e.g. right after changing which records exist.
+on:
+  schedule:
+    - cron: "30 12 * * 2"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write # needed to commit the regenerated data/records-*.json files back to the repo
+
+jobs:
+  build-records-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Build records feed
+        run: node scripts/build-records-feed.js
+
+      - name: Commit and push if the records files changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/records-feed.json data/records-history.json
+          if git diff --staged --quiet; then
+            echo "No new record changes — nothing to commit."
+          else
+            git commit -m "Update records feed [automated]"
+            git push
+          fi
