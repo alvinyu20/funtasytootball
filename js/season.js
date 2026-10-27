@@ -296,7 +296,7 @@ function renderPositionTable(positionTable) {
         <tbody>${rows}</tbody>
       </table>
     </div>
-    <p class="heatmap-note">Each column is colored independently — green is that column's best, red is its worst.</p>`;
+    <p class="heatmap-note">Each column is colored independently — blue is that column's best, orange is its worst.</p>`;
 }
 
 function renderFaabList(items, isTotal) {
@@ -972,7 +972,7 @@ function findPlayoffOddsAnnotations(playoffOddsDataset) {
       if (weekly[i] != null && weekly[i] >= 99.5 && weekly.slice(i).every((v) => v != null && v >= 99.5)) {
         // "down": this point sits near the top of the chart (99.5%+), so
         // the label needs room below it.
-        annotations.push({ seriesName: team, pointIndex: i, label: `Clinched — Wk ${i + 1}`, color: "var(--gold)", direction: "down" });
+        annotations.push({ seriesName: team, pointIndex: i, label: `Clinched — Wk ${i + 1}`, color: "var(--good)", direction: "down" });
         break;
       }
     }
@@ -980,7 +980,7 @@ function findPlayoffOddsAnnotations(playoffOddsDataset) {
       if (weekly[i] != null && weekly[i] <= 0.5 && weekly.slice(i).every((v) => v != null && v <= 0.5)) {
         // "up": this point sits near the bottom of the chart (0.5% or
         // less), so the label needs room above it.
-        annotations.push({ seriesName: team, pointIndex: i, label: `Eliminated — Wk ${i + 1}`, color: "var(--rust)", direction: "up" });
+        annotations.push({ seriesName: team, pointIndex: i, label: `Eliminated — Wk ${i + 1}`, color: "var(--bad)", direction: "up" });
         break;
       }
     }

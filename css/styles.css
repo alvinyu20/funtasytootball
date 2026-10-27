@@ -13,6 +13,18 @@
   --gold-dim: #B98F30;
   --rust: #B5502F;
 
+  /* Good / bad, site-wide: blue is strong, orange is weak. One pair instead of
+     green/red so it reads for everyone (and matches the lineup heatmap). The
+     --heat-* trio is the fill scale for heatmap cells: orange, a dark neutral
+     that melts into the panel, then blue. Same three hexes live in utils.js. */
+  --good: #4EA8DD;
+  --good-dim: #2E678C;
+  --bad: #F0A340;
+  --bad-dim: #8A5E22;
+  --heat-low: #7C5D31;
+  --heat-mid: #1C4036;
+  --heat-high: #336B7A;
+
   --pos-qb: #E8B23D;
   --pos-rb: #B5502F;
   --pos-wr: #4F8F6B;
@@ -484,7 +496,7 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
   color: var(--chalk-dim);
 }
 .matchup-status.st-final { color: var(--chalk); }
-.matchup-status.st-progress { color: #8FD3A5; }
+.matchup-status.st-progress { color: var(--good); }
 .matchup-status.st-upcoming { color: var(--gold-dim); }
 .matchup-h2h {
   margin-left: auto;
@@ -511,7 +523,7 @@ table.stat-table th.sortable.sort-active.sort-desc::after { content: " \25BC"; f
 .matchup .side.right .result-tag, .featured-matchup .result-tag { align-self: flex-end; }
 .featured-matchup .result-tag { align-self: center; margin-top: 6px; }
 .result-win { color: var(--turf-dark); background: var(--gold); border-color: var(--gold); }
-.result-leads { color: #8FD3A5; border-color: #3E6B50; }
+.result-leads { color: var(--good); border-color: var(--good-dim); }
 .result-tie { color: var(--chalk); }
 
 /* ==========================================================================
@@ -822,7 +834,7 @@ a.rb-cat:hover .rb-cat-arrow { color: var(--gold); transform: translateX(3px); }
 }
 .rb-row { border-bottom: 1px solid var(--turf-line); border-left: 3px solid transparent; }
 .rb-row:last-child { border-bottom: none; }
-.rb-row.rb-low { border-left-color: var(--rust); }
+.rb-row.rb-low { border-left-color: var(--bad); }
 .rb-row[open] { background: rgba(0, 0, 0, 0.1); }
 .rb-summary {
   display: grid;
@@ -1616,8 +1628,8 @@ details.bracket-game.championship {
 /* ==========================================================================
    LUCK VALUE (Overall Record / Luck columns)
    ========================================================================== */
-.luck-positive { color: #6FBE8C; font-weight: 600; font-variant-numeric: tabular-nums; }
-.luck-negative { color: #E06C5C; font-weight: 600; font-variant-numeric: tabular-nums; }
+.luck-positive { color: var(--good); font-weight: 600; font-variant-numeric: tabular-nums; }
+.luck-negative { color: var(--bad); font-weight: 600; font-variant-numeric: tabular-nums; }
 .grade-badge {
   display: inline-block;
   font-family: var(--font-mono);
@@ -2130,13 +2142,6 @@ table.stat-table td.playoff-cutoff-label {
 .activity-item .activity-meta { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--chalk-dim); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
 .activity-item strong { color: var(--gold); }
 
-/* ---- Home page: This Week In History ---- */
-.history-callout-inner { display: flex; align-items: center; gap: 18px; }
-.history-callout-icon { font-size: 30px; flex-shrink: 0; }
-.history-callout-eyebrow { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
-.history-callout-text { font-family: var(--font-body); font-size: 15px; color: var(--chalk); line-height: 1.5; }
-.history-callout-text strong { color: var(--gold); }
-
 /* ---- Home page: hero thesis — the one big story of the week ---- */
 .hero-thesis { border-bottom: 2px solid var(--gold); padding-bottom: 20px; margin-bottom: 4px; }
 .hero-thesis-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
@@ -2187,8 +2192,6 @@ table.stat-table td.playoff-cutoff-label {
   .rivalry-series-record { font-size: 21px; }
   .featured-matchup .name { font-size: 17px; }
   .featured-matchup .pts { font-size: 21px; }
-  .history-callout-icon { font-size: 22px; }
-  .history-callout-text { font-size: 13px; }
   table.stat-table td, table.stat-table th { font-size: 12px; }
   .rank-list-row .desc, .rank-list-row .val, .rank-list-row .rank-num { font-size: 12px; }
   .trade-team-name { font-size: 14px; }
@@ -2426,8 +2429,8 @@ table.stat-table td.playoff-cutoff-label {
   border-radius: 50%;
   background: var(--gold-dim);
 }
-.fresh-live { color: #8FD3A5; border-color: #3E6B50; }
-.fresh-live::before { background: #58C47F; animation: fresh-pulse 1.8s ease-in-out infinite; }
+.fresh-live { color: var(--good); border-color: var(--good-dim); }
+.fresh-live::before { background: var(--good); animation: fresh-pulse 1.8s ease-in-out infinite; }
 .fresh-behind { color: #F0C36A; border-color: #7A5E22; background: rgba(232, 178, 61, 0.08); }
 .fresh-behind::before { background: var(--gold); }
 @keyframes fresh-pulse {
@@ -2618,6 +2621,9 @@ table.stat-table td.playoff-cutoff-label {
 /* The highlight itself. Added to a manager's row by js/my-team.js. */
 tr.mine > td, tr.mine > th { background-color: rgba(232, 178, 61, 0.10); }
 tr.mine > :first-child { box-shadow: inset 3px 0 0 var(--gold); }
+.sos-row.mine,
+.road-row.mine,
+.strip-row.mine,
 .lr-item.mine,
 .pr-mini-row.mine,
 .streak-row.mine,
@@ -2898,12 +2904,6 @@ table.stat-table.sticky-cols-2 td.team-cell { max-width: 150px; overflow: hidden
 .player-board-row .desc { overflow-wrap: anywhere; }
 
 /* ==========================================================================
-   HOME: "From The Archives" as a slim strip (it was a half-empty panel)
-   ========================================================================== */
-.history-strip { padding: 14px 22px; }
-.history-strip .history-callout-inner { gap: 14px; }
-
-/* ==========================================================================
    LAYOUT RHYTHM: no more cards touching, one gap between stacked blocks
    ========================================================================== */
 .wrap + .wrap,
@@ -2964,3 +2964,113 @@ table.stat-table.sticky-cols-2 td.team-cell { max-width: 150px; overflow: hidden
 .hotlist-panel > summary h2 { margin: 0; }
 .hotlist-panel > summary::after { content: "+"; color: var(--gold); font-family: var(--font-mono); font-size: 18px; }
 .hotlist-panel[open] > summary::after { content: "\2212"; }
+
+/* ==========================================================================
+   POWER RANKINGS EXTRAS: Strength of Schedule, Weekly Scores, Lineup Slots
+   (data/power-rankings-extras.json, drawn by js/power-rankings.js)
+   ========================================================================== */
+.sos-row, .road-row, .strip-row {
+  display: grid;
+  align-items: center;
+  column-gap: 12px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.sos-name, .road-name, .strip-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--chalk);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sos-axis, .road-axis, .strip-axis {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  border-bottom: 1px solid var(--turf-line);
+}
+.sos-axis .sos-name, .strip-axis .strip-name { font-family: inherit; font-size: inherit; font-weight: 400; color: inherit; }
+.axis-tick { position: absolute; top: 0; transform: translateX(-50%); font-size: 10px; letter-spacing: 0; }
+.sos-ticks, .strip-axis .strip-track { position: relative; height: 14px; }
+.strip-axis .strip-track { height: 14px; }
+.sos-row:hover, .strip-row:hover, .road-row:hover { background: rgba(255, 255, 255, 0.03); }
+.sos-axis:hover, .strip-axis:hover, .road-axis:hover { background: none; }
+.strip-axis .strip-range { font-size: inherit; }
+/* Inset the plots a little so the end-of-axis labels don't touch the neighbouring column. */
+.sos-track, .sos-ticks, .strip-track { margin: 0 9px; }
+
+/* Strength of Schedule: ring = old SOS (points against per game), dot = true SOS */
+.sos-row { grid-template-columns: minmax(92px, 130px) minmax(0, 1fr) 84px; }
+.sos-row.flip { background: rgba(232, 178, 61, 0.09); }
+.sos-ranks { font-family: var(--font-mono); font-size: 11px; color: var(--chalk-dim); text-align: right; white-space: nowrap; }
+.sos-row.flip .sos-ranks { color: var(--gold); }
+.sos-track { position: relative; height: 18px; }
+.sos-track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px; background: var(--turf-line); }
+.sos-link { position: absolute; top: 50%; height: 2px; margin-top: -1px; background: var(--chalk-dim); opacity: 0.6; }
+.sos-dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; box-sizing: border-box; }
+.sos-dot.ring { z-index: 1; border: 2px solid var(--chalk-dim); background: var(--turf-mid); }
+.sos-dot.fill { z-index: 2; border: 2px solid var(--turf-mid); background: var(--gold); }
+
+/* Road Ahead: bars out from a center line, orange = harder than the league average, blue = easier */
+.road-row { grid-template-columns: minmax(88px, 1fr) minmax(0, 1.6fr) 44px; }
+.road-track { position: relative; height: 14px; }
+.road-track::before { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--chalk-dim); opacity: 0.6; }
+.road-bar { position: absolute; top: 2px; bottom: 2px; min-width: 2px; }
+.road-bar.hard { left: 50%; background: var(--bad); border-radius: 0 4px 4px 0; }
+.road-bar.easy { right: 50%; background: var(--good); border-radius: 4px 0 0 4px; }
+.road-val { font-family: var(--font-mono); font-size: 12px; text-align: right; color: var(--chalk-dim); }
+.road-axis .road-track { height: 14px; }
+.road-axis .road-track::before { display: none; }
+.road-side { position: absolute; top: 0; font-size: 10px; letter-spacing: 0.04em; text-transform: none; white-space: nowrap; }
+.road-side.easier { right: 52%; }
+.road-side.harder { left: 52%; }
+
+/* Weekly Scores: every week a dot, a bar for the average, a dashed line for the league */
+.strip-row { grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) 72px; padding: 5px 8px; }
+.strip-track { position: relative; height: 22px; }
+.strip-grid { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.06); }
+.strip-league { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1px dashed var(--chalk-dim); }
+.strip-span { position: absolute; top: 50%; height: 2px; margin-top: -1px; background: var(--chalk-dim); opacity: 0.55; }
+.strip-dot { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; box-sizing: border-box; background: var(--gold); opacity: 0.85; border: 1px solid rgba(20, 38, 28, 0.7); }
+.strip-avg { position: absolute; top: 3px; bottom: 3px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--chalk); }
+.strip-range { font-family: var(--font-mono); font-size: 12px; text-align: right; color: var(--chalk-dim); white-space: nowrap; }
+
+/* Legends and takeaways under each chart */
+.pr-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 14px 0 0; font-size: 12px; color: var(--chalk-dim); }
+.pr-key { display: inline-flex; align-items: center; gap: 7px; }
+.pr-key > i { position: relative; top: auto; left: auto; margin: 0; flex-shrink: 0; display: inline-block; }
+.pr-key > i.strip-avg { width: 4px; height: 14px; margin: 0 4px; }
+.pr-key > i.strip-league { width: 0; height: 14px; margin: 0 4px; }
+.pr-swatch { width: 12px; height: 12px; border-radius: 3px; }
+.pr-swatch.hard { background: var(--bad); }
+.pr-swatch.easy { background: var(--good); }
+.pr-takeaway { margin: 14px 0 0; font-size: 14px; line-height: 1.5; color: var(--chalk); }
+.pr-takeaway strong { color: var(--gold); font-weight: 600; }
+
+/* Lineup slot heatmap */
+table.slot-table td.heat-cell { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; min-width: 52px; }
+table.slot-table td.slot-total { text-align: right; font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.slot-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0; margin-top: 14px; }
+.slot-key { min-width: 44px; padding: 3px 6px; text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--chalk); }
+.slot-key:first-child { border-radius: 3px 0 0 3px; }
+.slot-key:last-of-type { border-radius: 0 3px 3px 0; }
+.slot-legend-note { flex-basis: 100%; margin-top: 8px; font-size: 12px; color: var(--chalk-dim); }
+@media (min-width: 721px) {
+  .slot-legend-note { flex-basis: auto; margin: 0 0 0 14px; }
+}
+
+/* Phones: the name and the numbers share a first line and the plot gets the full width under it */
+@media (max-width: 640px) {
+  .sos-row, .strip-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name ranks" "track track";
+    row-gap: 5px;
+  }
+  .sos-row > .sos-name, .strip-row > .strip-name { grid-area: name; }
+  .sos-row > .sos-ranks, .strip-row > .strip-range { grid-area: ranks; }
+  .sos-row > .sos-track, .sos-row > .sos-ticks, .strip-row > .strip-track { grid-area: track; }
+  .road-row { grid-template-columns: minmax(80px, 1fr) minmax(0, 1.5fr) 40px; column-gap: 8px; }
+  .road-name { font-size: 12px; }
+}

@@ -78,7 +78,6 @@ async function renderDashboard() {
     applyMyTeam();
     initScrollAnimations();
 
-    fetchJsonSafe(SEASON_AWARDS_FILE, { seasons: {} }).then(renderHistoryCallout);
     fetchJsonSafe(RECORDS_FEED_FILE, null).then(renderLatestRecords);
 
     // ---- Phase 2: heavier data (full-season fetch), doesn't block the above ----
@@ -745,37 +744,6 @@ async function renderMatchupHeadToHead(pairs, playerDirectory) {
   }
 }
 
-function renderHistoryCallout(seasonAwards) {
-  const el = document.getElementById("history-callout");
-  const entries = [];
-  if (seasonAwards && seasonAwards.seasons) {
-    Object.entries(seasonAwards.seasons).forEach(([year, categories]) => {
-      Object.entries(categories).forEach(([category, award]) => {
-        const winner = award.username || award.winnerName;
-        if (winner) entries.push({ year, category, winner, detail: award.detail });
-      });
-    });
-  }
-  if (!entries.length) {
-    el.innerHTML = `<div class="empty-state">No league history recorded yet.</div>`;
-    return;
-  }
-  // Deterministic pick based on the day of the year, so it changes daily
-  // but stays stable within a single day (not re-randomized every reload).
-  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
-  const pick = entries[dayOfYear % entries.length];
-  el.innerHTML = `
-    <div class="history-callout-inner">
-      <span class="history-callout-icon">📜</span>
-      <div>
-        <div class="history-callout-eyebrow">From The Archives · ${escapeHtml(String(pick.year))}</div>
-        <div class="history-callout-text"><strong>${escapeHtml(pick.winner)}</strong> won <strong>${escapeHtml(pick.category)}</strong>${
-    pick.detail ? ` with ${escapeHtml(pick.detail)}` : ""
-  }.</div>
-      </div>
-    </div>`;
-}
-
 // ---------------------------------------------------------------
 // Latest Records: the newest record changes from data/records-feed.json
 // (built by scripts/build-records-feed.js). Pure HTML builder + a thin renderer.
@@ -1039,7 +1007,7 @@ async function renderStreaksAndPowerRankings(league, rosters, users, week, playe
     setChip(
       "pr-fresh",
       snapshot && !snapshot.preseason
-        ? freshnessChipHtml({ label: "Snapshot", through: snapshot.week, current: week, note: "updates Tuesdays" })
+        ? freshnessChipHtml({ label: "Snapshot", through: snapshot.week, current: week, note: "updates with each ROS refresh" })
         : snapshot
         ? freshnessChipHtml({ label: "Preseason", tone: "snap" })
         : ""

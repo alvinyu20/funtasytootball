@@ -29,11 +29,17 @@
        for the exact steps).
     2. Run:  node scripts/update-power-rankings.js
     3. Commit + push/deploy data/power-rankings-snapshot.json,
-       data/power-rank-history.json, and data/power-rank-csv-history.json
-       (all three get overwritten by this script — no other manual
-       step needed, this replaces the old "copy this JSON snippet
-       into power-rank-history.json by hand" step that used to live
-       on the Power Rankings page).
+       data/power-rank-history.json, data/power-rank-csv-history.json
+       and data/power-rankings-extras.json (all four get overwritten by
+       this script — no other manual step needed, this replaces the old
+       "copy this JSON snippet into power-rank-history.json by hand" step
+       that used to live on the Power Rankings page).
+
+  data/power-rankings-extras.json feeds the Strength of Schedule, Weekly
+  Scores and Lineup Slot sections under the Power Rankings table. It is
+  built from the same finished weeks as the snapshot (see
+  scripts/lib/pr-extras.js for what each number means) and carries the
+  snapshot's week, so the page can tell if the two ever disagree.
 
   This also rebuilds the CURRENT season's entry in
   data/power-rank-csv-history.json — the same file that powers the
@@ -71,12 +77,14 @@
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");
+const { buildPowerRankingsExtras } = require("./lib/pr-extras");
 
 const REPO_ROOT = path.join(__dirname, "..");
 const JS_DIR = path.join(REPO_ROOT, "js");
 const SNAPSHOT_PATH = path.join(REPO_ROOT, "data", "power-rankings-snapshot.json");
 const HISTORY_PATH = path.join(REPO_ROOT, "data", "power-rank-history.json");
 const CSV_HISTORY_PATH = path.join(REPO_ROOT, "data", "power-rank-csv-history.json");
+const EXTRAS_PATH = path.join(REPO_ROOT, "data", "power-rankings-extras.json");
 const TEAM_STRENGTH_PATH = path.join(REPO_ROOT, "data", "team-strength.json");
 const PLAYOFF_SIM_ITERATIONS = 1000;
 
@@ -175,6 +183,70 @@ async function buildSafeDeep(SleeperAPI, leagueId, lastFantasyWeek, safeBeforeWe
 }
 
 /*
+  Each roster's record and points through `throughWeek`, written into the same
+  `settings` fields Sleeper keeps them in (wins, losses, ties, fpts + fpts_decimal,
+  fpts_against + fpts_against_decimal), so anything that reads a roster's record
+  (SleeperAPI.buildStandings) sees the season as it stood after that week.
+  Regular-season weeks only, same as Sleeper's own record. `weeks` are
+  [{ week, matchups: [{ roster_id, matchup_id, points }] }]; a row with no
+  matchup_id (a bye) or no partner counts for nothing.
+*/
+function rostersAsOfWeek(rosters, weeks, throughWeek, playoffStart) {
+  const totals = new Map(rosters.map((r) => [r.roster_id, { wins: 0, losses: 0, ties: 0, pf: 0, pa: 0 }]));
+  weeks
+    .filter((w) => w.week <= throughWeek && (playoffStart == null || w.week < playoffStart))
+    .forEach(({ matchups }) => {
+      const byMatchupId = new Map();
+      matchups.forEach((m) => {
+        if (m.matchup_id == null) return;
+        if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
+        byMatchupId.get(m.matchup_id).push(m);
+      });
+      byMatchupId.forEach((pair) => {
+        if (pair.length !== 2) return;
+        const [a, b] = pair;
+        const ta = totals.get(a.roster_id);
+        const tb = totals.get(b.roster_id);
+        if (!ta || !tb) return;
+        const pa = a.points || 0;
+        const pb = b.points || 0;
+        ta.pf += pa;
+        ta.pa += pb;
+        tb.pf += pb;
+        tb.pa += pa;
+        if (pa > pb) {
+          ta.wins += 1;
+          tb.losses += 1;
+        } else if (pb > pa) {
+          tb.wins += 1;
+          ta.losses += 1;
+        } else {
+          ta.ties += 1;
+          tb.ties += 1;
+        }
+      });
+    });
+  return rosters.map((r) => {
+    const t = totals.get(r.roster_id);
+    const pfCents = Math.round(t.pf * 100);
+    const paCents = Math.round(t.pa * 100);
+    return {
+      ...r,
+      settings: {
+        ...(r.settings || {}),
+        wins: t.wins,
+        losses: t.losses,
+        ties: t.ties,
+        fpts: Math.floor(pfCents / 100),
+        fpts_decimal: pfCents % 100,
+        fpts_against: Math.floor(paCents / 100),
+        fpts_against_decimal: paCents % 100,
+      },
+    };
+  });
+}
+
+/*
   Rebuilds the in-progress season's "Power Rank History" time series --
   Rank, raw PR Score, and Playoff Odds, one value per team per completed
   week -- in the exact shape js/season.js's renderPowerRankHistorySection
@@ -192,17 +264,34 @@ async function buildSafeDeep(SleeperAPI, leagueId, lastFantasyWeek, safeBeforeWe
   already the Sleeper username, not the custom team name -- matching how
   every other season in this file is keyed.
 */
-function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDeep, playerDirectory, teamStrengthTeams, iterations, lastCompleteWeek) {
+function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDeep, playerDirectory, teamStrengthTeams, iterations, lastCompleteWeek, finalWeekResult) {
   const ranks = {};
   const scores = {};
   const playoffOdds = {};
+  const playoffStart = currentSeasonEntry.league && currentSeasonEntry.league.settings ? currentSeasonEntry.league.settings.playoff_week_start : null;
 
   for (let week = 1; week <= lastCompleteWeek; week++) {
-    const asOfWeekDeep = {
-      weeks: fullDeep.weeks.filter((w) => w.week <= week),
-      scheduleWeeks: fullDeep.scheduleWeeks,
-    };
-    const pr = DeepHistory.computePowerRankings(currentSeasonEntry, asOfWeekDeep, playerDirectory, teamStrengthTeams, iterations);
+    let pr;
+    if (week === lastCompleteWeek && finalWeekResult) {
+      // The newest week is exactly what the snapshot was just built from. Reusing it
+      // (instead of simulating again) keeps the chart's last point identical to the
+      // Power Rankings page, since the playoff-odds simulation is random.
+      pr = finalWeekResult;
+    } else {
+      const asOfWeekDeep = {
+        weeks: fullDeep.weeks.filter((w) => w.week <= week),
+        scheduleWeeks: fullDeep.scheduleWeeks,
+      };
+      // computePowerRankings reads each team's record from the rosters, and the rosters
+      // hold TODAY's record. For an earlier week, give it that week's record instead,
+      // otherwise every past week is ranked on the latest record and the simulation
+      // counts the weeks after it a second time.
+      const asOfEntry =
+        week === lastCompleteWeek
+          ? currentSeasonEntry
+          : { ...currentSeasonEntry, rosters: rostersAsOfWeek(currentSeasonEntry.rosters, fullDeep.weeks, week, playoffStart) };
+      pr = DeepHistory.computePowerRankings(asOfEntry, asOfWeekDeep, playerDirectory, teamStrengthTeams, iterations);
+    }
     pr.rows.forEach((row) => {
       const key = row.teamName;
       if (!ranks[key]) ranks[key] = { pre: null, weekly: [] };
@@ -215,6 +304,25 @@ function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDe
   }
 
   return { ranks, scores, playoffOdds };
+}
+
+/*
+  The extras file for one run: the snapshot's own week and rows, the same finished
+  weeks the ranking was computed from, and DeepHistory's slot table. Kept apart
+  from main() so a test can run it against the saved season.
+*/
+function buildExtrasForRun(DeepHistory, { season, pr, generatedAt, currentSeasonEntry, deep, playerDirectory }) {
+  return buildPowerRankingsExtras({
+    season,
+    week: pr.week,
+    generatedAt,
+    teams: pr.rows,
+    league: currentSeasonEntry.league,
+    weeks: deep.weeks,
+    scheduleWeeks: deep.scheduleWeeks,
+    playerDirectory,
+    buildPositionTable: (...args) => DeepHistory.buildPositionTable(...args),
+  });
 }
 
 async function main() {
@@ -293,12 +401,25 @@ async function main() {
   // of the script, but still a background job, not something on a live
   // page load.
   console.log(`Rebuilding ${lastCompleteWeek}-week Power Rank History for ${season} (re-simulating each past week)…`);
-  const csvHistoryData = buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, deep, playerDirectory, teamStrengthTeams, PLAYOFF_SIM_ITERATIONS, lastCompleteWeek);
+  const csvHistoryData = buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, deep, playerDirectory, teamStrengthTeams, PLAYOFF_SIM_ITERATIONS, lastCompleteWeek, pr);
   const csvHistory = readJson(CSV_HISTORY_PATH, { seasons: {} });
   if (!csvHistory.seasons) csvHistory.seasons = {};
   csvHistory.seasons[season] = csvHistoryData;
   writeJson(CSV_HISTORY_PATH, csvHistory);
   console.log(`Wrote ${path.relative(REPO_ROOT, CSV_HISTORY_PATH)} (${season} Rank/Score/Playoff Odds through Week ${lastCompleteWeek})`);
+
+  // Strength of Schedule / Weekly Scores / Lineup Slot views. Cheap (no
+  // simulation), and built from the very same finished weeks as the snapshot.
+  const extras = buildExtrasForRun(DeepHistory, {
+    season,
+    pr,
+    generatedAt: snapshot.generatedAt,
+    currentSeasonEntry,
+    deep,
+    playerDirectory,
+  });
+  writeJson(EXTRAS_PATH, extras);
+  console.log(`Wrote ${path.relative(REPO_ROOT, EXTRAS_PATH)} (Strength of Schedule, Weekly Scores, Lineup Slots through Week ${pr.week})`);
 
   console.log("\nTop 3:");
   pr.rows.slice(0, 3).forEach((row) => {
@@ -313,4 +434,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildSafeDeep, buildCsvHistoryForCurrentSeason };
+module.exports = { buildSafeDeep, buildCsvHistoryForCurrentSeason, rostersAsOfWeek, buildExtrasForRun };

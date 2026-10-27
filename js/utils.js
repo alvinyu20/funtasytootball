@@ -48,14 +48,23 @@ function interpolateColor(hexLow, hexHigh, t) {
   return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
 }
 
+// The site's one heat scale: orange for the weak end, blue for the strong end,
+// and a dark neutral in the middle that melts into the panel so only the
+// extremes pull the eye. Same three hexes as --heat-low / --heat-mid /
+// --heat-high in styles.css (sampled from the lineup-slot mockup).
+const HEAT_LOW = "#7C5D31";
+const HEAT_MID = "#1C4036";
+const HEAT_HIGH = "#336B7A";
+
 // Maps a value to a color scaled to that value's own min/max range — used
 // so each heatmap column is standardized independently rather than
-// against a single shared scale. Three-stop gradient: red (low) through
-// yellow (middle) to green (high). Returns rgba with a low alpha
-// (rather than opaque rgb) so it reads as a soft background tint
-// against the site's dark theme rather than a hard block of color —
-// alpha only affects the fill, never the cell's own text.
-function heatColor(value, min, max, lowHex = "#D9534F", midHex = "#E8C13D", highHex = "#5CB85C", alpha = 0.38) {
+// against a single shared scale. Three-stop gradient: orange (low) through
+// the dark neutral (middle) to blue (high); pass the hexes in the other order
+// for a metric where lower is better (rank). Returns rgba, opaque by
+// default: the scale's colors are already the muted, dark shades that sit
+// on the site's panels (pass a lower alpha for a see-through tint). alpha
+// only affects the fill, never the cell's own text.
+function heatColor(value, min, max, lowHex = HEAT_LOW, midHex = HEAT_MID, highHex = HEAT_HIGH, alpha = 1) {
   const toRgba = (hex) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
@@ -66,8 +75,17 @@ function heatColor(value, min, max, lowHex = "#D9534F", midHex = "#E8C13D", high
   return rgb.replace("rgb(", "rgba(").replace(")", `, ${alpha})`);
 }
 
+// The same scale around a fixed zero instead of a column's own range: 0 is the
+// neutral middle, +limit (and anything beyond) the full blue, -limit the full
+// orange. For "points above or below the league average" views where one color
+// has to mean the same thing in every cell.
+function divergingHeatColor(value, limit) {
+  const t = Math.max(-1, Math.min(1, value / limit));
+  return t >= 0 ? interpolateColor(HEAT_MID, HEAT_HIGH, t) : interpolateColor(HEAT_MID, HEAT_LOW, -t);
+}
+
 // Formats a "Luck" percentage (actual win% minus overall/all-play win%)
-// with a leading sign and red/green coloring.
+// with a leading sign and blue (lucky) / orange (unlucky) coloring.
 function luckBadge(pct) {
   const cls = pct > 0 ? "luck-positive" : pct < 0 ? "luck-negative" : "luck-neutral";
   const text = pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
@@ -160,22 +178,24 @@ function findPlayerIdByName(rawName, nameIndex) {
   return nameIndex.get(key) || null;
 }
 
-// Small colored pill for a draft pick grade (A+ through F). Grades come
+// Small colored pill for a draft pick grade (S through F). Grades come
 // from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
 // since not every pick can be graded (e.g. a player who never scored).
-// Small colored pill for a draft pick grade (A+ through F). Grades come
-// from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
-// since not every pick can be graded (e.g. a player who never scored).
-// Color is a smooth green -> yellow -> red gradient across the 7 possible
-// grades (computed, not 5 discrete bands), so a B+ and a B genuinely look
-// different rather than sharing one color.
+// Color is a smooth blue -> pale neutral -> orange gradient across the 6
+// possible grades (computed, not discrete bands), so a B and a C genuinely
+// look different rather than sharing one color. Brighter than the heatmap
+// fills because the pill carries dark text instead of sitting behind light text.
 const GRADE_ORDER = ["S", "A", "B", "C", "D", "F"];
+const GRADE_BEST = "#4EA8DD";
+const GRADE_MID = "#BCC9C6";
+const GRADE_WORST = "#F0A340";
 function gradeBadgeHtml(grade) {
   if (!grade) return "";
   const idx = GRADE_ORDER.indexOf(grade);
   if (idx === -1) return "";
-  const hue = 120 - (idx / (GRADE_ORDER.length - 1)) * 120; // 120 = green, 60 = yellow, 0 = red
-  return `<span class="grade-badge" style="background:hsl(${hue.toFixed(0)}, 68%, 45%);">${escapeHtml(grade)}</span>`;
+  const t = idx / (GRADE_ORDER.length - 1); // 0 = best grade, 1 = worst
+  const bg = t <= 0.5 ? interpolateColor(GRADE_BEST, GRADE_MID, t / 0.5) : interpolateColor(GRADE_MID, GRADE_WORST, (t - 0.5) / 0.5);
+  return `<span class="grade-badge" style="background:${bg};">${escapeHtml(grade)}</span>`;
 }
 
 // A minimal inline sparkline — no axes, no labels, just the shape of a

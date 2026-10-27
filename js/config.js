@@ -85,6 +85,15 @@ const POWER_RANKINGS_SNAPSHOT_FILE = "data/power-rankings-snapshot.json";
 const POWER_RANK_CSV_HISTORY_FILE = "data/power-rank-csv-history.json";
 
 /*
+  POWER_RANKINGS_EXTRAS_FILE
+  --------------------
+  Strength of Schedule, weekly score strips and lineup-slot gaps for the
+  Power Rankings page, written by scripts/update-power-rankings.js next to the
+  snapshot (same week) — see scripts/lib/pr-extras.js.
+*/
+const POWER_RANKINGS_EXTRAS_FILE = "data/power-rankings-extras.json";
+
+/*
   INJURIES_FILE
   --------------------
   Historical weekly injury reports (skill positions, "Out"/"Doubtful"

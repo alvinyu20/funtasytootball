@@ -216,9 +216,9 @@ function renderManagerDetail(m) {
       const badge = s.isChampion ? " 🏆" : s.isRunnerUp ? " 🥈" : s.isThirdPlace ? " 🥉" : "";
       // Rank is inverted from the usual "higher is better" heatmap
       // convention -- a LOWER rank (1st place) is the good outcome, so
-      // the low/high colors are swapped to keep green meaning "good"
+      // the low/high colors are swapped to keep blue meaning "good"
       // rather than "numerically large" here.
-      const rankBg = heatColor(s.rank, rankMin, rankMax, "#5CB85C", "#E8C13D", "#D9534F");
+      const rankBg = heatColor(s.rank, rankMin, rankMax, HEAT_HIGH, HEAT_MID, HEAT_LOW);
       return `
       <tr>
         <td data-label="Year">${s.season}${badge}</td>
@@ -373,7 +373,7 @@ function renderManagerDetail(m) {
           <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th></tr></thead>
           <tbody>${h2hRows || `<tr><td colspan="3" class="empty-state">No matchups recorded yet.</td></tr>`}</tbody>
         </table>
-        ${h2hRows ? `<p class="heatmap-note">Green is your best matchup win rate, red is your worst.</p>` : ""}
+        ${h2hRows ? `<p class="heatmap-note">Blue is your best matchup win rate, orange is your worst.</p>` : ""}
       </div>
     </div>
 
@@ -388,7 +388,7 @@ function renderManagerDetail(m) {
           <thead><tr><th>Opponent</th><th>Record</th><th>Win %</th></tr></thead>
           <tbody>${h2hPlayoffRows || `<tr><td colspan="3" class="empty-state">No playoff matchups recorded yet.</td></tr>`}</tbody>
         </table>
-        ${h2hPlayoffRows ? `<p class="heatmap-note">Green is your best matchup win rate, red is your worst.</p>` : ""}
+        ${h2hPlayoffRows ? `<p class="heatmap-note">Blue is your best matchup win rate, orange is your worst.</p>` : ""}
       </div>
     </div>
 
@@ -405,7 +405,7 @@ function renderManagerDetail(m) {
             <tbody>${seasonSummaryRows}</tbody>
           </table>
         </div>
-        <p class="heatmap-note">Rank is colored relative to your own history here — green is your best finish, red is your worst.</p>
+        <p class="heatmap-note">Rank is colored relative to your own history here — blue is your best finish, orange is your worst.</p>
       </div>
     </div>
 

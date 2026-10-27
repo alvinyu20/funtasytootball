@@ -19,7 +19,7 @@ const MyTeam = (function () {
   const CHANGE_EVENT = "myteam:change";
 
   // The nearest of these around a matched name is what gets the highlight.
-  const ROW_SELECTOR = "tr, .pr-mini-row, .streak-row, .lr-item, .rank-list-row, .career-card, .matchup .side, .draft-list-row";
+  const ROW_SELECTOR = "tr, .sos-row, .road-row, .strip-row, .pr-mini-row, .streak-row, .lr-item, .rank-list-row, .career-card, .matchup .side, .draft-list-row";
   // Never decorate the chrome (nav, the picker itself).
   const SKIP_SELECTOR = ".site-nav, .nav-drawer, .myteam-overlay, script, style, noscript";
 
