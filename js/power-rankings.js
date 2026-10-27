@@ -150,7 +150,7 @@ function renderOddsTable(snapshot) {
     }</p>`;
 }
 
-// "Snapshot · Through Week 6 · Oct 13 · updates with each ROS refresh". Amber when the
+// "Snapshot · Through Week 6 · Oct 13 · updates with each ROS refresh". Blue when the
 // NFL calendar has moved on by more than the one week a snapshot normally lags.
 function snapshotChip(snapshot, nflWeek) {
   return freshnessChipHtml({
@@ -492,7 +492,7 @@ function renderSlotHeatmap(slots, chip) {
       </div>
       <div class="slot-legend">${legend}<span class="slot-legend-note">Points per game vs league average for that slot. The scale is fixed at ±${SLOT_SCALE} and saturates beyond it.</span></div>
       ${parts.length ? `<p class="pr-takeaway"><strong>Takeaway:</strong> ${parts.join(" ")}</p>` : ""}
-      <p class="heatmap-note">One fixed color scale for every cell: blue is a strength, orange is a hole, and a colored cell means the same thing for every team and every slot. Each cell is the team's average in that starter slot minus the league's average for that slot; vs Avg is the sum across all slots (total points per game vs the league average). Regular-season weeks only.</p>
+      <p class="heatmap-note">One fixed color scale for every cell: yellow is a strength, blue is a hole, and a colored cell means the same thing for every team and every slot. Each cell is the team's average in that starter slot minus the league's average for that slot; vs Avg is the sum across all slots (total points per game vs the league average). Regular-season weeks only.</p>
     </div></div>`;
 }
 

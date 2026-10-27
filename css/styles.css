@@ -13,17 +13,17 @@
   --gold-dim: #B98F30;
   --rust: #B5502F;
 
-  /* Good / bad, site-wide: blue is strong, orange is weak. One pair instead of
+  /* Good / bad, site-wide: yellow is strong, blue is weak. One pair instead of
      green/red so it reads for everyone (and matches the lineup heatmap). The
-     --heat-* trio is the fill scale for heatmap cells: orange, a dark neutral
-     that melts into the panel, then blue. Same three hexes live in utils.js. */
-  --good: #4EA8DD;
-  --good-dim: #2E678C;
-  --bad: #F0A340;
-  --bad-dim: #8A5E22;
-  --heat-low: #7C5D31;
+     --heat-* trio is the fill scale for heatmap cells: blue, a dark neutral
+     that melts into the panel, then yellow. Same three hexes live in utils.js. */
+  --good: #F0A340;
+  --good-dim: #8A5E22;
+  --bad: #4EA8DD;
+  --bad-dim: #2E678C;
+  --heat-low: #336B7A;
   --heat-mid: #1C4036;
-  --heat-high: #336B7A;
+  --heat-high: #7C5D31;
 
   --pos-qb: #E8B23D;
   --pos-rb: #B5502F;
@@ -2394,8 +2394,8 @@ table.stat-table td.playoff-cutoff-label {
 
 /* ==========================================================================
    FRESHNESS CHIPS — "Snapshot · Through Week 6 · updates Tuesdays" tags that
-   say which week a panel's numbers cover. Amber means the data is more than
-   a week behind the NFL calendar (it catches up on the next weekly update).
+   say which week a panel's numbers cover. Blue (the "bad" color) means the data
+   is more than a week behind the NFL calendar (it catches up on the next update).
    ========================================================================== */
 .panel-head {
   display: flex;
@@ -2431,8 +2431,8 @@ table.stat-table td.playoff-cutoff-label {
 }
 .fresh-live { color: var(--good); border-color: var(--good-dim); }
 .fresh-live::before { background: var(--good); animation: fresh-pulse 1.8s ease-in-out infinite; }
-.fresh-behind { color: #F0C36A; border-color: #7A5E22; background: rgba(232, 178, 61, 0.08); }
-.fresh-behind::before { background: var(--gold); }
+.fresh-behind { color: var(--bad); border-color: var(--bad-dim); background: rgba(78, 168, 221, 0.08); }
+.fresh-behind::before { background: var(--bad); }
 @keyframes fresh-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }
@@ -3013,7 +3013,7 @@ table.stat-table.sticky-cols-2 td.team-cell { max-width: 150px; overflow: hidden
 .sos-dot.ring { z-index: 1; border: 2px solid var(--chalk-dim); background: var(--turf-mid); }
 .sos-dot.fill { z-index: 2; border: 2px solid var(--turf-mid); background: var(--gold); }
 
-/* Road Ahead: bars out from a center line, orange = harder than the league average, blue = easier */
+/* Road Ahead: bars out from a center line, blue = harder than the league average, yellow = easier */
 .road-row { grid-template-columns: minmax(88px, 1fr) minmax(0, 1.6fr) 44px; }
 .road-track { position: relative; height: 14px; }
 .road-track::before { content: ""; position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; background: var(--chalk-dim); opacity: 0.6; }

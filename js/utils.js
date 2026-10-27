@@ -48,18 +48,18 @@ function interpolateColor(hexLow, hexHigh, t) {
   return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
 }
 
-// The site's one heat scale: orange for the weak end, blue for the strong end,
+// The site's one heat scale: blue for the weak end, yellow for the strong end,
 // and a dark neutral in the middle that melts into the panel so only the
 // extremes pull the eye. Same three hexes as --heat-low / --heat-mid /
 // --heat-high in styles.css (sampled from the lineup-slot mockup).
-const HEAT_LOW = "#7C5D31";
+const HEAT_LOW = "#336B7A";
 const HEAT_MID = "#1C4036";
-const HEAT_HIGH = "#336B7A";
+const HEAT_HIGH = "#7C5D31";
 
 // Maps a value to a color scaled to that value's own min/max range — used
 // so each heatmap column is standardized independently rather than
-// against a single shared scale. Three-stop gradient: orange (low) through
-// the dark neutral (middle) to blue (high); pass the hexes in the other order
+// against a single shared scale. Three-stop gradient: blue (low) through
+// the dark neutral (middle) to yellow (high); pass the hexes in the other order
 // for a metric where lower is better (rank). Returns rgba, opaque by
 // default: the scale's colors are already the muted, dark shades that sit
 // on the site's panels (pass a lower alpha for a see-through tint). alpha
@@ -76,8 +76,8 @@ function heatColor(value, min, max, lowHex = HEAT_LOW, midHex = HEAT_MID, highHe
 }
 
 // The same scale around a fixed zero instead of a column's own range: 0 is the
-// neutral middle, +limit (and anything beyond) the full blue, -limit the full
-// orange. For "points above or below the league average" views where one color
+// neutral middle, +limit (and anything beyond) the full yellow, -limit the full
+// blue. For "points above or below the league average" views where one color
 // has to mean the same thing in every cell.
 function divergingHeatColor(value, limit) {
   const t = Math.max(-1, Math.min(1, value / limit));
@@ -85,7 +85,7 @@ function divergingHeatColor(value, limit) {
 }
 
 // Formats a "Luck" percentage (actual win% minus overall/all-play win%)
-// with a leading sign and blue (lucky) / orange (unlucky) coloring.
+// with a leading sign and yellow (lucky) / blue (unlucky) coloring.
 function luckBadge(pct) {
   const cls = pct > 0 ? "luck-positive" : pct < 0 ? "luck-negative" : "luck-neutral";
   const text = pct > 0 ? `+${pct.toFixed(1)}%` : `${pct.toFixed(1)}%`;
@@ -181,14 +181,14 @@ function findPlayerIdByName(rawName, nameIndex) {
 // Small colored pill for a draft pick grade (S through F). Grades come
 // from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
 // since not every pick can be graded (e.g. a player who never scored).
-// Color is a smooth blue -> pale neutral -> orange gradient across the 6
+// Color is a smooth yellow -> pale neutral -> blue gradient across the 6
 // possible grades (computed, not discrete bands), so a B and a C genuinely
 // look different rather than sharing one color. Brighter than the heatmap
 // fills because the pill carries dark text instead of sitting behind light text.
 const GRADE_ORDER = ["S", "A", "B", "C", "D", "F"];
-const GRADE_BEST = "#4EA8DD";
+const GRADE_BEST = "#F0A340";
 const GRADE_MID = "#BCC9C6";
-const GRADE_WORST = "#F0A340";
+const GRADE_WORST = "#4EA8DD";
 function gradeBadgeHtml(grade) {
   if (!grade) return "";
   const idx = GRADE_ORDER.indexOf(grade);
@@ -235,7 +235,7 @@ function recordChangeNote(e) {
 //   label    short kind of data ("Snapshot", "Live", "ROS ranks")
 //   through  last COMPLETED week the numbers include
 //   current  the NFL week Sleeper says it is now (optional); a snapshot
-//            more than one completed week behind turns amber
+//            more than one completed week behind turns blue
 //   date     "2026-10-07" style date to show as "Oct 7"
 //   note     the update rhythm ("updates Tuesdays")
 //   tone     force "live" | "snap" | "behind"

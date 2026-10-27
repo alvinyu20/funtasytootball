@@ -11,7 +11,7 @@
     id, cat, section, title, desc   — what the page shows
     fmt                             — a RecordBook.FORMATS key, or a function
     dir                             — "desc" (biggest wins, default) or "asc"
-    tone                            — "low" marks a lowlight (orange accent)
+    tone                            — "low" marks a lowlight (blue accent)
     compute(ctx) -> { rows, note?, headline?, status? }
         rows: [{ key | name, raw, detail?, when?, tie?, playerId? }]
         The engine sorts, ranks (ties share a rank), keeps the top 10

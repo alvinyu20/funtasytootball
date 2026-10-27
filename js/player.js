@@ -405,7 +405,7 @@ function renderOwnershipHistory(player) {
           <tbody>${spanRows}</tbody>
         </table>
       </div>
-      <p class="heatmap-note">Sorted oldest to newest. The same manager can appear more than once if they owned, lost, and later re-acquired this player. PPG is colored relative to this player's own spans — blue is their best, orange is their worst.</p>
+      <p class="heatmap-note">Sorted oldest to newest. The same manager can appear more than once if they owned, lost, and later re-acquired this player. PPG is colored relative to this player's own spans — yellow is their best, blue is their worst.</p>
     </div>
     <div class="chart-tab-panel" data-chart-panel="cumulative" style="display:none;">
       <div class="heatmap-table-wrap stay-scrollable">
@@ -414,7 +414,7 @@ function renderOwnershipHistory(player) {
           <tbody>${cumulativeRows}</tbody>
         </table>
       </div>
-      <p class="heatmap-note">Every span for the same manager combined into one line, sorted by games owned. PPG is colored relative to this player's own owners — blue is their best, orange is their worst.</p>
+      <p class="heatmap-note">Every span for the same manager combined into one line, sorted by games owned. PPG is colored relative to this player's own owners — yellow is their best, blue is their worst.</p>
     </div>`;
 }
 
