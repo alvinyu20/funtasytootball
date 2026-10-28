@@ -218,6 +218,7 @@ test("buildExtrasForRun: the run's extras carry the snapshot's season, week and 
     season: snapshot.season, pr, generatedAt: snapshot.generatedAt,
     currentSeasonEntry: { league: archive.league, rosters: archive.rosters, users: archive.users },
     deep: { weeks, scheduleWeeks }, playerDirectory: directory,
+    teamStrengthTeams: JSON.parse(fs.readFileSync(path.join(ROOT, "data", "team-strength.json"), "utf8")).teams,
   });
   const extrasPath = path.join(ROOT, "data", "power-rankings-extras.json");
   if (!fs.existsSync(extrasPath)) return; // a repo has no extras file until the updated workflow has run once
@@ -229,4 +230,56 @@ test("buildExtrasForRun: the run's extras carry the snapshot's season, week and 
   assert.deepStrictEqual(JSON.parse(JSON.stringify(out.scores)), committed.scores);
   assert.strictEqual(out.slots.rows.length, snapshot.rows.length, "every team has a slot row");
   assert.deepStrictEqual(out.slots.columns.map((c) => c.key), committed.slots.columns.map((c) => c.key));
+});
+
+/* ---------------------------------------------------------------------------
+   The simulation runs 10,000 seasons, and says so in the snapshot.
+   --------------------------------------------------------------------------- */
+test("the update script simulates 10,000 seasons and records that in the snapshot; the engine's own default agrees", () => {
+  const script = fs.readFileSync(path.join(ROOT, "scripts", "update-power-rankings.js"), "utf8");
+  assert.match(script, /const PLAYOFF_SIM_ITERATIONS = 10000;/);
+  assert.match(script, /simRuns: pr\.simRuns,/);
+  assert.match(script, /buildExtrasForRun\(DeepHistory, \{[^}]*teamStrengthTeams,[^}]*\}\);/, "the run hands team-strength.json to the extras so the Road Ahead can use ROS");
+  const engine = fs.readFileSync(path.join(ROOT, "js", "deep-history.js"), "utf8");
+  assert.match(engine, /computePowerRankings\(seasonEntry, deep, playerDirectory, teamStrengthTeams, iterations = 10000\)/);
+  assert.match(engine, /simRuns: iterations,/);
+});
+
+function realSeason() {
+  const { loadSiteModules } = require("../scripts/lib/load-site-modules.js");
+  const { finishedWeeksOf } = require("../scripts/lib/finished-weeks.js");
+  const snapshot = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "power-rankings-snapshot.json"), "utf8"));
+  if (snapshot.preseason) return null;
+  const archive = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "sleeper-archive", `${snapshot.season}.json`), "utf8"));
+  const scheduleWeeks = archive.weeks.map((w) => ({ week: w.week, matchups: w.matchups }));
+  const scored = scheduleWeeks.filter((w) => w.matchups.some((m) => (m.points || 0) > 0));
+  const weeks = finishedWeeksOf(archive, scored, archive.nflWeek == null ? null : archive.nflWeek);
+  if (!weeks.length) return null;
+  const { DeepHistory } = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js"]);
+  const directory = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "players-slim.json"), "utf8")).players;
+  const strength = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "team-strength.json"), "utf8")).teams;
+  return { DeepHistory, entry: { league: archive.league, rosters: archive.rosters, users: archive.users }, deep: { weeks, scheduleWeeks }, directory, strength };
+}
+
+test("computePowerRankings: reports how many runs it made, and every team's finish chances add up to 100%", () => {
+  const real = realSeason();
+  if (!real) return;
+  const pr = real.DeepHistory.computePowerRankings(real.entry, real.deep, real.directory, real.strength, 500);
+  assert.strictEqual(pr.simRuns, 500);
+  pr.rows.forEach((row) => {
+    assert.strictEqual(row.finishDistribution.length, pr.rows.length);
+    assert.ok(Math.abs(row.finishDistribution.reduce((a, b) => a + b, 0) - 100) < 1e-6, `${row.teamName} sums to 100`);
+  });
+});
+
+test("10,000 runs: odds come in steps of 0.01%, so a long shot shows up as a number, and two separate runs agree to within a few points", () => {
+  const real = realSeason();
+  if (!real) return;
+  const run = () => real.DeepHistory.computePowerRankings(real.entry, real.deep, real.directory, real.strength, 10000);
+  const a = run();
+  const b = run();
+  assert.strictEqual(a.simRuns, 10000);
+  a.rows.forEach((row) => row.finishDistribution.forEach((v) => assert.ok(Math.abs(v * 100 - Math.round(v * 100)) < 1e-6, `${v} is a whole number of runs out of 10,000`)));
+  const byName = new Map(b.rows.map((r) => [r.teamName, r]));
+  a.rows.forEach((row) => assert.ok(Math.abs(row.playoffPct - byName.get(row.teamName).playoffPct) < 3, `${row.teamName}: ${row.playoffPct} vs ${byName.get(row.teamName).playoffPct}`));
 });

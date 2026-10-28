@@ -69,14 +69,15 @@ They'll merge into the History page's champions ledger and, if you included
 
 ## How it works
 
-- `index.html` / `js/dashboard.js` — current standings + this week's matchups
+- `index.html` / `js/dashboard.js` — the Home page: My Team, standings, this week's matchup previews, last week, Hot & Cold, Power Rankings preview
 - `history.html` / `js/history.js` — walks every past season via Sleeper's
   `previous_league_id` chain, builds an all-time champions ledger and career
   win/loss/points records per manager, and merges in `manual-history.json`
-- `teams.html` / `js/teams.js` — a manager leaderboard (listed by Sleeper
-  username); click into any team for its season-by-season record,
-  head-to-head record against every other manager, most-rostered players,
-  and full draft history per season
+- `teams.html` / `js/teams.js` — every manager as a card (or a table), listed by
+  Sleeper username; click into any team for its tiles, season-by-season record,
+  head-to-head record against every other manager, draft report cards by year,
+  most common lineup, awards and Player Representative (see "Teams Page
+  Redesign" below). The numbers live in `js/teams-data.js`
 - `season.html` / `js/season.js` — pick any year (or "TOTAL" for every
   season combined) for a deep dive: final standings, a playoff bracket,
   a weekly league-scoring trend line, each team's scoring average, a
@@ -1751,6 +1752,8 @@ rather than free-form prose.
 
 ## Home Page
 
+*(Replaced by the redesign described under "Home Page Redesign" below; kept for history.)*
+
 Six new sections, all live/computed — nothing manual to maintain:
 
 - **Featured Matchup** — the week's game between the two teams with the
@@ -1852,10 +1855,37 @@ any number of teams (not just 10). It combines, into one weighted "PR
 Score" (lower is better): actual record, all-play "Overall" record,
 scoring average, simulated playoff odds, and ROS rank — same weights as
 your script (4/4/5/3/4). Also included: Luck Rank, scoring std-dev,
-boom/bust counts, and a full Monte Carlo playoff-odds breakdown (1,000
+boom/bust counts, and a full Monte Carlo playoff-odds breakdown (10,000
 simulated seasons, using your ROS power score to seed each team's
 simulated scoring range) showing the probability of finishing in every
 possible final position, not just make/miss playoffs.
+
+**How the page looks now (the tiered table, the phone list, the grid).**
+- *Table (1100px and wider).* Teams in rank order, cut into **tiers** wherever
+  neighbouring PR Scores are 1.4 or more apart (`PR_TIER_GAP` in
+  `js/power-rankings.js`); each tier header gives the range of playoff odds
+  inside it. Columns: rank, team (with the rank move beside the name and the
+  YOU tag from My Team), PR Score with a dot on a line from the league's
+  lowest to highest score, record with the overall (all-play) record under it labelled "Ovr" (e.g. `60-16-1 Ovr`), Luck
+  (actual win % minus Ovr win %, yellow when lucky, blue when not), Avg
+  PPG with a bar, Std Dev, a three-way bar (first-round bye / playoffs without
+  one / miss) with the playoff odds, and the ROS rank. Boom, Bust, Overall and
+  the Luck *rank* are no longer shown.
+- *Phone list (under 1100px).* The same rows and tiers as a list: rank, name,
+  big PR Score, record, the same three-way bar, playoff odds and a chevron.
+  Tap a team to open Avg PPG, Luck, ROS rank, Std Dev and the Ovr record
+  (only what the table shows). Both drawings are in the page; CSS picks one.
+- *Finish probability grid.* One row per team and one column per final rank,
+  rows ordered by **expected finish** (the Exp. column), with Bye / Playoffs /
+  Out headers over the columns, a dashed line after the bye spots and a gold
+  line after the last playoff spot. Every cell is a whole percent; under 1% it
+  keeps a decimal in a faint tile (`<0.1` below a tenth of a percent), and
+  only a finish that never came up in any run is a dash. Six shades (under 1,
+  1-5, 5-10, 10-20, 20-35, 35+), a ring on each team's most likely finish, and a
+  sentence naming the surest bet, the widest-open team, and how many cells
+  never happened. The run count shown (legend and notes) comes from the
+  snapshot's `simRuns`; a snapshot from before that field existed says 1,000,
+  which is what it was. **The next Power Rankings run writes `simRuns: 10000`.**
 
 **`data/team-strength.json`** now stores a `pt` (power score, ~0-100)
 alongside `rank` for each team — the Monte Carlo sim needs it as a
@@ -2282,10 +2312,10 @@ which the Rivalries page also reads so they always agree.
 the default on wide screens), *By round* and *By team* (the default on a
 phone, remembered per browser as `funtasy.draftView`). Tables use a thin
 themed scrollbar instead of the bright native one. Standings, Power
-Rankings and the odds heatmap keep their first column(s) pinned while you
-pan (`sticky-cols-1` / `sticky-cols-2` on the table); the odds heatmap
-draws a gold line after the last playoff spot and fits through that column
-at 390px. Home's Standings keeps Team pinned and tucks PA, Avg/Wk and
+Rankings (the phone list, no panning) and the finish probability grid keep
+their first column pinned while you pan (`sticky-cols-1` / `sticky-cols-2` on
+the Standings tables; `pr-odds-team` on the grid); the grid draws a gold line
+after the last playoff spot and shows through the 6th-place column at 390px. Home's Standings keeps Team pinned and tucks PA, Avg/Wk and
 Overall behind a "Show all columns" button on phones so Luck, ROS and SOS are on screen.
 
 **Rivalries and Players.** Rivalries opens on, in order: a link, your own
@@ -2370,9 +2400,19 @@ updated `update-power-rankings.yml` into your repo with the rest.**
   True SOS needs two finished weeks (an opponent needs another game to be
   averaged), so Week 1 shows only the Road Ahead panel.
 - **Road Ahead.** The rest of each team's regular-season schedule from
-  Sleeper, with every opponent rated by its points per game so far, shown as
-  distance from the league average (blue bar = harder than average, yellow =
-  easier). It's a proxy, not a projection; the on-page note says so.
+  Sleeper, with every opponent rated **80% by its FantasyPros rest-of-season
+  strength and 20% by its points per game so far**, shown as distance from the
+  league average (blue bar = harder than average, yellow = easier). The ROS
+  score (`pt` in `team-strength.json`, its own 0-100 scale) is put on the PPG
+  scale by matching spreads: how many standard deviations a team sits from the
+  league's average ROS score, times the standard deviation of the teams' PPG,
+  around the average team PPG. So a bar still reads "points per game above or
+  below the league average", and the league average itself doesn't move. If any
+  team has no `pt` (or there are fewer than 3 teams), every team is rated by
+  PPG alone and the file says so (`remaining.rosWeight` is 0 instead of 0.8);
+  the on-page note follows that field. The weight is `ROAD_AHEAD_ROS_WEIGHT` in
+  `scripts/lib/pr-extras.js`. It's a proxy, not a projection; the on-page note
+  says so.
 - **Every Week, One Dot.** One dot per finished regular-season week, a white bar
   for the team's average, a dashed line for the league average, and
   low / high on the right. Sorted by average, the average equals the Power
@@ -2479,6 +2519,133 @@ pick up the new one, and it will no longer be mismatched with stale
 scripts or data. Browser-stored data (`localStorage`) has its own expiry: the
 NFL player directory is kept up to a week, and a live-fetched completed season
 up to a day.
+
+## Home Page Redesign (from the mockup PDF)
+
+The Home page now follows the mockups: **desktop like #6, phone like #7**, with
+the standings from #1, the matchup preview, and Power Rankings / Hot & Cold in
+the same style. The mockup titles and panel chrome are not on the site.
+
+- **My Team card + four tiles** across the top (Next waivers, Top Score, Closest
+  Game, Your matchup once a team is picked), with the **Featured Matchup** beside
+  them. The card shows record, standing, Power rank, playoff odds, last-7 dots and
+  who you play this week (with your all-time record against them once the history
+  has loaded). Until a team is picked it holds the "Pick your team" button.
+- **Standings**: Record (with `Ovr` underneath, what used to be "All Play"), Form
+  (last 7 dots), Points (difference, `PF · PA`, and a bar), Avg/Wk, Luck, Playoffs
+  (bye / playoffs / miss bar) and ROS, with dashed Bye and Playoff lines. There is
+  no SOS column. Wide screens (1100px+) show the table; phones show a compact list
+  and a "Full table →" button.
+- **This Week**: one comparison card per game (Record, Power rank, Avg/wk,
+  Playoffs, Bye, Last 7, all-time series). On a phone each card is folded to the
+  two teams until tapped. **Last Week** is a plain scoreboard with a one-line
+  wrap-up (top score, closest game, biggest upset by Power Rank).
+- **Hot & Cold** and the **Power Rankings** top five sit side by side.
+- Everything is drawn from one shared `HOME` object, in three passes (Sleeper's
+  table, then the season's weekly data and the Power Rankings snapshot, then the
+  all-time head-to-head), so each pass just draws the panels again with more
+  filled in.
+- `js/utils.js` now also holds the small helpers Home and the Power Rankings page
+  share (`recordText`, `num1`, `signed1`, `ordinal`, `playoffBarHtml`, ...).
+- Tests: `home-standings`, `home-panels` and `matchup-cards` (shared set-up in
+  `tests/helpers/home-fixture.js`).
+
+## History Page Redesign (from the mockup PDF)
+
+The History page now follows the mockups: **Titles by Owner** and the **Trophy
+Room** (page 1), **Career Records** (page 2), **Championship Rings** (page 3),
+**Every Season at a Glance** (page 4) and **Where Podiums Come From** (page 5),
+laid out like page 7 with the phone structure of page 8. Page 6 and all of the
+mockup headlines, descriptions, footnotes and fact cards are left out, and
+"ESPN era" appears nowhere.
+
+- **Header**: the same ALL-TIME / Trophy Case title, three tiles (Seasons,
+  Champions, Most titles) and a **Your History** card that fills in once a team
+  is picked with My Team (a "Pick your team" button until then).
+- **Titles by Owner**: one bar split by titles. On a phone it becomes a bar per
+  owner.
+- **Trophy Room**: a card per season, newest first. Each says which title it was
+  (`REPEAT · TITLE 2` when the owner also won the year before), the champion's
+  regular-season record and seed, and who they beat. The season in progress is a
+  dashed LIVE card with the week and the current leader.
+- **Every Season at a Glance**: owners down the side, seasons across. A square is
+  the regular-season finish, coloured for how the playoffs went (champion,
+  runner-up, third, made it, missed); the live season is outlined yellow (inside
+  the playoff spots) or blue (outside).
+- **Career Records**: ranked list with medal counts, a square per season, and
+  bars for playoff trips, playoff games and regular-season record (a tick marks
+  .500; a winning record is yellow, a losing one blue). Sort by Titles, Podiums,
+  Playoff trips or Reg. season win %; filter All / Active. FORMER and NEW tags.
+- **Championship Rings**: top ten players, a ring per title, a square per season
+  lettered by the champion's owner. Your own title seasons are outlined.
+- **Where Podiums Come From**: titles / runner-ups / thirds by regular-season seed.
+- **Phone**: Career shows the top 10 and Rings the top 5 with a "Show all"
+  button; the jump chips are hidden; trophy cards are one row per year. A
+  tablet width (721-900px) keeps the season strip and folds the bars into a
+  second line.
+- All the numbers come from one place, `js/history-data.js`: a ledger of every
+  season (Sleeper from the season chain, ESPN from `data/manual-history.json`; a
+  year in both keeps the Sleeper one), the owners built from it, and the rings.
+  It is plain logic with no page code, so the tests run it directly.
+- Only completed seasons count towards playoff trips and average finish, so the
+  season in progress never lowers them.
+- My Team: Trophy Room cards and Career rows light up for your team. The "Beat"
+  name is marked `data-no-mine` so the team you beat doesn't.
+- Tests: `history-data` (the logic) and `history-page` (the HTML, the controls,
+  the page wiring and the styles; shared made-up league in
+  `tests/helpers/history-fixture.js`). The old History tests, which covered the
+  removed "Won With" table and career cards, are gone; the sparkline tests moved
+  to `tests/sparkline.test.js`.
+
+## Teams Page Redesign (from the mockup PDF)
+
+The Teams page now follows the mockups: the **index** from page 1, the
+**profile** from page 2 (with the Player Representative's photo big in the top
+bar), **Head-to-Head** from page 3, **Season by Season** from page 4 and the
+**draft section** from page 5, selectable by year. Pages 6 and 7 (rivalry
+material) are left for the Rivalries page, page 8 isn't built, and pages 9 and
+10 were used loosely for the picker strip and the phone layout. Mockup
+headlines, descriptions and footnotes are left out, and "ESPN era" appears
+nowhere.
+
+- **One URL, two views**: no hash is the index of every manager (Cards or Table,
+  sorted by Titles, Win %, the latest year's rank, or A to Z); `#<Sleeper user id>`
+  is that manager's profile. Section jumps are buttons, not `#section` links, so
+  they can't be mistaken for a manager.
+- **Index cards**: username, team name (only when it differs), a rank pill
+  (yellow = inside the playoff spots, blue = outside, `· NEW` for a newcomer), a
+  bar per year of regular-season finish, the overall record with a win-rate bar
+  (tick at .500) and a ring per title. Anyone with fewer than 20 games sorts
+  after everyone else in the Titles and Win % orders. Former managers sit in
+  their own section.
+- **Profile**: picker strip, hero (name, team, "playing since", where they stand
+  now, the title line and a ring per title year, plus the representative's photo),
+  seven tiles, a Seasons at a Glance strip, and a jump bar. A newcomer's empty
+  tiles show dashes and plain notes, never "0 of 0".
+- **Season by Season**: highlight tiles for the unluckiest, luckiest and best
+  scoring year (finished seasons only), then a row per year with finish, record,
+  points for and against against the league average, the all-play record and a
+  luck bar. Years with no all-play data say n/a.
+- **Head-to-Head**: opponents ranked by win rate (BEST and WORST flagged), with
+  anyone under 5 games set apart as too small to rank and playoff-only opponents
+  grouped last; regular season and playoff records side by side, a Rivalry link
+  for when that page is built, and four side cards (best matchup, worst matchup,
+  playoff rival, playoff losses).
+- **Draft section**: report cards, the pick-by-pick table and the most common
+  lineup, for the year picked. **A season still being played has no grades and
+  no VBD** (the grade, the value-over-replacement bar and the number are all
+  hidden, and that year is left out of the report cards); its pill says LIVE and
+  the table shows Pick, Player, Pos and Points with an "In progress" note. It
+  turns graded by itself once Sleeper marks the league complete.
+- All the numbers come from `js/teams-data.js`, plain logic with no page code.
+  Finishes, titles and playoff trips come from `HistoryData.buildOwners`, so this
+  page and the History page can't disagree.
+- My Team: cards, table rows, picker links, the hero and head-to-head rows all
+  light up for your team.
+- Tests: `teams-data` (the logic) and `teams-page` (the markup, the controls and
+  the page wiring; shared made-up league in `tests/helpers/teams-fixture.js`).
+  The old `teams-picker`, `teams-heatmaps` and `teams-season-tables` tests covered
+  the removed markup and are gone.
 
 ## Known limitations / ideas for later
 

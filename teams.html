@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=8e10e335f9" />
+  <link rel="stylesheet" href="css/styles.css?v=9c4ee374f2" />
 </head>
-<body>
+<body class="page-teams">
   <nav class="site-nav">
     <a class="brand" href="index.html">FUNTASY TOOTBALL<span>.</span></a>
     <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-drawer">
@@ -34,37 +34,42 @@
     </ul>
   </nav>
 
-  <section class="scoreboard">
-    <p class="scoreboard-eyebrow">THE LOCKER ROOM</p>
-    <h1 class="scoreboard-title">Teams</h1>
-    <p class="scoreboard-sub" id="sb-sub">Loading…</p>
-  </section>
-
-  <div class="wrap">
-    <div id="teams-error" class="error-state" style="display:none;"></div>
-    <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
-    <div class="career-grid" id="manager-picker" style="margin-top:16px;"></div>
-  </div>
-
-  <main class="wrap">
-    <div class="panel" id="teams-empty-view">
-      <div class="empty-state">Pick a manager above to see their full history.</div>
+  <main class="teams">
+    <div class="wrap" id="teams-error-wrap" style="display:none;">
+      <div id="teams-error" class="error-state"></div>
     </div>
+    <div class="wrap" id="progress-wrap">
+      <div id="progress-status" class="loading" style="display:none;"></div>
+    </div>
+
+    <div id="teams-index-view">
+      <div class="wrap">
+        <section class="scoreboard tm-head">
+          <p class="scoreboard-eyebrow">THE LOCKER ROOM</p>
+          <h1 class="scoreboard-title">Teams</h1>
+          <p class="scoreboard-sub" id="sb-sub">Loading…</p>
+        </section>
+      </div>
+      <div class="wrap tm-controls" id="teams-controls"></div>
+      <div class="wrap" id="teams-index"><div class="loading">Loading teams…</div></div>
+    </div>
+
     <div id="teams-detail-view" style="display:none;"></div>
   </main>
 
   <footer class="site-footer">
-    Every manager’s career in this league — records, head-to-heads and season-by-season results. Pick a name above to dive in.
+    Every manager’s career in this league — records, head-to-heads and season-by-season results.
   </footer>
 
   <script src="js/nav.js?v=60775b6708"></script>
   <script src="js/config.js?v=9209da7e8a"></script>
-  <script src="js/utils.js?v=416cfdf478"></script>
-  <script src="js/my-team.js?v=c6c7cf2216"></script>
+  <script src="js/utils.js?v=942f490d82"></script>
+  <script src="js/my-team.js?v=0262ad1aeb"></script>
   <script src="js/sleeper-api.js?v=f5475cf9d8"></script>
-  <script src="js/deep-history.js?v=6e6b750ec0"></script>
-  <script src="js/animations.js?v=c316d7e5d6"></script>
+  <script src="js/deep-history.js?v=9b33c4b106"></script>
   <script src="js/manual-history.js?v=29879548f3"></script>
-  <script src="js/teams.js?v=6f364546a8"></script>
+  <script src="js/history-data.js?v=05baada619"></script>
+  <script src="js/teams-data.js?v=c10e0b7d91"></script>
+  <script src="js/teams.js?v=855642e7c1"></script>
 </body>
 </html>

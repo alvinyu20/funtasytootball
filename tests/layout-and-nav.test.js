@@ -98,40 +98,63 @@ function fakeRow(overrides) {
   };
 }
 
-test("Power Rankings table: Rank | Team | Δ first (so Team stays pinned beside Rank), and the first two columns are sticky", () => {
+test("Power Rankings: Rank and Team lead the table, and the table and phone list are both on the page for CSS to choose between", () => {
   const c = loadSiteModules(["config.js", "utils.js", "power-rankings.js"]);
   const html = c.renderPowerTable({ rows: [fakeRow()] }, null);
-  const heads = [...html.match(/<thead>[\s\S]*?<\/thead>/)[0].matchAll(/<th>([^<]*)<\/th>/g)].map((m) => m[1]);
-  assert.deepStrictEqual(heads.slice(0, 3), ["Rank", "Team", "Δ"]);
-  assert.ok(html.includes("sticky-cols-2"));
+  const heads = [...html.match(/<thead>[\s\S]*?<\/thead>/)[0].matchAll(/<th class="[^"]*">([^<]*)<\/th>/g)].map((m) => m[1]);
+  assert.deepStrictEqual(heads.slice(0, 3), ["Rank", "Team", "PR Score"]);
+  assert.ok(html.includes('class="pr-board"') && html.includes('class="pr-phone"'));
 });
 
-test("odds heatmap: Team column sticky, and a gold cutoff after the last playoff spot", () => {
+test("finish-probability grid: Team column stays pinned when the grid pans on a phone, and the grid sits in the scrolling wrapper", () => {
   const c = loadSiteModules(["config.js", "utils.js", "power-rankings.js"]);
   const rows = [fakeRow(), fakeRow({ rosterId: 2 }), fakeRow({ rosterId: 3 }), fakeRow({ rosterId: 4 })];
-  const html = c.renderOddsTable({ rows, playoffTeams: 2 });
-  assert.ok(html.includes("sticky-cols-1") && html.includes("odds-table"));
-  const heads = [...html.matchAll(/<th class="([^"]*)">(\d+)<\/th>/g)].map((m) => [m[2], m[1].trim()]);
-  assert.deepStrictEqual(heads, [["1", "in-playoffs"], ["2", "in-playoffs playoff-edge"], ["3", ""], ["4", ""]]);
+  const html = c.renderOddsTable({ rows, playoffTeams: 2, byeTeams: 0 });
+  assert.ok(html.includes('class="heatmap-table-wrap stay-scrollable"') && html.includes('class="pr-odds"'));
+  assert.ok(html.includes('class="pr-odds-team"'));
+  const css = read("css/styles.css");
+  assert.match(css, /table\.pr-odds th\.pr-odds-team,\s*table\.pr-odds td\.pr-odds-team \{ position: sticky; left: 0;/);
+  const heads = [...html.matchAll(/<th class="rk">(\d+)<\/th>/g)].map((m) => m[1]);
+  assert.deepStrictEqual(heads, ["1", "2", "3", "4"]);
   const firstRow = html.match(/<tbody><tr>([\s\S]*?)<\/tr>/)[1];
   assert.strictEqual((firstRow.match(/playoff-edge/g) || []).length, 1, "the cutoff line is drawn once per row");
-  assert.ok(html.includes("playoff cutoff"));
+  assert.ok(html.includes("pr-zone-row"));
 });
 
-test("odds heatmap: no cutoff line when everyone makes the playoffs or the count is unknown", () => {
-  const c = loadSiteModules(["config.js", "utils.js", "power-rankings.js"]);
-  const rows = [fakeRow(), fakeRow({ rosterId: 2 })];
-  for (const playoffTeams of [undefined, 0, 2, 9]) {
-    const html = c.renderOddsTable({ rows, playoffTeams });
-    assert.ok(!html.includes("playoff-edge") && !html.includes("in-playoffs"), `playoffTeams=${playoffTeams}`);
-  }
-});
-
-test("Home's Standings table pins Team and tucks the extra columns behind the 'more' toggle", () => {
+test("Home's Standings: nine named columns for the wide table, a compact list for phones, and a button that swaps them", () => {
   const html = read("index.html");
-  assert.match(html, /<table class="stat-table compact-mobile sticky-cols-2 home-standings" id="home-standings">/);
-  assert.ok(html.includes('id="standings-more"'));
-  assert.ok((html.match(/class="col-more"/g) || []).length >= 3);
+  const head = html.match(/<table class="hs-table" id="home-standings">\s*<thead>([\s\S]*?)<\/thead>/)[1];
+  const cols = [...head.matchAll(/<th class="(hs-[a-z]+)">([^<]+)<\/th>/g)].map((m) => [m[1], m[2]]);
+  assert.deepStrictEqual(cols, [["hs-rank", "#"], ["hs-team", "Team"], ["hs-rec", "Record"], ["hs-form", "Form"], ["hs-pts", "Points · PF − PA"], ["hs-avg", "Avg/Wk"], ["hs-luck", "Luck"], ["hs-odds", "Playoffs"], ["hs-ros", "ROS"]]);
+  assert.ok(!/SOS|All Play|All-Play/i.test(head), "no Strength of Schedule column, and 'Ovr' (not All Play) sits under the Record");
+  assert.ok(html.includes('id="standings-list"') && html.includes('id="standings-more"'));
+  const css = read("css/styles.css");
+  assert.match(css, /\.hs-wrap \{ display: none; \}/, "phones start on the list");
+  assert.match(css, /#standings-panel\.show-full \.hs-list \{ display: none; \}/);
+  assert.match(css, /@media \(min-width: 1100px\) \{\s*\.hs-list \{ display: none; \}\s*\.hs-wrap \{ display: block; \}\s*#standings-more \{ display: none; \}/, "from 1100px the table is always shown and the button goes away");
+});
+
+test("Home layout: one column on a phone; from 1100px the Hot & Cold + Power Rankings pair and the games rise to match the desktop mock-up's order", () => {
+  const css = read("css/styles.css");
+  assert.match(css, /body\.page-home \{ --max-width: 1200px; \}/);
+  assert.match(css, /@media \(min-width: 1100px\) \{\s*\.home-pair \{ order: 1; \}\s*\.home-games \{ order: 2; \}\s*\.home-records \{ order: 3; \}\s*\.home-activity \{ order: 4; \}/);
+  assert.match(css, /\.mu-card\[open\] \.mu-glance \{ display: none; \}/, "an opened phone card swaps its one-line series for the full comparison");
+  const html = read("index.html");
+  assert.match(html, /<main class="home">/);
+  ["home-top", "home-standings-block", "home-games", "home-pair", "home-records", "home-activity"].forEach((cls) => assert.ok(html.includes(cls), cls));
+});
+
+test("Home's matchup comparison bars only style their own bars, so the form dots beside them stay dots", () => {
+  const css = read("css/styles.css");
+  assert.match(css, /\.cmp-bar > i \{ display: block;/);
+  assert.ok(!/\.cmp-bar i[ ,{.]/.test(css), "a descendant selector would squash the form dots into bars");
+});
+
+test("Home's CSS no longer carries the old matchup, ticker and Standings-toggle rules", () => {
+  const css = read("css/styles.css");
+  [/\.featured-matchup/, /\.matchup-list/, /\.matchup \.side/, /\.matchup-h2h/, /\.home-stack/, /\.last-week-panel/, /pulse-grid/, /\.table-more-btn/, /playoff-cutoff/, /compact-mobile\.home-standings/, /\.col-more/].forEach((re) =>
+    assert.ok(!re.test(css), `leftover ${re}`)
+  );
 });
 
 test("Home no longer has the From The Archives strip: no markup, no renderer, no styles (the season-awards data still feeds the Season and Teams pages)", () => {

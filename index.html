@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=8e10e335f9" />
+  <link rel="stylesheet" href="css/styles.css?v=9c4ee374f2" />
 </head>
-<body>
+<body class="page-home">
   <nav class="site-nav">
     <a class="brand" href="index.html">FUNTASY TOOTBALL<span>.</span></a>
     <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-drawer">
@@ -34,7 +34,7 @@
     </ul>
   </nav>
 
-  <section class="scoreboard" id="league-pulse">
+  <section class="scoreboard home-head" id="league-pulse">
     <div class="pulse-head">
       <svg class="pulse-mascot" viewBox="0 20 218 110" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <g class="home-logo-toot-puff">
@@ -74,98 +74,120 @@
         <h1 class="visually-hidden" id="sb-title">Loading…</h1>
         <p class="pulse-week" id="sb-sub"></p>
       </div>
+      <span class="home-fresh" id="home-fresh"></span>
     </div>
-    <div class="scoreboard-ticker pulse-grid" id="sb-ticker"></div>
   </section>
 
   <div class="wrap">
     <div id="dash-error" class="error-state" style="display:none;"></div>
   </div>
 
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">On The Field</span>
-    <div class="line"></div>
-  </div>
-
-  <main>
-    <div class="section-grid">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>This Week's Matchups</h2>
-          <span id="matchups-fresh"></span>
-        </div>
-        <div class="matchup-list" id="matchups-list">
-          <div class="loading">Loading matchups…</div>
-        </div>
-      </div>
-      <div class="home-stack">
-        <div class="panel">
-          <h2>Featured Matchup</h2>
+  <main class="home">
+    <div class="wrap home-top">
+      <section class="panel my-team-card" id="my-team-card">
+        <div class="loading">Loading…</div>
+      </section>
+      <div class="home-top-right">
+        <div class="home-tiles" id="home-tiles"></div>
+        <section class="panel featured-panel">
+          <div class="panel-head">
+            <h2>Featured Matchup</h2>
+            <span class="panel-note" id="featured-note"></span>
+          </div>
           <div id="featured-matchup-panel">
             <div class="loading">Loading…</div>
           </div>
-        </div>
-        <div class="panel">
-          <div class="panel-head">
-            <h2>Hot &amp; Cold</h2>
-            <span id="hotcold-fresh"></span>
-          </div>
-          <div id="streaks-panel">
-            <div class="loading">Loading…</div>
-          </div>
-        </div>
+        </section>
       </div>
     </div>
 
-    <div class="wrap home-section">
-      <div class="panel">
+    <div class="wrap home-standings-block">
+      <section class="panel" id="standings-panel">
         <div class="panel-head">
           <h2>Standings</h2>
-          <span id="standings-fresh"></span>
+          <button class="panel-link" id="standings-more" type="button" aria-pressed="false">Full table →</button>
         </div>
-        <div class="heatmap-table-wrap stay-scrollable">
-          <table class="stat-table compact-mobile sticky-cols-2 home-standings" id="home-standings">
+        <div class="hs-list" id="standings-list">
+          <div class="loading">Loading standings…</div>
+        </div>
+        <div class="hs-wrap heatmap-table-wrap stay-scrollable">
+          <table class="hs-table" id="home-standings">
             <thead>
-              <tr><th>#</th><th>Team</th><th>Record</th><th>PF</th><th class="col-more">PA</th><th class="col-more">Avg/Wk</th><th class="col-more">Overall</th><th>Luck</th><th>ROS</th><th>SOS</th></tr>
+              <tr>
+                <th class="hs-rank">#</th>
+                <th class="hs-team">Team</th>
+                <th class="hs-rec">Record</th>
+                <th class="hs-form">Form</th>
+                <th class="hs-pts">Points · PF − PA</th>
+                <th class="hs-avg">Avg/Wk</th>
+                <th class="hs-luck">Luck</th>
+                <th class="hs-odds">Playoffs</th>
+                <th class="hs-ros">ROS</th>
+              </tr>
             </thead>
             <tbody id="standings-body">
-              <tr><td colspan="10" class="loading">Loading standings…</td></tr>
+              <tr><td colspan="9" class="loading">Loading standings…</td></tr>
             </tbody>
           </table>
         </div>
-        <p class="fresh-line" id="ros-note"></p>
-        <button class="table-more-btn" id="standings-more" type="button" aria-pressed="false">Show all columns</button>
-      </div>
+        <div class="hs-foot">
+          <p class="pr-legend" id="standings-legend"></p>
+          <p class="fresh-line" id="ros-note"></p>
+        </div>
+      </section>
     </div>
 
-    <div class="yard-divider">
-      <span class="tick"></span>
-      <div class="line"></div>
-      <span class="label">Around The League</span>
-      <div class="line"></div>
+    <div class="wrap home-games">
+      <section class="panel" id="this-week-panel">
+        <div class="panel-head">
+          <h2>This Week</h2>
+          <span id="matchups-fresh"></span>
+        </div>
+        <div class="mu-grid" id="matchups-list">
+          <div class="loading">Loading matchups…</div>
+        </div>
+      </section>
+      <section class="panel last-week-panel" id="last-week-panel">
+        <div class="panel-head">
+          <h2>Last Week</h2>
+          <span id="last-week-fresh"></span>
+        </div>
+        <div class="lw-list" id="last-week-matchups-list">
+          <div class="loading">Loading matchups…</div>
+        </div>
+        <p class="lw-foot" id="last-week-foot"></p>
+      </section>
     </div>
 
-    <div class="section-grid section-grid-even">
-      <div class="panel">
+    <div class="wrap home-pair">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Hot &amp; Cold</h2>
+        </div>
+        <div id="streaks-panel">
+          <div class="loading">Loading…</div>
+        </div>
+      </section>
+      <section class="panel">
         <div class="panel-head">
           <h2>Power Rankings</h2>
-          <span id="pr-fresh"></span>
+          <a class="panel-link" id="pr-all-link" href="power-rankings.html">All teams →</a>
         </div>
         <div id="power-rankings-snapshot">
           <div class="loading">Loading…</div>
         </div>
-      </div>
-      <div class="panel">
-        <h2>Recent Activity</h2>
-        <div id="recent-activity-panel">
-          <div class="loading">Loading…</div>
-        </div>
-      </div>
+        <p class="fresh-line" id="pr-fresh"></p>
+      </section>
     </div>
 
-    <div class="section-grid section-grid-even home-section">
+    <div class="section-grid section-grid-even home-records">
+      <div class="panel" id="records-reach-panel" style="display: none;">
+        <div class="panel-head">
+          <h2>Records in Reach</h2>
+          <span id="reach-fresh"></span>
+        </div>
+        <div id="records-reach"></div>
+      </div>
       <div class="panel" id="latest-records-panel">
         <div class="panel-head">
           <h2>Latest Records</h2>
@@ -175,25 +197,15 @@
           <div class="loading">Loading…</div>
         </div>
       </div>
-      <div class="panel" id="records-reach-panel" style="display: none;">
-        <div class="panel-head">
-          <h2>Records in Reach</h2>
-          <span id="reach-fresh"></span>
-        </div>
-        <div id="records-reach"></div>
-      </div>
     </div>
 
-    <div class="wrap home-section">
-      <details class="panel last-week-panel" id="last-week-panel">
-        <summary>
-          <h2>Last Week's Matchups</h2>
-          <span id="last-week-fresh"></span>
-        </summary>
-        <div class="matchup-list" id="last-week-matchups-list">
-          <div class="loading">Loading matchups…</div>
+    <div class="wrap home-activity">
+      <section class="panel">
+        <h2>Recent Activity</h2>
+        <div id="recent-activity-panel">
+          <div class="loading">Loading…</div>
         </div>
-      </details>
+      </section>
     </div>
   </main>
 
@@ -203,11 +215,11 @@
 
   <script src="js/nav.js?v=60775b6708"></script>
   <script src="js/config.js?v=9209da7e8a"></script>
-  <script src="js/utils.js?v=416cfdf478"></script>
-  <script src="js/my-team.js?v=c6c7cf2216"></script>
+  <script src="js/utils.js?v=942f490d82"></script>
+  <script src="js/my-team.js?v=0262ad1aeb"></script>
   <script src="js/sleeper-api.js?v=f5475cf9d8"></script>
-  <script src="js/deep-history.js?v=6e6b750ec0"></script>
+  <script src="js/deep-history.js?v=9b33c4b106"></script>
   <script src="js/animations.js?v=c316d7e5d6"></script>
-  <script src="js/dashboard.js?v=ec977e41a1"></script>
+  <script src="js/dashboard.js?v=614c101d01"></script>
 </body>
 </html>

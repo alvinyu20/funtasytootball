@@ -140,7 +140,21 @@ test("Road Ahead: order, bar side and width", () => {
 test("Road Ahead: the takeaway names the toughest and easiest remaining slate, with the toughest one's record", () => {
   const c = setup();
   const html = c.renderRoadAheadPanel(sosFixture(), CHIP);
-  assert.ok(html.includes("<strong>Worth knowing:</strong> T1 (4-1) has the toughest remaining slate at 133.8 PPG per opponent; T5 has the easiest."));
+  assert.ok(html.includes("<strong>Worth knowing:</strong> T1 (4-1) has the toughest remaining slate, with opponents rating 133.8 PPG on average; T5 has the easiest."));
+});
+
+test("Road Ahead: the note says how opponents are rated: 80% ROS / 20% PPG when the file used ROS, PPG alone for an older file or a fallback", () => {
+  const c = setup();
+  const withRos = sosFixture();
+  withRos.remaining = { ...withRos.remaining, rosWeight: 0.8 };
+  const note = c.renderRoadAheadPanel(withRos, CHIP).match(/<p class="heatmap-note">([^<]*)<\/p>/)[1];
+  assert.ok(note.includes("80% on its FantasyPros rest-of-season strength and 20% on its points per game so far"), note);
+  assert.ok(note.includes("league average of 127.8 PPG"));
+  for (const remaining of [{ ...withRos.remaining, rosWeight: 0 }, { fromWeek: 6, toWeek: 14, games: 9 }, null]) {
+    const html = c.renderRoadAheadPanel({ ...withRos, remaining }, CHIP);
+    const plain = html.match(/<p class="heatmap-note">([^<]*)<\/p>/)[1];
+    assert.ok(plain.includes("every opponent rated by its points per game so far") && !plain.includes("FantasyPros"), plain);
+  }
 });
 
 test("Road Ahead: a team with nothing left to play is skipped; one team alone gets no takeaway; none at all is no panel", () => {

@@ -15,7 +15,12 @@ const read = (f) => fs.readFileSync(path.join(ROOT, f), "utf8");
 const jsFiles = fs.readdirSync(path.join(ROOT, "js")).filter((f) => f.endsWith(".js"));
 
 // Colors that name a thing, not a verdict.
-const IDENTITY = new Set(["#4F8F6B" /* --pos-wr, the WR color on the draft board */, "#8FBF9E" /* the mascot's toot puff */]);
+const IDENTITY = new Set([
+  "#4F8F6B" /* --pos-wr, the WR color on the draft board */,
+  "#8FBF9E" /* the mascot's toot puff */,
+  "#2F5A47" /* --odds-s1 and #4A5E39 --odds-s5: the low end of the finish-probability grid's ramp (how likely, not good or bad) */,
+  "#4A5E39",
+]);
 const CATEGORICAL_PALETTE_FILES = new Set(["charts.js"]); // team line colors: a different team, a different color
 
 function hue(r, g, b) {
@@ -72,6 +77,10 @@ test("good and bad are one pair of tokens, and every good/bad style uses them", 
   assert.match(css, /\.fresh-live \{ color: var\(--good\);/);
   assert.match(css, /\.fresh-behind \{ color: var\(--bad\);/, "a chip that is behind is the bad color, not a second yellow");
   assert.match(css, /\.rb-row\.rb-low \{ border-left-color: var\(--bad\); \}/, "a record's lowlight accent is the bad color");
+  assert.match(css, /\.tm-luck b\.up \{ color: var\(--good\); \}/, "Teams: a lucky season is the good color");
+  assert.match(css, /\.tm-luck b\.down \{ color: var\(--bad\); \}/, "Teams: an unlucky season is the bad color");
+  assert.match(css, /\.tm-rank\.in \{ color: var\(--good\)/, "Teams: inside the playoff spots is yellow");
+  assert.match(css, /\.tm-rank\.out \{ color: var\(--bad\)/, "Teams: outside the playoff spots is blue");
 });
 
 test("no page text still explains a heatmap as green and red", () => {
@@ -87,16 +96,10 @@ test("no page text still explains a heatmap as green and red", () => {
 test("the yellow/blue legend wording is on the pages that color by best and worst", () => {
   assert.ok(read("js/season.js").includes("yellow is that column's best, blue is its worst"));
   assert.ok(read("js/player.js").includes("yellow is their best, blue is their worst"));
-  assert.ok(read("js/teams.js").includes("Yellow is your best matchup win rate, blue is your worst."));
-  assert.ok(read("js/teams.js").includes("yellow is your best finish, blue is your worst"));
 });
 
 test("playoff odds chart callouts: clinched is the good color and eliminated is the bad color", () => {
   const src = read("js/season.js");
   assert.match(src, /Clinched — Wk \$\{i \+ 1\}`, color: "var\(--good\)"/);
   assert.match(src, /Eliminated — Wk \$\{i \+ 1\}`, color: "var\(--bad\)"/);
-});
-
-test("Rank heatmaps still run the other way round: the best (lowest) rank gets the yellow end", () => {
-  assert.match(read("js/teams.js"), /heatColor\(s\.rank, rankMin, rankMax, HEAT_HIGH, HEAT_MID, HEAT_LOW\)/);
 });

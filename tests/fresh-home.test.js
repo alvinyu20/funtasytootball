@@ -1,7 +1,7 @@
 /*
   The "fresh, finished-looking Home" batch: freshness chips, member-facing
-  copy, the league-pulse strip, finished-weeks-only standings, the latest
-  newsletter card, and "my team".
+  copy, the waiver clock, and "my team". (The Standings, tiles, panels and
+  matchup cards have their own files: home-standings, home-panels, matchup-cards.)
 */
 const test = require("node:test");
 const assert = require("node:assert");
@@ -53,8 +53,6 @@ test("freshness chip: escapes its text and dates never shift with the viewer's t
 });
 
 // ---- finished weeks only -----------------------------------------------------------------------
-const archive = JSON.parse(read("data", "sleeper-archive", "2026.json"));
-const playedWeeks = archive.weeks.filter((w) => w.matchups.some((m) => m.points > 0)).map((w) => ({ week: w.week, matchups: w.matchups }));
 
 test("completedWeekCount: the most games any roster has finished, which is the week the Record covers", () => {
   const ctx = homeCtx();
@@ -62,93 +60,6 @@ test("completedWeekCount: the most games any roster has finished, which is the w
   assert.strictEqual(n([{ wins: 4, losses: 1, ties: 0 }, { wins: 2, losses: 2, ties: 1 }]), 5);
   assert.strictEqual(n([]), 0);
   assert.strictEqual(n([{ wins: 0, losses: 0, ties: 0 }]), 0);
-});
-
-test("Home standings: Overall, Luck and the rest cover only the weeks the Record covers (no half-played week)", () => {
-  const sum = (completed) => {
-    const ctx = homeCtx();
-    ctx.__arch = archive;
-    ctx.__weeks = playedWeeks;
-    runInLoadedContext(ctx, `HOME.completed = ${completed}; HOME.week = ${completed + 1};`);
-    runInLoadedContext(
-      ctx,
-      `renderEnrichedStandings(__arch.league, __arch.rosters, __arch.users, { weeks: __weeks }, {}, { teams: {} }, 6)`
-    );
-    const html = ctx.document.getElementById("standings-body").innerHTML;
-    const cells = [...html.matchAll(/data-label="Overall">(\d+)-(\d+)(?:-(\d+))?</g)].map((m) => Number(m[1]) + Number(m[2]) + Number(m[3] || 0));
-    return { cells, html };
-  };
-  const rosterCount = archive.rosters.length;
-  // Sleeper says 4 finished weeks, the weekly data already has a 5th (in progress)
-  const four = sum(4);
-  assert.strictEqual(four.cells.length, rosterCount);
-  four.cells.forEach((games) => assert.strictEqual(games, 4 * (rosterCount - 1), "4 finished weeks of games against everyone else"));
-  const five = sum(5);
-  five.cells.forEach((games) => assert.strictEqual(games, 5 * (rosterCount - 1)));
-});
-
-test("Home standings: before any week is final the early table is left alone", () => {
-  const ctx = homeCtx();
-  ctx.__arch = archive;
-  ctx.__weeks = playedWeeks;
-  runInLoadedContext(ctx, `HOME.completed = 0; document.getElementById("standings-body").innerHTML = "EARLY";`);
-  runInLoadedContext(ctx, `renderEnrichedStandings(__arch.league, __arch.rosters, __arch.users, { weeks: __weeks }, {}, { teams: {} }, 6)`);
-  assert.strictEqual(ctx.document.getElementById("standings-body").innerHTML, "EARLY");
-});
-
-test("Home standings: each team cell carries its username, so 'my team' can find a row that shows a team name", () => {
-  const ctx = homeCtx();
-  ctx.__arch = archive;
-  ctx.__weeks = playedWeeks;
-  runInLoadedContext(ctx, `HOME.completed = 5;`);
-  runInLoadedContext(ctx, `renderEnrichedStandings(__arch.league, __arch.rosters, __arch.users, { weeks: __weeks }, {}, { teams: {} }, 6)`);
-  const html = ctx.document.getElementById("standings-body").innerHTML;
-  const names = [...html.matchAll(/class="team-cell" data-label="Team" data-username="([^"]+)"/g)].map((m) => m[1]);
-  assert.strictEqual(names.length, archive.rosters.length);
-  const early = homeCtx();
-  early.__arch = archive;
-  runInLoadedContext(early, `renderStandingsTable(SleeperAPI.buildStandings(__arch.rosters, __arch.users), { teams: {} }, 6)`);
-  assert.strictEqual([...early.document.getElementById("standings-body").innerHTML.matchAll(/data-username="/g)].length, archive.rosters.length);
-});
-
-test("Hot & Cold: streaks ignore the half-played week", () => {
-  const streaks = (completed) => {
-    const ctx = homeCtx();
-    ctx.__arch = archive;
-    ctx.__weeks = playedWeeks;
-    return json(
-      ctx,
-      `(function () {
-        const info = new Map(__arch.rosters.map((r) => [r.roster_id, { teamName: "t" + r.roster_id, username: "u" + r.roster_id }]));
-        return computeCurrentStreaks(onlyCompletedWeeks(__weeks, ${completed}), info).map((s) => s.teamName + s.result + s.length);
-      })()`
-    );
-  };
-  const four = streaks(4);
-  const five = streaks(5);
-  assert.notDeepStrictEqual(four, five, "the fixture has a streak that changes in week 5");
-  assert.ok(four.includes("u4L4") && five.includes("u4L5"));
-  assert.ok(!four.some((s) => s.endsWith("5")), "nothing can be longer than the 4 finished weeks");
-});
-
-test("Hot & Cold + Power Rankings panels: the live render path filters to finished weeks and shows the chips", async () => {
-  const ctx = homeCtx();
-  ctx.__arch = archive;
-  ctx.__weeks = playedWeeks;
-  ctx.fetch = async (url) => {
-    if (String(url).includes("power-rankings-snapshot")) return { ok: true, json: async () => ({ season: "2026", week: 4, rows: [{ rosterId: 1, teamName: "u1", powerRank: 1 }] }) };
-    return { ok: false, json: async () => null };
-  };
-  runInLoadedContext(ctx, `DeepHistory.fetchSeasonDeep = async () => ({ weeks: __weeks }); HOME.completed = 4;`);
-  await runInLoadedContext(ctx, `renderStreaksAndPowerRankings(__arch.league, __arch.rosters, __arch.users, 6, {}, { teams: {} })`);
-  const panel = ctx.document.getElementById("streaks-panel").innerHTML;
-  assert.ok(panel.includes("streak-row"), "streaks rendered");
-  const lengths = [...panel.matchAll(/(\d+)(W|L)\s*<\/span>/g)].map((m) => Number(m[1]));
-  assert.ok(lengths.length > 0 && Math.max(...lengths) <= 4, "no streak counts the unfinished fifth week");
-  const hot = ctx.document.getElementById("hotcold-fresh").innerHTML;
-  assert.ok(hot.includes("Through Week 4") && hot.includes("fresh-behind"), "week 6 is being played, so a week-4 panel is flagged");
-  const pr = ctx.document.getElementById("pr-fresh").innerHTML;
-  assert.ok(pr.includes("Snapshot") && pr.includes("Through Week 4") && pr.includes("updates with each ROS refresh") && !pr.includes("Tuesday"));
 });
 
 // ---- league pulse --------------------------------------------------------------------------------
@@ -222,47 +133,6 @@ test("findMyMatchup: finds your game whichever side you're on, case-insensitivel
   assert.strictEqual(runInLoadedContext(ctx, `findMyMatchup([], __s, "Alvin").opponent`), null, "matchups not posted yet");
 });
 
-test("pulse cells: waivers, the last FINISHED week's top score and closest game, and a 'Pick your team' call to action until a team is picked", () => {
-  const ctx = homeCtx();
-  const cells = (m) => json(ctx, `buildPulseCells(${JSON.stringify(m)})`);
-  const base = {
-    week: 7,
-    waivers: { value: "Wed 3 AM ET", sub: "in 1 day, 16 hr" },
-    highlightWeek: 6,
-    topScore: { pts: 201.44, name: "Alvin's Team" },
-    closest: { diff: 0.62, a: "Alvin's Team", b: "Teddy Bears" },
-    hasMatchups: true,
-    anyPoints: true,
-    me: null,
-    myMatch: null,
-  };
-  const noTeam = cells(base);
-  assert.deepStrictEqual(noTeam.map((c) => c.label), ["Next waivers", "Top Score · Wk 6", "Closest Game · Wk 6", "Your matchup"]);
-  assert.ok(!noTeam.some((c) => /games/i.test(c.label)), "no 'Games on now' cell any more");
-  assert.ok(!noTeam.some((c) => c.live), "and no live dot");
-  assert.strictEqual(noTeam[1].value, "201.4 · Alvin's Team");
-  assert.strictEqual(noTeam[2].value, "0.6 pt gap");
-  assert.strictEqual(noTeam[2].sub, "Alvin's Team vs Teddy Bears");
-  assert.ok(noTeam[3].valueHtml.includes("data-myteam-open") && noTeam[3].valueHtml.includes("Pick your team"));
-  const match = { me: { username: "Teddy" }, opponent: { username: "Alvin" }, mine: { points: 101.3 }, theirs: { points: 98.2 } };
-  const picked = cells({ ...base, me: "Teddy", myMatch: match });
-  assert.ok(picked[3].valueHtml.includes("<strong>101.3</strong> – 98.2"));
-  assert.strictEqual(picked[3].sub, "vs Alvin · you’re ahead");
-  assert.ok(cells({ ...base, me: "Teddy", myMatch: { ...match, mine: { points: 90 } } })[3].sub.endsWith("you’re behind"));
-  assert.strictEqual(cells({ ...base, anyPoints: false, me: "Teddy", myMatch: match })[3].sub, "vs Alvin", "no talk of leads before anyone has scored");
-  assert.strictEqual(cells({ ...base, me: "Bye", myMatch: { me: {}, opponent: null, mine: {}, theirs: null } })[3].value, "Bye week");
-  assert.ok(cells({ ...base, me: "Gone", myMatch: null })[3].valueHtml.includes("Change team"));
-  // nothing finished yet: no top score or closest game to show
-  const early = cells({ week: 1, waivers: null, highlightWeek: 0, topScore: null, closest: null, hasMatchups: false, me: null, myMatch: null });
-  assert.strictEqual(early.length, 0);
-});
-
-test("pulse cells: text is escaped", () => {
-  const ctx = homeCtx();
-  const html = runInLoadedContext(ctx, `pulseCellHtml({ label: "<b>", value: "<i>x</i>", sub: "<u>" })`);
-  assert.ok(!html.includes("<b>") && !html.includes("<i>") && !html.includes("<u>"));
-});
-
 // ---- my team ---------------------------------------------------------------------------------------
 test("matchupDisplayOrder: your game first, everyone else in their original order, nothing lost", () => {
   const ctx = homeCtx();
@@ -273,13 +143,6 @@ test("matchupDisplayOrder: your game first, everyone else in their original orde
   assert.deepStrictEqual(order("E"), [2, 0, 1, 3]);
   assert.deepStrictEqual(order(" h "), [3, 0, 1, 2]);
   assert.deepStrictEqual(order("zzz"), [0, 1, 2, 3], "a name that's not in any game changes nothing");
-});
-
-test("matchup cards carry the data 'my team' needs: both usernames and their original position", () => {
-  const ctx = homeCtx();
-  const html = runInLoadedContext(ctx, `matchupCardHtml({ roster_id: 1, points: 10 }, { roster_id: 2, points: 5 }, "A <x>", "B", "Alvin", "Teddy", "cur", 3)`);
-  assert.ok(html.includes('data-order="3"') && html.includes('data-users="alvin|teddy"'));
-  assert.ok(html.includes("A &lt;x&gt;"));
 });
 
 function storageStub(initial) {
@@ -342,23 +205,23 @@ test("MyTeam: changing it re-draws Home's team-aware pieces and tells the page",
 });
 
 // ---- markup -------------------------------------------------------------------------------------------
-test("Home markup: matchups lead, standings follow, the wordmark is gone from the hero, a pulse strip is in", () => {
+test("Home markup: My Team and the tiles up top, Standings, then This Week and Last Week, Hot & Cold beside Power Rankings, records and activity last", () => {
   const html = read("index.html");
   const pos = (s) => {
     const i = html.indexOf(s);
     assert.ok(i >= 0, s);
     return i;
   };
-  assert.ok(pos('id="matchups-list"') < pos('id="standings-body"'), "This Week's Matchups come before the Standings table");
-  assert.ok(pos('id="standings-body"') < pos('id="power-rankings-snapshot"'));
-  assert.ok(pos('id="power-rankings-snapshot"') < pos('id="latest-records"'));
-  assert.ok(pos('id="latest-records"') < pos('id="last-week-matchups-list"'), "Last Week sits at the bottom");
+  const order = ["my-team-card", "home-tiles", "featured-matchup-panel", "standings-body", "matchups-list", "last-week-matchups-list", "streaks-panel", "power-rankings-snapshot", "records-reach", "latest-records", "recent-activity-panel"];
+  order.forEach((id, i) => i && assert.ok(pos(`id="${order[i - 1]}"`) < pos(`id="${id}"`), `${order[i - 1]} comes before ${id}`));
   assert.ok(!/<text[^>]*>(FUNTASY|TOOTBALL)/.test(html), "the hero no longer repeats the wordmark");
-  ["sb-eyebrow", "sb-title", "sb-sub", "sb-ticker", "pr-fresh", "standings-fresh", "latest-fresh", "reach-fresh", "hotcold-fresh", "matchups-fresh", "ros-note"].forEach((id) =>
+  ["sb-eyebrow", "sb-title", "sb-sub", "home-fresh", "pr-fresh", "latest-fresh", "reach-fresh", "matchups-fresh", "last-week-fresh", "last-week-foot", "featured-note", "ros-note", "standings-legend", "standings-list", "standings-more", "standings-panel"].forEach((id) =>
     assert.ok(html.includes(`id="${id}"`), id)
   );
-  assert.match(html, /<details class="panel last-week-panel" id="last-week-panel">/);
   assert.ok(!/newsletter/i.test(html), "no newsletter anywhere on Home");
+  assert.ok(!/id="sb-ticker"|id="standings-fresh"|id="hotcold-fresh"|class="panel-note"[^>]*>Click/.test(html), "the old pulse strip and chips are gone");
+  assert.ok(!/<details class="panel last-week-panel"/.test(html), "Last Week is an open panel now, not a fold-away");
+  assert.ok(!/Matchup Preview|Mockup|Option \d|Hot &amp; Cold \(/i.test(html), "no mockup titles or labels on the real page");
 });
 
 test("every page loads js/my-team.js after utils.js (so the star is in the top bar everywhere)", () => {

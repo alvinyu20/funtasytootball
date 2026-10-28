@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=8e10e335f9" />
+  <link rel="stylesheet" href="css/styles.css?v=9c4ee374f2" />
 </head>
-<body>
+<body class="page-history">
   <nav class="site-nav">
     <a class="brand" href="index.html">FUNTASY TOOTBALL<span>.</span></a>
     <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-drawer">
@@ -34,92 +34,74 @@
     </ul>
   </nav>
 
-  <section class="scoreboard">
-    <p class="scoreboard-eyebrow" id="sb-eyebrow">ALL-TIME</p>
-    <h1 class="scoreboard-title" id="sb-title">Loading…</h1>
-    <p class="scoreboard-sub" id="sb-sub"></p>
-  </section>
-
-  <div class="wrap">
-    <div id="hist-error" class="error-state" style="display:none;"></div>
-  </div>
-
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">Trophy Room</span>
-    <div class="line"></div>
-  </div>
-
-  <div class="wrap">
-    <div class="trophy-grid" id="trophy-room">
-      <div class="loading">Loading trophy room…</div>
+  <main class="history">
+    <div class="wrap hist-top">
+      <section class="scoreboard hist-hero">
+        <p class="scoreboard-eyebrow" id="sb-eyebrow">ALL-TIME</p>
+        <h1 class="scoreboard-title" id="sb-title">Loading…</h1>
+        <p class="scoreboard-sub" id="sb-sub"></p>
+        <div class="hist-tiles" id="hist-tiles"></div>
+      </section>
+      <aside class="panel hist-you" id="hist-you"></aside>
     </div>
-  </div>
 
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">Career Records</span>
-    <div class="line"></div>
-  </div>
-
-  <div class="wrap">
-    <div class="panel">
-      <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile" id="career-table">
-          <thead>
-            <tr>
-              <th rowspan="2">#</th>
-              <th rowspan="2" class="sortable" data-sort-key="name">Owner</th>
-              <th colspan="3" class="group-header">Titles</th>
-              <th colspan="3" class="group-header">Playoffs</th>
-              <th colspan="2" class="group-header">Playoff</th>
-              <th colspan="2" class="group-header">Reg Season</th>
-            </tr>
-            <tr>
-              <th class="sortable" data-sort-key="gold">🏆</th>
-              <th class="sortable" data-sort-key="silver">🥈</th>
-              <th class="sortable" data-sort-key="bronze">🥉</th>
-              <th class="sortable" data-sort-key="playoffApp">App</th>
-              <th class="sortable" data-sort-key="playoffPct">Pct</th>
-              <th class="sortable" data-sort-key="years">Years</th>
-              <th class="sortable" data-sort-key="playoffWins">Record</th>
-              <th class="sortable" data-sort-key="playoffWinPct">Win %</th>
-              <th class="sortable" data-sort-key="regWins">Record</th>
-              <th class="sortable" data-sort-key="regWinPct">Win %</th>
-            </tr>
-          </thead>
-          <tbody id="career-body">
-            <tr><td colspan="12" class="loading">Loading career records…</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div class="wrap" id="hist-error-wrap" style="display:none;">
+      <div id="hist-error" class="error-state"></div>
     </div>
-  </div>
 
-  <div class="yard-divider">
-    <span class="tick"></span>
-    <div class="line"></div>
-    <span class="label">Championship Rings</span>
-    <div class="line"></div>
-  </div>
-
-  <div class="wrap">
-    <div class="panel">
-      <div class="heatmap-table-wrap stay-scrollable">
-        <table class="stat-table compact-mobile">
-          <thead>
-            <tr><th>#</th><th>Player</th><th>Rings</th><th>Games Started</th><th>Won With</th></tr>
-          </thead>
-          <tbody id="rings-body">
-            <tr><td colspan="5" class="loading">Loading championship rings…</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="heatmap-note">A ring counts for any player who was on a champion's roster at any point during that title-winning season — Sleeper era only, since roster data isn't on record for the ESPN era. Kickers and defenses aren't eligible.</p>
+    <div class="wrap">
+      <nav class="hist-jump" aria-label="Jump to a section">
+        <span class="hist-jump-label">Jump to</span>
+        <a href="#champions">Champions</a>
+        <a href="#seasons">Every season</a>
+        <a href="#career">Career records</a>
+        <a href="#rings">Rings</a>
+        <a href="#podiums">Podiums</a>
+      </nav>
     </div>
-  </div>
+
+    <div class="wrap">
+      <section class="panel" id="titles-panel">
+        <div class="panel-head"><h2>Titles by Owner</h2><span class="panel-note" id="titles-meta"></span></div>
+        <div class="titles-bar" id="titles-bar"><div class="loading">Loading titles…</div></div>
+      </section>
+    </div>
+
+    <div class="wrap">
+      <section class="panel" id="champions">
+        <div class="panel-head"><h2>Trophy Room</h2></div>
+        <div class="trophy-grid" id="trophy-room">
+          <div class="loading">Loading trophy room…</div>
+        </div>
+      </section>
+    </div>
+
+    <div class="wrap">
+      <section class="panel" id="seasons">
+        <div class="panel-head"><h2>Every Season at a Glance</h2></div>
+        <div id="season-grid"><div class="loading">Loading seasons…</div></div>
+      </section>
+    </div>
+
+    <div class="wrap">
+      <section class="panel" id="career">
+        <div class="panel-head"><h2>Career Records</h2></div>
+        <div class="cr-controls" id="career-controls"></div>
+        <div id="career-list"><div class="loading">Loading career records…</div></div>
+      </section>
+    </div>
+
+    <div class="wrap hist-pair">
+      <section class="panel" id="rings">
+        <div class="panel-head"><h2>Championship Rings</h2><span class="panel-note" id="rings-meta"></span></div>
+        <div id="rings-list"><div class="loading">Loading championship rings…</div></div>
+      </section>
+      <section class="panel" id="podiums">
+        <div class="panel-head"><h2>Where Podiums Come From</h2></div>
+        <div id="podium-chart"><div class="loading">Loading podiums…</div></div>
+      </section>
+    </div>
+  </main>
 
   <footer class="site-footer">
     Career records are aggregated automatically from every season Sleeper has on file for this league.
@@ -127,11 +109,12 @@
 
   <script src="js/nav.js?v=60775b6708"></script>
   <script src="js/config.js?v=9209da7e8a"></script>
-  <script src="js/utils.js?v=416cfdf478"></script>
-  <script src="js/my-team.js?v=c6c7cf2216"></script>
+  <script src="js/utils.js?v=942f490d82"></script>
+  <script src="js/my-team.js?v=0262ad1aeb"></script>
   <script src="js/sleeper-api.js?v=f5475cf9d8"></script>
-  <script src="js/deep-history.js?v=6e6b750ec0"></script>
+  <script src="js/deep-history.js?v=9b33c4b106"></script>
   <script src="js/manual-history.js?v=29879548f3"></script>
-  <script src="js/history.js?v=d7b6e7acf2"></script>
+  <script src="js/history-data.js?v=05baada619"></script>
+  <script src="js/history.js?v=7f7147a185"></script>
 </body>
 </html>

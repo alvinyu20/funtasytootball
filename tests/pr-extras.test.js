@@ -73,7 +73,7 @@ test("rows come hardest-true-schedule first", () => {
   assert.deepStrictEqual(sos.rows.map((r) => r.teamName), ["B", "A", "D", "C"]);
 });
 
-test("road ahead: remaining regular-season games, opponents rated by current PPG, as distance from the league average; playoff weeks and played weeks don't count", () => {
+test("road ahead without ROS scores: remaining regular-season games, opponents rated by current PPG, as distance from the league average; playoff weeks and played weeks don't count", () => {
   const sos = X.buildStrengthOfSchedule({ teams, weeks: played, scheduleWeeks: schedule, playoffStart: 6 });
   const by = Object.fromEntries(sos.rows.map((r) => [r.teamName, r.ahead]));
   // PPG now: A 100, B 81.67, C 108.33, D 110. Weeks 4-5: A faces B then C, B faces A then D, C faces D then A, D faces C then B.
@@ -81,7 +81,75 @@ test("road ahead: remaining regular-season games, opponents rated by current PPG
   assert.deepStrictEqual(by.B, { games: 2, oppPpg: 105, delta: 5 });
   assert.deepStrictEqual(by.C, { games: 2, oppPpg: 105, delta: 5 });
   assert.deepStrictEqual(by.D, { games: 2, oppPpg: 95, delta: -5 });
-  assert.deepStrictEqual(sos.remaining, { fromWeek: 4, toWeek: 5, games: 2 });
+  assert.deepStrictEqual(sos.remaining, { fromWeek: 4, toWeek: 5, games: 2, rosWeight: 0 }, "no ROS scores given: PPG alone, and the file says so");
+});
+
+// ROS power scores for the same four teams. A hand-worked blend (see the comments in the test).
+const rosPt = new Map([[1, 50], [2, 60], [3, 40], [4, 70]]);
+
+test("road ahead blends opponent strength 80% ROS / 20% PPG, with ROS put on the PPG scale by matching spreads", () => {
+  // PPG now: A 100, B 81.67, C 108.33, D 110 -> mean 100, spread (population sd) 11.24.
+  // ROS scores 50, 60, 40, 70 -> mean 55, sd 11.18, so z = -0.447, +0.447, -1.342, +1.342.
+  // ROS on the PPG scale: A 94.97, B 105.03, C 84.92, D 115.08.
+  // 80/20 blend: A 95.98, B 100.36, C 89.60, D 114.07.
+  // Weeks 4-5: A faces B then C, B faces A then D, C faces D then A, D faces C then B.
+  const sos = X.buildStrengthOfSchedule({ teams, weeks: played, scheduleWeeks: schedule, playoffStart: 6, rosPt });
+  const by = Object.fromEntries(sos.rows.map((r) => [r.teamName, r.ahead]));
+  const close = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.02, `${actual} should be about ${expected}`);
+  close(by.A.oppPpg, 94.98);
+  close(by.B.oppPpg, 105.02);
+  close(by.C.oppPpg, 105.02);
+  close(by.D.oppPpg, 94.98);
+  close(by.A.delta, -5.02);
+  close(by.B.delta, 5.02);
+  assert.strictEqual(sos.remaining.rosWeight, 0.8);
+  assert.strictEqual(sos.leagueAvgPpg, 100, "the league average the bars are measured from does not move");
+  // The same schedule, rated by PPG alone, would have said -5 / +5 / +5 / -5 with different reasons: the blend changes who faces whom how hard.
+  const ppgOnly = X.buildStrengthOfSchedule({ teams, weeks: played, scheduleWeeks: schedule, playoffStart: 6 });
+  assert.notStrictEqual(by.A.oppPpg, ppgOnly.rows.find((r) => r.teamName === "A").ahead.oppPpg);
+});
+
+test("opponentRatings: ROS carries 80% of a rating; at full weight the ratings are just ROS on the PPG scale; the league's average rating never moves", () => {
+  const ppg = new Map([[1, 100], [2, 81.6667], [3, 108.3333], [4, 110]]);
+  const mean = (m) => [...m.values()].reduce((a, b) => a + b, 0) / m.size;
+  const sd = (m) => Math.sqrt(mean(new Map([...m].map(([k, v]) => [k, (v - mean(m)) ** 2]))));
+  const blended = X.opponentRatings(ppg, rosPt);
+  assert.strictEqual(blended.weight, 0.8);
+  assert.ok(Math.abs(mean(blended.ratings) - mean(ppg)) < 1e-9, "same average as PPG");
+  const rosOnly = X.opponentRatings(ppg, rosPt, 1);
+  assert.ok(Math.abs(sd(rosOnly.ratings) - sd(ppg)) < 1e-9, "full ROS weight puts ROS on exactly PPG's spread");
+  const ppgOnly = X.opponentRatings(ppg, rosPt, 0);
+  [1, 2, 3, 4].forEach((id) => assert.ok(Math.abs(ppgOnly.ratings.get(id) - ppg.get(id)) < 1e-9));
+  // 80/20 really is 80/20: the blend sits 80% of the way from the PPG rating to the ROS rating.
+  [1, 2, 3, 4].forEach((id) => {
+    const expected = 0.2 * ppg.get(id) + 0.8 * rosOnly.ratings.get(id);
+    assert.ok(Math.abs(blended.ratings.get(id) - expected) < 1e-9);
+  });
+  assert.strictEqual(X.ROAD_AHEAD_ROS_WEIGHT, 0.8);
+});
+
+test("opponentRatings: if any team has no ROS score, or the scores can't be put on a scale, every team is rated by PPG alone (weight 0)", () => {
+  const ppg = new Map([[1, 100], [2, 90], [3, 110], [4, 120]]);
+  const missing = X.opponentRatings(ppg, new Map([[1, 50], [2, 60], [3, 40]]));
+  assert.strictEqual(missing.weight, 0);
+  assert.deepStrictEqual([...missing.ratings], [...ppg]);
+  assert.strictEqual(X.opponentRatings(ppg, new Map([[1, 50], [2, 50], [3, 50], [4, 50]])).weight, 0, "every score the same: no spread to match");
+  assert.strictEqual(X.opponentRatings(ppg, null).weight, 0);
+  assert.strictEqual(X.opponentRatings(new Map([[1, 100], [2, 90]]), new Map([[1, 50], [2, 60]])).weight, 0, "two teams: too few for a spread");
+  assert.strictEqual(X.opponentRatings(new Map([[1, 100], [2, 100], [3, 100]]), new Map([[1, 50], [2, 60], [3, 70]])).weight, 0, "every PPG the same: no spread to match");
+});
+
+test("buildPowerRankingsExtras: reads each team's ROS score from team-strength by username and hands it to the Road Ahead", () => {
+  const named = teams.map((t) => ({ ...t, teamName: `user${t.rosterId}` }));
+  const strength = { user1: { rank: 3, pt: 50 }, user2: { rank: 2, pt: 60 }, user3: { rank: 4, pt: 40 }, user4: { rank: 1, pt: 70 } };
+  const out = X.buildPowerRankingsExtras({
+    season: 2026, week: 3, generatedAt: "x", teams: named, league: { ...slotLeague, settings: { playoff_week_start: 6 } }, weeks: played, scheduleWeeks: schedule, playerDirectory: {}, buildPositionTable: stubTable([]), teamStrength: strength,
+  });
+  assert.strictEqual(out.sos.remaining.rosWeight, 0.8);
+  const without = X.buildPowerRankingsExtras({
+    season: 2026, week: 3, generatedAt: "x", teams: named, league: { ...slotLeague, settings: { playoff_week_start: 6 } }, weeks: played, scheduleWeeks: schedule, playerDirectory: {}, buildPositionTable: stubTable([]),
+  });
+  assert.strictEqual(without.sos.remaining.rosWeight, 0);
 });
 
 test("road ahead: with no playoff start known every future week counts; with nothing left it is null", () => {
@@ -254,6 +322,7 @@ test("committed data: recomputing from the saved 2026 season reproduces the comm
   const out = X.buildPowerRankingsExtras({
     season: snapshot.season, week: snapshot.week, generatedAt: snapshot.generatedAt, teams: snapshot.rows, league: archive.league, weeks, scheduleWeeks, playerDirectory: {},
     buildPositionTable: () => ({ columns: [], rows: [] }),
+    teamStrength: readJson("data/team-strength.json").teams,
   });
   assert.deepStrictEqual(JSON.parse(JSON.stringify(out.sos)), extras.sos);
   assert.deepStrictEqual(JSON.parse(JSON.stringify(out.scores)), extras.scores);
