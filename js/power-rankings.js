@@ -80,13 +80,10 @@ function deltaBadge(row, lastWeekRanks) {
 /*
   ---- Power Rankings table ---------------------------------------------------
   Two drawings of the same rows: a wide table (from 1100px up) and a tap-to-open
-  list for anything narrower. Both group the teams into tiers, show the same
-  numbers, and the page decides which one is visible with CSS alone. The phone
-  list carries nothing the table does not.
+  list for anything narrower. Both show the same numbers in plain rank order, and
+  the page decides which one is visible with CSS alone. The phone list carries
+  nothing the table does not.
 */
-
-// A new tier starts wherever neighbouring PR Scores are at least this far apart.
-const PR_TIER_GAP = 1.4;
 
 // Luck: actual win % minus all-play win %, in percentage points. The same
 // number (and the same formula) Home's standings show.
@@ -105,26 +102,6 @@ function luckHtml(row) {
   const rounded = Math.round(luck * 10) / 10;
   const cls = rounded > 0 ? "luck-positive" : rounded < 0 ? "luck-negative" : "luck-neutral";
   return `<span class="${cls}">${signed1(luck)}%</span>`;
-}
-
-// Teams in rank order, cut into tiers where the PR Score jumps.
-function powerTiers(rows) {
-  const sorted = [...rows].sort((a, b) => a.powerRank - b.powerRank || a.prScore - b.prScore);
-  const tiers = [];
-  sorted.forEach((row, i) => {
-    if (!i || row.prScore - sorted[i - 1].prScore >= PR_TIER_GAP - 1e-9) tiers.push([]);
-    tiers[tiers.length - 1].push(row);
-  });
-  return tiers;
-}
-
-// "99.8%" for one team, "95.5–96.3%" for a range: the playoff odds inside a tier.
-function tierOddsRange(tier) {
-  const pcts = tier.map((r) => r.playoffPct).filter(Number.isFinite);
-  if (!pcts.length) return "";
-  const lo = Math.min(...pcts).toFixed(1);
-  const hi = Math.max(...pcts).toFixed(1);
-  return lo === hi ? `${lo}%` : `${lo}–${hi}%`;
 }
 
 function minMax(values) {
@@ -212,25 +189,9 @@ function renderPowerTable(snapshot, lastWeekRanks) {
     scoreSpan: minMax(rows.map((r) => r.prScore)),
     ppgSpan: minMax(rows.map((r) => r.avgPpg)),
   };
-  const tiers = powerTiers(rows);
-
-  const tableBody = tiers
-    .map(
-      (tier, i) => `
-      <tr class="pr-tier-row"><th colspan="9" scope="colgroup"><div class="pr-tier-inner"><span class="pr-tier-name">Tier ${i + 1}</span><span class="pr-tier-odds">${tierOddsRange(tier)} to make the playoffs</span></div></th></tr>${tier
-        .map((r) => renderBoardRow(r, ctx))
-        .join("")}`
-    )
-    .join("");
-
-  const phoneBody = tiers
-    .map(
-      (tier, i) => `
-      <div class="pr-phone-tier"><span class="pr-tier-name">Tier ${i + 1}</span><span class="pr-tier-odds">${tierOddsRange(tier)} to make it</span></div>${tier
-        .map((r) => renderPhoneItem(r, ctx))
-        .join("")}`
-    )
-    .join("");
+  const ranked = [...rows].sort((a, b) => a.powerRank - b.powerRank || a.prScore - b.prScore);
+  const tableBody = ranked.map((r) => renderBoardRow(r, ctx)).join("");
+  const phoneBody = ranked.map((r) => renderPhoneItem(r, ctx)).join("");
 
   return `
     <div class="pr-board-wrap">
@@ -402,7 +363,7 @@ function renderContent(snapshot, lastWeekRanks, nflWeek, extras) {
     <div class="wrap"><div class="panel">
       <div class="panel-head"><h2>Power Rankings${season}</h2>${chip}</div>
       ${renderPowerTable(snapshot, lastWeekRanks)}
-      <p class="heatmap-note">Weighted composite of record, Ovr (all-play) record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better. Luck is actual win % minus Ovr win %. Tiers start where neighboring PR Scores are ${PR_TIER_GAP} or more apart.</p>
+      <p class="heatmap-note">Weighted composite of record, Ovr (all-play) record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better. Luck is actual win % minus Ovr win %.</p>
     </div></div>
 
     <div class="yard-divider">
@@ -637,21 +598,10 @@ function renderScoreStrips(scores, chip) {
     })
     .join("");
 
-  // Steadiest and wildest, by the gap between best and worst week; one week
-  // of data can't say either.
-  const weeksPlayed = Math.max(...rows.map((r) => r.scores.filter((s) => s != null).length));
-  const spread = (r) => r.high - r.low;
-  const steady = [...rows].sort((a, b) => spread(a) - spread(b) || b.avg - a.avg)[0];
-  const wild = [...rows].sort((a, b) => spread(b) - spread(a) || b.avg - a.avg)[0];
-  const takeaway =
-    weeksPlayed >= 2 && steady !== wild
-      ? `<strong>Takeaway:</strong> ${escapeHtml(steady.teamName)} has been the steadiest (${Math.round(spread(steady))} point spread between best and worst week), while ${escapeHtml(wild.teamName)} swings ${Math.round(spread(wild))} points.`
-      : "";
-
   return `
     <div class="yard-divider"><span class="tick"></span><div class="line"></div><span class="label">Consistency</span><div class="line"></div></div>
     <div class="wrap"><div class="panel">
-      <div class="panel-head"><h2>Every Week, One Dot</h2>${chip}</div>
+      ${chip ? `<div class="panel-head panel-head-chip">${chip}</div>` : ""}
       <div class="strip-plot">
         <div class="strip-row strip-axis">
           <span class="strip-name">Team · by avg PPG</span>
@@ -665,7 +615,6 @@ function renderScoreStrips(scores, chip) {
         <span class="pr-key"><i class="strip-avg"></i>Team average</span>
         <span class="pr-key"><i class="strip-league"></i>League avg ${scores.leagueAvgPpg.toFixed(1)}</span>
       </p>
-      ${takeaway ? `<p class="pr-takeaway">${takeaway}</p>` : ""}
       <p class="heatmap-note">Std Dev, Boom and Bust squeeze every score into one number; this just shows them. Overlapping dots mean similar scores — hover a row for the exact weekly numbers. Regular-season weeks only.</p>
     </div></div>`;
 }
@@ -700,21 +649,6 @@ function renderSlotHeatmap(slots, chip) {
     .map((v) => `<span class="slot-key" style="background:${divergingHeatColor(v, SLOT_SCALE)}">${v === 0 ? "0" : signed1(v).replace(".0", "")}</span>`)
     .join("");
 
-  // Biggest strength and deepest hole across every team and slot.
-  let best = null;
-  let worst = null;
-  rows.forEach((r) =>
-    cols.forEach((c) => {
-      const v = r.cells[c.key];
-      if (v == null) return;
-      if (!best || v > best.v) best = { v, team: r.teamName, col: c };
-      if (!worst || v < worst.v) worst = { v, team: r.teamName, col: c };
-    })
-  );
-  const parts = [];
-  if (best && best.v > 0) parts.push(`Biggest strength: ${escapeHtml(best.team)}'s ${escapeHtml(slotLabel(best.col))} at ${signed1(best.v)} points per game above the league average for that slot.`);
-  if (worst && worst.v < 0) parts.push(`Deepest hole: ${escapeHtml(worst.team)}'s ${escapeHtml(slotLabel(worst.col))} at ${signed1(worst.v)}.`);
-
   return `
     <div class="yard-divider"><span class="tick"></span><div class="line"></div><span class="label">Lineups</span><div class="line"></div></div>
     <div class="wrap"><div class="panel">
@@ -726,7 +660,6 @@ function renderSlotHeatmap(slots, chip) {
         </table>
       </div>
       <div class="slot-legend">${legend}<span class="slot-legend-note">Points per game vs league average for that slot. The scale is fixed at ±${SLOT_SCALE} and saturates beyond it.</span></div>
-      ${parts.length ? `<p class="pr-takeaway"><strong>Takeaway:</strong> ${parts.join(" ")}</p>` : ""}
       <p class="heatmap-note">One fixed color scale for every cell: yellow is a strength, blue is a hole, and a colored cell means the same thing for every team and every slot. Each cell is the team's average in that starter slot minus the league's average for that slot; vs Avg is the sum across all slots (total points per game vs the league average). Regular-season weeks only.</p>
     </div></div>`;
 }

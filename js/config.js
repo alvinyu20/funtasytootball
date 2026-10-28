@@ -174,17 +174,6 @@ const SLEEPER_ARCHIVE_INDEX_FILE = "data/sleeper-archive/index.json";
 const PLAYER_INDEX_FILE = "data/player-index.json";
 
 /*
-  WAIVER_CLEAR_HOUR_ET
-  --------------------
-  The hour (Eastern Time, 24-hour clock) that waivers clear on your league's
-  waiver day. Sleeper doesn't publish this, so it's measured from the league's
-  own history: about 90% of completed waiver claims in 2023-2026 processed
-  around 3 AM ET. The Home page's "Next waivers" countdown uses it together
-  with the league's waiver day from Sleeper.
-*/
-const WAIVER_CLEAR_HOUR_ET = 3;
-
-/*
   LAST_FANTASY_WEEK
   ------------------
   The last NFL week that actually counts for this league's fantasy season.

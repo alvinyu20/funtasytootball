@@ -109,22 +109,6 @@ const TeamsData = (function () {
       });
   }
 
-  /*
-    The three tiles above the table. Only finished seasons count: a season
-    still being played has a partial luck and scoring number that will keep
-    moving, so it never headlines a "best" or a "worst".
-  */
-  function seasonHighlights(rows) {
-    const done = (rows || []).filter((r) => !r.live);
-    const pick = (list, key, dir) => list.reduce((best, r) => (best == null || dir * (r[key] - best[key]) > 0 ? r : best), null);
-    const withLuck = done.filter((r) => r.luck != null);
-    return {
-      unluckiest: pick(withLuck, "luck", -1),
-      luckiest: pick(withLuck, "luck", 1),
-      bestScoring: pick(done.filter((r) => r.ppgFor != null), "ppgFor", 1),
-    };
-  }
-
   // ---- the profile header and tiles ---------------------------------------
 
   function overallOf(o) {
@@ -132,13 +116,6 @@ const TeamsData = (function () {
     const l = o.regL + o.poL;
     const t = o.regT + o.poT;
     return { w, l, t, games: w + l + t, pct: pctOf(w, w + l + t) };
-  }
-
-  function playoffNote(info) {
-    if (!info || !info.poGames) return "No playoff games yet";
-    if (info.playoffRank === 1) return "Most playoff wins in the league";
-    if (info.playoffRank === 2 && info.aheadName) return `Second to ${info.aheadName} at ${info.aheadRecord}`;
-    return `${ord(info.playoffRank)} in playoff wins`;
   }
 
   // "5 titles · 5-0 in championship games", or "No titles yet" (with the finals record when there have been any).
@@ -173,18 +150,8 @@ const TeamsData = (function () {
     const mine = overallOf(owner);
     const pool = all.map((o) => overallOf(o)).filter((x) => x.games > 0);
     const overallRank = mine.games > 0 ? pool.filter((x) => x.pct > mine.pct).length + 1 : null;
-    const info = HistoryData.yourHistory(all, ledger, owner.name);
-
-    const doneYears = owner.cells.filter((c) => c.complete).map((c) => c.year);
     const finalsPlayed = owner.titles + owner.seconds;
-    const doneNote = !doneYears.length
-      ? "No completed seasons yet"
-      : doneYears.length === 1
-        ? `Completed season, ${doneYears[0]}`
-        : `Completed seasons, ${doneYears[0]} to ${doneYears[doneYears.length - 1]}`;
     const byeCount = manager ? manager.byes || 0 : 0;
-    let finalsNote = "No finals yet";
-    if (finalsPlayed > 0) finalsNote = owner.seconds === 0 ? "Perfect in the final" : `${owner.titles} of ${finalsPlayed} won`;
 
     const regGames = owner.regW + owner.regL + owner.regT;
     return {
@@ -200,23 +167,20 @@ const TeamsData = (function () {
         pct: mine.pct,
         rank: overallRank,
         of: pool.length,
-        note: overallRank == null ? "No games yet" : overallRank === 1 ? `Best overall win rate of the ${pool.length} owners` : `${ord(overallRank)} best overall win rate of the ${pool.length} owners`,
       },
       regular: {
         record: recordOf(owner.regW, owner.regL, owner.regT),
         pct: pctOf(owner.regW, regGames),
-        note: liveCell ? `Includes ${latest.year} through Week ${liveGames}` : `${owner.cells.length} season${owner.cells.length === 1 ? "" : "s"}`,
       },
       playoffs: {
         record: recordOf(owner.poW, owner.poL, owner.poT),
         pct: owner.poPct,
         games: owner.poGames,
-        note: playoffNote(info),
       },
-      titleGames: { record: finalsPlayed > 0 ? `${owner.titles}-${owner.seconds}` : "–", note: finalsNote },
-      trips: { text: owner.completedYears > 0 ? `${owner.trips} of ${owner.completedYears}` : "–", note: doneNote },
-      byes: { count: byeCount, text: owner.trips > 0 ? String(byeCount) : "–", note: owner.trips > 0 ? `${byeCount} of ${owner.trips} trips` : "No playoff trips yet" },
-      third: { count: owner.thirds, years: owner.cells.filter((c) => c.isThirdPlace).map((c) => c.year) },
+      titleGames: { record: finalsPlayed > 0 ? `${owner.titles}-${owner.seconds}` : "–" },
+      trips: { text: owner.completedYears > 0 ? `${owner.trips} of ${owner.completedYears}` : "–" },
+      byes: { count: byeCount, text: owner.trips > 0 ? String(byeCount) : "–" },
+      third: { count: owner.thirds },
     };
   }
 
@@ -567,7 +531,6 @@ const TeamsData = (function () {
     GRADES,
     leagueAverages,
     seasonRows,
-    seasonHighlights,
     profileFacts,
     ownerCard,
     sortCards,

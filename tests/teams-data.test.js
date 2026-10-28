@@ -101,19 +101,9 @@ test("seasonRows: a year with no scoring average says null rather than 0, and no
   assert.deepStrictEqual(ev(ctx, `return TeamsData.seasonRows(null, null, {})`), []);
 });
 
-test("seasonHighlights: the unluckiest, luckiest and best-scoring finished seasons; the one in progress never headlines", () => {
+test("seasonHighlights is gone: the Unluckiest / Luckiest / Best-scoring boxes were removed along with their logic", () => {
   const ctx = setup();
-  const h = ev(ctx, `${DATA} return TeamsData.seasonHighlights(TeamsData.seasonRows(owner("alice"), manager("alice"), averages))`);
-  assert.strictEqual(h.luckiest.year, 2020, "+16.7");
-  assert.strictEqual(h.unluckiest.year, 2021, "+8.3 is the lowest of the finished years; the live -16.7 does not count");
-  assert.strictEqual(h.bestScoring.year, 2021, "110 per game");
-});
-
-test("seasonHighlights: years without luck data are skipped for luck but still count for scoring, and an empty list is all null", () => {
-  const ctx = setup();
-  const h = ev(ctx, `return TeamsData.seasonHighlights([{ live: false, luck: null, ppgFor: 120, year: 2016 }, { live: false, luck: null, ppgFor: 100, year: 2015 }])`);
-  assert.deepStrictEqual([h.luckiest, h.unluckiest, h.bestScoring.year], [null, null, 2016]);
-  assert.deepStrictEqual(ev(ctx, `return TeamsData.seasonHighlights([])`), { unluckiest: null, luckiest: null, bestScoring: null });
+  assert.strictEqual(ev(ctx, `return typeof TeamsData.seasonHighlights`), "undefined");
 });
 
 // ---- profile header and tiles -------------------------------------------------------------
@@ -142,11 +132,11 @@ test("profileFacts: a season that has not started, one that is over, and someone
 test("profileFacts: titles with their years, and the record in championship games", () => {
   const ctx = setup();
   const f = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("alice"), data.owners, ledger, manager("alice"))`);
-  assert.deepStrictEqual([f.titles, f.titleYears, f.titleGames.record, f.titleGames.note], [3, [2019, 2020, 2021], "3-0", "Perfect in the final"]);
+  assert.deepStrictEqual([f.titles, f.titleYears, f.titleGames], [3, [2019, 2020, 2021], { record: "3-0" }]);
   const bob = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("bob"), data.owners, ledger, manager("bob")).titleGames`);
-  assert.deepStrictEqual(bob, { record: "0-3", note: "0 of 3 won" });
+  assert.deepStrictEqual(bob, { record: "0-3" });
   const dan = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("dan"), data.owners, ledger, manager("dan")).titleGames`);
-  assert.deepStrictEqual(dan, { record: "–", note: "No finals yet" }, "no finals is a dash, not 0-0");
+  assert.deepStrictEqual(dan, { record: "–" }, "no finals is a dash, not 0-0");
 });
 
 test("profileFacts: overall record adds regular season and playoffs, and ranks the owner's win rate among all owners", () => {
@@ -158,37 +148,30 @@ test("profileFacts: overall record adds regular season and playoffs, and ranks t
   assert.ok(Math.abs(f.overall.pct - 80) < 1e-9);
   assert.strictEqual(f.overall.rank, 1);
   assert.strictEqual(f.overall.of, 6, "every owner who has played a game, former and brand new included");
-  assert.strictEqual(f.overall.note, "Best overall win rate of the 6 owners");
   const bob = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("bob"), data.owners, ledger, manager("bob")).overall`);
   assert.strictEqual(bob.rank, 2);
-  assert.match(bob.note, /^2nd best overall win rate of the 6 owners$/);
 });
 
-test("profileFacts: the regular-season note names the season in progress, else just the number of seasons", () => {
+test("profileFacts: the tiles carry numbers only — no descriptor note on any of them", () => {
   const ctx = setup();
-  assert.strictEqual(ev(ctx, `${DATA} return TeamsData.profileFacts(owner("alice"), data.owners, ledger, manager("alice")).regular.note`), "Includes 2022 through Week 2");
-  assert.strictEqual(ev(ctx, `${DATA} return TeamsData.profileFacts(owner("gone"), data.owners, ledger, manager("gone")).regular.note`), "1 season");
+  const f = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("alice"), data.owners, ledger, manager("alice"))`);
+  for (const key of ["overall", "regular", "playoffs", "titleGames", "trips", "byes", "third"]) {
+    assert.ok(!("note" in f[key]), `${key} has no note`);
+  }
+  assert.ok(!("years" in f.third), "and third place no longer lists its years");
+  assert.strictEqual(f.regular.record, "14-5");
+  assert.ok(Math.abs(f.regular.pct - (14 / 19) * 100) < 1e-9);
 });
 
-test("profileFacts: the playoff note says who is ahead in playoff wins", () => {
-  const ctx = setup();
-  assert.strictEqual(ev(ctx, `${DATA} return TeamsData.profileFacts(owner("alice"), data.owners, ledger, manager("alice")).playoffs.note`), "Most playoff wins in the league");
-  assert.strictEqual(ev(ctx, `${DATA} return TeamsData.profileFacts(owner("bob"), data.owners, ledger, manager("bob")).playoffs.note`), "Second to alice at 6-0");
-  assert.strictEqual(ev(ctx, `${DATA} return TeamsData.profileFacts(owner("dan"), data.owners, ledger, manager("dan")).playoffs.note`), "No playoff games yet");
-});
-
-test("profileFacts: playoff trips are out of finished seasons, byes come from the manager, third place lists its years", () => {
+test("profileFacts: playoff trips are out of finished seasons, byes come from the manager, third place is a count", () => {
   const ctx = setup();
   const f = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("cara"), data.owners, ledger, manager("cara"))`);
   assert.strictEqual(f.trips.text, "3 of 3");
-  assert.strictEqual(f.trips.note, "Completed seasons, 2019 to 2021");
-  assert.deepStrictEqual(f.third, { count: 3, years: [2019, 2020, 2021] });
+  assert.deepStrictEqual(f.third, { count: 3 });
   const alice = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("alice"), data.owners, ledger, manager("alice"))`);
-  assert.deepStrictEqual(alice.byes, { count: 2, text: "2", note: "2 of 3 trips" });
+  assert.deepStrictEqual(alice.byes, { count: 2, text: "2" });
   const newbie = ev(ctx, `${DATA} const f = TeamsData.profileFacts(owner("newbie"), data.owners, ledger, manager("newbie")); return { trips: f.trips, byes: f.byes }`);
-  assert.deepStrictEqual(newbie, { trips: { text: "–", note: "No completed seasons yet" }, byes: { count: 0, text: "–", note: "No playoff trips yet" } }, "no finished season yet reads as dashes, not 0 of 0");
-  const gone = ev(ctx, `${DATA} return TeamsData.profileFacts(owner("gone"), data.owners, ledger, manager("gone")).trips.note`);
-  assert.strictEqual(gone, "Completed season, 2020", "one finished season is not a range");
+  assert.deepStrictEqual(newbie, { trips: { text: "–" }, byes: { count: 0, text: "–" } }, "no finished season yet reads as dashes, not 0 of 0");
 });
 
 // ---- manager cards ---------------------------------------------------------------------------

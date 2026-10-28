@@ -247,10 +247,10 @@ test("teamsHeroHtml: the Player Representative's photo is in the top bar, large,
   assert.match(out, /<img src="[^"]*p1\.jpg" alt="Player One"/);
   assert.match(out, /<a href="player\.html#p1" class="subtle-link">\s*<div class="player-photo-wrap player-photo-hero">/, "the photo itself links to the player");
   assert.match(out, /<figcaption><span>Player rep<\/span><b><a href="player\.html#p1" class="subtle-link">Player One<\/a><\/b><em>40 wks<\/em><\/figcaption>/);
-  // The page sizes it as a big portrait, not the usual 40px thumbnail.
+  // The page sizes it as a portrait, well beyond the usual 40px thumbnail (it was trimmed from 132px when the top got more compact).
   const css = read("css/styles.css");
   const size = css.match(/\.player-photo-hero\s*\{[^}]*?(?<![-\w])width:\s*(\d+)px/);
-  assert.ok(size && Number(size[1]) >= 120, "the desktop photo is at least 120px wide");
+  assert.ok(size && Number(size[1]) >= 88, "the desktop photo is at least 88px wide");
   assert.ok(!/<figure/.test(html(ctx, `return teamsHeroHtml(FACTS("alice"), "Team Alice", null)`)), "no representative, no photo");
 });
 
@@ -265,31 +265,33 @@ test("teamsHeroHtml: no title rings without a title, no team name in the tagline
   assert.match(odd, /&lt;b&gt;x&lt;\/b&gt;/);
 });
 
-test("teamsTilesHtml: three record tiles and four small ones, the numbers straight from the facts", () => {
+test("teamsTilesHtml: three record tiles and four small ones — just the label and the number, with no descriptor line under any of them", () => {
   const ctx = setup();
   const out = html(ctx, `return teamsTilesHtml(FACTS("alice"))`);
   const big = out.match(/<div class="tm-tiles-big">[\s\S]*?<div class="tm-tiles-small">/)[0];
   assert.strictEqual(count(big, /class="tm-tile big"/g), 3);
-  assert.match(big, /Overall Record[\s\S]*<b>20-5<\/b><em class="up">80.0%<\/em>[\s\S]*Best overall win rate of the 6 owners/);
-  assert.match(big, /Regular Season[\s\S]*<b>14-5<\/b><em class="up">73.7%<\/em>[\s\S]*Includes 2022 through Week 2/);
-  assert.match(big, /Playoffs[\s\S]*<b>6-0<\/b><em class="up">100.0%<\/em>[\s\S]*Most playoff wins in the league/);
+  assert.match(big, /Overall Record[\s\S]*<b>20-5<\/b><em class="up">80.0%<\/em>/);
+  assert.match(big, /Regular Season[\s\S]*<b>14-5<\/b><em class="up">73.7%<\/em>/);
+  assert.match(big, /Playoffs[\s\S]*<b>6-0<\/b><em class="up">100.0%<\/em>/);
   const small = out.slice(out.indexOf("tm-tiles-small"));
   assert.strictEqual(count(small, /class="tm-tile small"/g), 4);
-  assert.match(small, /Championship Games<\/span>\s*<b>3-0<\/b>\s*<p>Perfect in the final/);
-  assert.match(small, /Playoff Appearances<\/span>\s*<b>3 of 3<\/b>\s*<p>Completed seasons, 2019 to 2021/);
-  assert.match(small, /First-Round Byes<\/span>\s*<b>2<\/b>\s*<p>2 of 3 trips/);
-  assert.match(small, /Third Place<\/span>\s*<b>0<\/b>\s*<p>None yet/);
+  assert.match(small, /Championship Games<\/span>\s*<b>3-0<\/b>\s*<\/div>/);
+  assert.match(small, /Playoff Appearances<\/span>\s*<b>3 of 3<\/b>\s*<\/div>/);
+  assert.match(small, /First-Round Byes<\/span>\s*<b>2<\/b>\s*<\/div>/);
+  assert.match(small, /Third Place<\/span>\s*<b>0<\/b>\s*<\/div>/);
+  assert.ok(!/<p>/.test(out), "no descriptor paragraph in any tile");
+  for (const gone of ["Best overall win rate", "Includes 2022", "Most playoff wins", "Perfect in the final", "Completed seasons", "of 3 trips", "None yet"]) assert.ok(!out.includes(gone), gone);
   assert.ok(!/1st Pick/i.test(out), "no first-pick tile");
 });
 
-test("teamsTilesHtml: a newcomer gets dashes and plain notes, not '0 of 0' or a 0.0% playoff bar", () => {
+test("teamsTilesHtml: a newcomer gets dashes, not '0 of 0' or a 0.0% playoff bar", () => {
   const ctx = setup();
   const out = html(ctx, `return teamsTilesHtml(FACTS("newbie"))`);
-  assert.match(out, /Playoffs<\/span>\s*<div class="tm-tile-main"><b>–<\/b><\/div>\s*<i class="bar has-tick"><\/i>\s*<p>No playoff games yet/);
-  assert.match(out, /Championship Games<\/span>\s*<b>–<\/b>\s*<p>No finals yet/);
-  assert.match(out, /Playoff Appearances<\/span>\s*<b>–<\/b>\s*<p>No completed seasons yet/);
-  assert.match(out, /First-Round Byes<\/span>\s*<b>–<\/b>\s*<p>No playoff trips yet/);
-  assert.ok(!/0 of 0/.test(out));
+  assert.match(out, /Playoffs<\/span>\s*<div class="tm-tile-main"><b>–<\/b><\/div>\s*<i class="bar has-tick"><\/i>\s*<\/div>/);
+  assert.match(out, /Championship Games<\/span>\s*<b>–<\/b>/);
+  assert.match(out, /Playoff Appearances<\/span>\s*<b>–<\/b>/);
+  assert.match(out, /First-Round Byes<\/span>\s*<b>–<\/b>/);
+  assert.ok(!/0 of 0/.test(out) && !/<p>/.test(out));
 });
 
 test("teamsStripHtml: a square per year with the finish in it, TITLE / LIVE labels, the record under it; the live legend only while a season is live", () => {
@@ -321,13 +323,11 @@ test("teamsJumpHtml: only the sections that exist get a button; they jump with d
 
 // ---- Season by Season -------------------------------------------------------------------------------
 
-test("teamsSeasonsHtml: three highlight tiles from the finished seasons, then a row per year, newest first", () => {
+test("teamsSeasonsHtml: a row per year, newest first — and no Unluckiest / Luckiest / Best-scoring boxes above them", () => {
   const ctx = setup();
-  const out = html(ctx, `const rows = TeamsData.seasonRows(O("alice"), M("alice"), TEAMS.averages); return teamsSeasonsHtml("alice", rows, TeamsData.seasonHighlights(rows))`);
-  assert.deepStrictEqual([...out.matchAll(/class="tm-hl (\w+)"/g)].map((m) => m[1]), ["bad", "good", "good"]);
-  assert.match(out, /Unluckiest year<\/span>\s*<b>2021, \+8.3%<\/b>/, "the live year's -16.7% never headlines");
-  assert.match(out, /Luckiest year<\/span>\s*<b>2020, \+16.7%<\/b>/);
-  assert.match(out, /Best scoring year<\/span>\s*<b>2021, 110.0 per game<\/b>\s*<p>[\d.]+ above the league average · 3-0 · won the title/);
+  const out = html(ctx, `const rows = TeamsData.seasonRows(O("alice"), M("alice"), TEAMS.averages); return teamsSeasonsHtml("alice", rows)`);
+  assert.ok(!/tm-hl|tm-highlights|Unluckiest|Luckiest|Best scoring/.test(out));
+  assert.ok(out.trimStart().startsWith('<div class="panel">'), "the table is the first thing in the section");
   assert.deepStrictEqual([...out.matchAll(/<span class="tm-year">(\d+)</g)].map((m) => m[1]), ["2022", "2021", "2020", "2019"]);
   assert.match(out, /class="tm-sbs-row live"[\s\S]*?2022/);
   assert.strictEqual(count(out, /<li class="tm-sbs-row/g), 4);
@@ -335,7 +335,7 @@ test("teamsSeasonsHtml: three highlight tiles from the finished seasons, then a 
 
 test("teamsSeasonRowHtml: finish square with its title label, record bar, points for and against with the league-average tick, all-play and luck", () => {
   const ctx = setup();
-  const out = html(ctx, `const rows = TeamsData.seasonRows(O("alice"), M("alice"), TEAMS.averages); return teamsSeasonsHtml("alice", rows, TeamsData.seasonHighlights(rows))`);
+  const out = html(ctx, `const rows = TeamsData.seasonRows(O("alice"), M("alice"), TEAMS.averages); return teamsSeasonsHtml("alice", rows)`);
   const row2021 = out.match(/<li class="tm-sbs-row">\s*<span class="tm-year">2021<[\s\S]*?<\/li>/)[0];
   assert.match(row2021, /class="sq st-champion tm-fin">#1 <small>TITLE<\/small>/);
   assert.match(row2021, /<em>3-0<\/em>/);
@@ -354,7 +354,7 @@ test("teamsSeasonRowHtml: finish square with its title label, record bar, points
 
 test("teamsSeasonRowHtml: an ESPN season has no all-play or luck, and says n/a rather than showing zeros", () => {
   const ctx = setup();
-  const out = html(ctx, `const rows = TeamsData.seasonRows(O("alice"), M("alice"), TEAMS.averages); return teamsSeasonsHtml("alice", rows, TeamsData.seasonHighlights(rows))`);
+  const out = html(ctx, `const rows = TeamsData.seasonRows(O("alice"), M("alice"), TEAMS.averages); return teamsSeasonsHtml("alice", rows)`);
   const row2019 = out.match(/<li class="tm-sbs-row">\s*<span class="tm-year">2019<[\s\S]*?<\/li>/)[0];
   assert.match(row2019, /<em>n\/a<\/em><small>no matchup data<\/small>/);
   assert.match(row2019, /<b class="na">n\/a<\/b>/);
@@ -362,11 +362,10 @@ test("teamsSeasonRowHtml: an ESPN season has no all-play or luck, and says n/a r
   assert.ok(!/vs everyone/.test(row2019.match(/tm-line2">[^<]*</)[0]));
 });
 
-test("teamsSeasonsHtml: no seasons says so; no tiles when there is nothing to headline", () => {
+test("teamsSeasonsHtml: no seasons says so", () => {
   const ctx = setup();
-  assert.match(html(ctx, `return teamsSeasonsHtml("x", [], TeamsData.seasonHighlights([]))`), /No seasons yet/);
-  const out = html(ctx, `return teamsHighlightsHtml({ unluckiest: null, luckiest: null, bestScoring: null })`);
-  assert.strictEqual(count(out, /class="tm-hl /g), 0);
+  assert.match(html(ctx, `return teamsSeasonsHtml("x", [])`), /No seasons yet/);
+  assert.ok(!read("js/teams.js").includes("teamsHighlightsHtml"), "the highlight tiles' code is gone");
 });
 
 // ---- Head to Head -----------------------------------------------------------------------------------

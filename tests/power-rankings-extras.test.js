@@ -2,7 +2,7 @@
   The Power Rankings page's Strength of Schedule, Weekly Scores and Lineup Slot
   sections (js/power-rankings.js, fed by data/power-rankings-extras.json).
   Fixtures are small and worked out by hand: positions on the axes, bar widths,
-  who is "steadiest" and "biggest flip" are all checkable on paper.
+  and the "biggest flip" are all checkable on paper.
 */
 const test = require("node:test");
 const assert = require("node:assert");
@@ -193,7 +193,7 @@ function scoresFixture() {
   };
 }
 
-test("Every Week, One Dot: best average first, one dot per week actually played, at its place on the axis", () => {
+test("Consistency: best average first, one dot per week actually played, at its place on the axis", () => {
   const c = setup();
   const html = c.renderScoreStrips(scoresFixture(), CHIP);
   assert.deepStrictEqual([...html.matchAll(/class="strip-name" data-username="([^"]+)"/g)].map((m) => m[1]), ["Y", "X", "Z"]);
@@ -208,7 +208,7 @@ test("Every Week, One Dot: best average first, one dot per week actually played,
   assert.deepStrictEqual([...html.matchAll(/class="axis-tick" style="left:[\d.]+%">(\d+)</g)].map((m) => m[1]), ["75", "100", "125", "150", "175"]);
 });
 
-test("Every Week, One Dot: low and high are rounded, and a row's hover text lists every week", () => {
+test("Consistency: low and high are rounded, and a row's hover text lists every week", () => {
   const c = setup();
   const html = c.renderScoreStrips(scoresFixture(), CHIP);
   assert.deepStrictEqual([...html.matchAll(/class="strip-range">([^<]+)</g)].map((m) => m[1]), ["Low · High", "90 · 150", "100 · 120", "105 · 107"]);
@@ -216,13 +216,18 @@ test("Every Week, One Dot: low and high are rounded, and a row's hover text list
   assert.ok(html.includes("League avg 112.0"));
 });
 
-test("Every Week, One Dot: the takeaway names the steadiest and the wildest by the gap between best and worst week", () => {
+test("Consistency: no panel title and no takeaway — just the freshness chip, the dot plot, the key and the footnote", () => {
   const c = setup();
   const html = c.renderScoreStrips(scoresFixture(), CHIP);
-  assert.ok(html.includes("<strong>Takeaway:</strong> Z has been the steadiest (2 point spread between best and worst week), while Y swings 60 points."));
+  assert.ok(html.includes('<span class="label">Consistency</span>'), "the section still opens with its Consistency divider");
+  assert.ok(!html.includes("Every Week, One Dot") && !/<h2/.test(html), "the 'Every Week, One Dot' panel title is gone");
+  assert.ok(!html.includes("Takeaway") && !html.includes("steadiest") && !html.includes("pr-takeaway"), "and so is the takeaway under the key");
+  assert.ok(html.includes(`<div class="panel-head panel-head-chip">${CHIP}</div>`), "the chip stays, on its own line at the right");
+  assert.ok(html.indexOf("strip-plot") < html.indexOf("pr-legend") && html.indexOf("pr-legend") < html.indexOf("heatmap-note"));
+  assert.ok(!c.renderScoreStrips(scoresFixture(), "").includes("panel-head"), "no chip, no empty header bar");
 });
 
-test("Every Week, One Dot: one week of scores can't say who is steady, so no takeaway; a very wide spread widens the axis step to 50", () => {
+test("Consistency: one week of scores still plots; a very wide spread widens the axis step to 50", () => {
   const c = setup();
   const one = { leagueAvgPpg: 100, rows: [{ teamName: "X", scores: [100], avg: 100, low: 100, high: 100 }, { teamName: "Y", scores: [120], avg: 120, low: 120, high: 120 }] };
   const html = c.renderScoreStrips(one, CHIP);
@@ -276,21 +281,12 @@ test("Lineup slot heatmap: the vs Avg total is yellow when positive, blue when n
   assert.ok(c.renderSlotHeatmap(neg, CHIP).includes('<span class="luck-negative">-4.2</span>'));
 });
 
-test("Lineup slot heatmap: the legend is the fixed scale, and the takeaway names the single biggest strength and deepest hole", () => {
+test("Lineup slot heatmap: the legend is the fixed scale, and there is no takeaway under the table", () => {
   const c = setup();
   const html = c.renderSlotHeatmap(slotsFixture(), CHIP);
   assert.deepStrictEqual([...html.matchAll(/class="slot-key"[^>]*>([^<]+)</g)].map((m) => m[1]), ["-10", "-6.7", "-3.3", "0", "+3.3", "+6.7", "+10"]);
-  assert.ok(html.includes("<strong>Takeaway:</strong> Biggest strength: Q's RB1 at +10.6 points per game above the league average for that slot. Deepest hole: Q's QB at -12.0."));
-});
-
-test("Lineup slot heatmap: no strength is claimed when every cell is below average, and no hole when none is", () => {
-  const c = setup();
-  const allBelow = { columns: [{ key: "QB", label: "QB" }], leagueAvg: { QB: 20 }, rows: [{ teamName: "A", cells: { QB: -2 }, total: -2 }, { teamName: "B", cells: { QB: -1 }, total: -1 }] };
-  const a = c.renderSlotHeatmap(allBelow, CHIP);
-  assert.ok(!a.includes("Biggest strength") && a.includes("Deepest hole: A's QB at -2.0."));
-  const allAbove = { columns: [{ key: "QB", label: "QB" }], leagueAvg: { QB: 20 }, rows: [{ teamName: "A", cells: { QB: 2 }, total: 2 }, { teamName: "B", cells: { QB: 1 }, total: 1 }] };
-  const b = c.renderSlotHeatmap(allAbove, CHIP);
-  assert.ok(b.includes("Biggest strength: A's QB at +2.0") && !b.includes("Deepest hole"));
+  assert.ok(!html.includes("Takeaway") && !html.includes("Biggest strength") && !html.includes("Deepest hole") && !html.includes("pr-takeaway"));
+  assert.ok(html.includes("heatmap-note"), "the footnote that explains the colors stays");
   assert.strictEqual(c.renderSlotHeatmap({ columns: [], leagueAvg: {}, rows: [] }, CHIP), "");
   assert.strictEqual(c.renderSlotHeatmap(null, CHIP), "");
 });
@@ -317,7 +313,7 @@ test("renderExtrasSections: nothing at all when the extras are missing or from a
 test("renderExtrasSections: a section the file has nothing for is simply left out", () => {
   const c = setup();
   const html = c.renderExtrasSections({ season: "2026", week: 5 }, fullExtras({ sos: null, slots: null }), CHIP);
-  assert.ok(html.includes("Every Week, One Dot") && !html.includes("Strength of Schedule") && !html.includes("Lineups"));
+  assert.ok(html.includes("strip-plot") && !html.includes("Strength of Schedule") && !html.includes("Lineups"));
 });
 
 test("renderContent: the Power Rankings page draws the extras under the odds table, and the same page without them is unchanged", () => {
@@ -328,7 +324,7 @@ test("renderContent: the Power Rankings page draws the extras under the odds tab
   const without = c.renderContent(snapshot, null, null, null);
   assert.ok(withExtras.indexOf("Finish Probability By Rank") < withExtras.indexOf("Schedule Faced So Far"));
   assert.ok(withExtras.startsWith(without.trimEnd().slice(0, 200)), "the table and odds panels come first, unchanged");
-  assert.ok(!without.includes("Schedule Faced So Far") && !without.includes("Every Week, One Dot"));
+  assert.ok(!without.includes("Schedule Faced So Far") && !without.includes("strip-plot"));
 });
 
 test("renderPowerRankings: loads the extras file next to the snapshot and shows the sections; a missing or mismatched extras file doesn't break the page", async () => {
@@ -347,7 +343,7 @@ test("renderPowerRankings: loads the extras file next to the snapshot and shows 
   };
   const ok = await run(fullExtras());
   assert.ok(ok.asked.includes("data/power-rankings-extras.json"));
-  assert.ok(ok.html.includes("Schedule Faced So Far") && ok.html.includes("Every Week, One Dot") && ok.html.includes("Where Each Lineup Is Strong Or Thin"));
+  assert.ok(ok.html.includes("Schedule Faced So Far") && ok.html.includes("strip-plot") && ok.html.includes("Where Each Lineup Is Strong Or Thin"));
   for (const body of [null, fullExtras({ week: 3 })]) {
     const r = await run(body);
     assert.ok(r.html.includes("Finish Probability By Rank"), "the table and odds still show");

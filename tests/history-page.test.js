@@ -111,14 +111,14 @@ test("titlesMetaText: finished seasons and different champions, singular when th
 
 test("trophyRoomHtml: one card per season, newest first, each linking to that season", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger), HistoryData.liveSummary(ledger, { season: "2022", week: 3 }))`);
+  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger))`);
   assert.deepStrictEqual([...out.matchAll(/href="season\.html#(\d+)"/g)].map((m) => m[1]), ["2022", "2021", "2020", "2019"]);
   assert.strictEqual(count(out, /class="trophy-card/g), 4);
 });
 
 test("trophyRoomHtml: a champion card says how the title was won — title number, record, seed, who was beaten", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger), null)`);
+  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger))`);
   const card2020 = out.split("<a ").find((c) => c.includes('season.html#2020'));
   assert.match(card2020, /tc-pill">REPEAT · TITLE 2</, "back-to-back after 2019");
   assert.match(card2020, /Record<\/span><b>2-1</);
@@ -131,7 +131,7 @@ test("trophyRoomHtml: a champion card says how the title was won — title numbe
 test("trophyRoomHtml: a first title is just 'TITLE 1', and the team line stays (blank) so cards in a row still line up", () => {
   const ctx = setup();
   ctx.__chain[1].bracket[0] = { r: 3, m: 7, p: 1, t1: 2, t2: 1, w: 2, l: 1 }; // bob wins 2021
-  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger), null)`);
+  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger))`);
   const bob = out.split("<a ").find((c) => c.includes("season.html#2021"));
   assert.match(bob, /tc-pill">TITLE 1</);
   assert.match(bob, /tc-team">&nbsp;</);
@@ -139,34 +139,38 @@ test("trophyRoomHtml: a first title is just 'TITLE 1', and the team line stays (
 
 test("trophyRoomHtml: the ESPN years carry no 'ESPN era' label or any other source badge", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger), null)`);
+  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger))`);
   assert.ok(!/ESPN|Sleeper|era/i.test(out));
   assert.ok(out.includes("season.html#2019"), "but the 2019 card is there");
 });
 
-test("trophyRoomHtml: the season in progress is a dashed LIVE card with the week and the leader, and TBD for what is not known yet", () => {
+test("trophyRoomHtml: the season in progress is a dashed LIVE card with TBD for what is not known yet — no week, leader or record line", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger), HistoryData.liveSummary(ledger, { season: "2022", week: 3 }))`);
+  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger))`);
   const live = out.split("<a ").find((c) => c.includes("trophy-card live"));
   assert.match(live, /tc-pill">LIVE</);
   assert.match(live, /tc-badge">\?</);
   assert.match(live, /tc-name">In progress</);
-  assert.match(live, /Week 3 of the season\./);
-  assert.match(live, /tc-leader">Leader after Week 2: dan, 2-0\./);
   assert.strictEqual(count(live, /<b>TBD<\/b>/g), 3);
   assert.ok(!/data-username/.test(live), "an unknown champion is nobody's team");
+  assert.ok(!/tc-team|tc-leader|of the season|Leader after|Season in progress/.test(live), "no 'Week # of the season', 'Leader after Week #' or leader's record on the card");
 });
 
-test("trophyRoomHtml: without a clock or a leader the live card still reads sensibly", () => {
+test("trophyRoomHtml: the live card reads the same with no clock and no leader — it doesn't depend on either", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml([{ kind: "live", year: 2022 }], null)`);
-  assert.match(out, /Season in progress\./);
-  assert.ok(!/tc-leader/.test(out));
+  const out = html(ctx, `return trophyRoomHtml([{ kind: "live", year: 2022 }])`);
+  assert.match(out, /tc-name">In progress</);
+  assert.ok(!/tc-team|tc-leader|Week \d/.test(out));
+});
+
+test("History page: it no longer asks Sleeper for the NFL week or builds a live summary — the trophy card was the only user", () => {
+  assert.ok(!/getNflState|nflState|liveSummary/.test(read("js/history.js")));
+  assert.ok(!/liveSummary/.test(read("js/history-data.js")));
 });
 
 test("trophyRoomHtml: your team's cards are found by My Team through the card itself, and the beaten team's name is skipped", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger), null)`);
+  const out = html(ctx, `return trophyRoomHtml(HistoryData.trophyCards(ledger))`);
   assert.ok(/class="trophy-card[^"]*" href="season\.html#2021" data-username="alice"/.test(out));
   const myTeam = read("js/my-team.js");
   assert.match(myTeam, /ROW_SELECTOR = "[^"]*\.trophy-card/);
@@ -175,7 +179,7 @@ test("trophyRoomHtml: your team's cards are found by My Team through the card it
 
 test("trophyRoomHtml: names are escaped", () => {
   const ctx = setup();
-  const out = html(ctx, `return trophyRoomHtml([{ kind: "champion", year: 2020, key: "x", name: "<b>x</b>", userId: null, teamName: "A&B", titleNumber: 1, repeat: false, record: "1-0", seed: 1, beat: "<i>y</i>" }], null)`);
+  const out = html(ctx, `return trophyRoomHtml([{ kind: "champion", year: 2020, key: "x", name: "<b>x</b>", userId: null, teamName: "A&B", titleNumber: 1, repeat: false, record: "1-0", seed: 1, beat: "<i>y</i>" }])`);
   assert.ok(!out.includes("<b>x</b>") && !out.includes("<i>y</i>"));
   assert.match(out, /A&amp;B/);
 });
@@ -466,7 +470,6 @@ async function renderPage(ctx, mine) {
     `
     SleeperAPI.getSeasonChain = async () => __chain;
     SleeperAPI.getPlayerDirectory = async () => ({});
-    SleeperAPI.getNflState = async () => ({ season: "2022", week: 3 });
     fetchJsonSafe = async () => __manual;
     DeepHistory.buildAll = async () => [];
     DeepHistory.computeStats = () => ({ managers: __managers });
@@ -517,7 +520,7 @@ test("renderHistory: your team gets its card filled in once the full history is 
 
 test("renderHistory: nobody's seasons are lost when the full history cannot load — the quick sections stay, the rest say so", async () => {
   const ctx = setup();
-  runInLoadedContext(ctx, `SleeperAPI.getSeasonChain = async () => __chain; SleeperAPI.getPlayerDirectory = async () => ({}); SleeperAPI.getNflState = async () => null; fetchJsonSafe = async () => __manual; DeepHistory.buildAll = async () => { throw new Error("offline"); };`);
+  runInLoadedContext(ctx, `SleeperAPI.getSeasonChain = async () => __chain; SleeperAPI.getPlayerDirectory = async () => ({}); fetchJsonSafe = async () => __manual; DeepHistory.buildAll = async () => { throw new Error("offline"); };`);
   ctx.console = { ...console, error: () => {} };
   await ctx.renderHistory();
   await new Promise((r) => setTimeout(r, 0));
@@ -529,7 +532,7 @@ test("renderHistory: nobody's seasons are lost when the full history cannot load
 test("renderHistory: with no seasons from Sleeper it shows the error box", async () => {
   const ctx = setup();
   ctx.__chain = [];
-  runInLoadedContext(ctx, `SleeperAPI.getSeasonChain = async () => []; SleeperAPI.getPlayerDirectory = async () => ({}); SleeperAPI.getNflState = async () => null; fetchJsonSafe = async () => ({ seasons: [] });`);
+  runInLoadedContext(ctx, `SleeperAPI.getSeasonChain = async () => []; SleeperAPI.getPlayerDirectory = async () => ({}); fetchJsonSafe = async () => ({ seasons: [] });`);
   const quiet = console.error;
   console.error = () => {};
   try {

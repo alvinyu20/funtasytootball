@@ -1860,18 +1860,16 @@ simulated seasons, using your ROS power score to seed each team's
 simulated scoring range) showing the probability of finishing in every
 possible final position, not just make/miss playoffs.
 
-**How the page looks now (the tiered table, the phone list, the grid).**
-- *Table (1100px and wider).* Teams in rank order, cut into **tiers** wherever
-  neighbouring PR Scores are 1.4 or more apart (`PR_TIER_GAP` in
-  `js/power-rankings.js`); each tier header gives the range of playoff odds
-  inside it. Columns: rank, team (with the rank move beside the name and the
+**How the page looks now (the table, the phone list, the grid).**
+- *Table (1100px and wider).* Teams in plain rank order (the tier bars it used
+  to have were removed on 2026-10-28, along with `PR_TIER_GAP`). Columns: rank, team (with the rank move beside the name and the
   YOU tag from My Team), PR Score with a dot on a line from the league's
   lowest to highest score, record with the overall (all-play) record under it labelled "Ovr" (e.g. `60-16-1 Ovr`), Luck
   (actual win % minus Ovr win %, yellow when lucky, blue when not), Avg
   PPG with a bar, Std Dev, a three-way bar (first-round bye / playoffs without
   one / miss) with the playoff odds, and the ROS rank. Boom, Bust, Overall and
   the Luck *rank* are no longer shown.
-- *Phone list (under 1100px).* The same rows and tiers as a list: rank, name,
+- *Phone list (under 1100px).* The same rows as a list: rank, name,
   big PR Score, record, the same three-way bar, playoff odds and a chevron.
   Tap a team to open Avg PPG, Luck, ROS rank, Std Dev and the Ovr record
   (only what the table shows). Both drawings are in the page; CSS picks one.
@@ -2225,7 +2223,10 @@ was replaced or removed. `tests/fresh-home.test.js` scans every page's
 visible text and every user-facing string in `js/` for those phrases, so
 they can't creep back.
 
-**3. Home leads with the week.** Order: league pulse strip → This Week's
+**3. Home leads with the week.** (This is the first version; the current Home
+is described under "Home Page Redesign" and "Compact Layout Pass" below. The
+tile row and the waiver countdown described here were removed on 2026-10-28.)
+Order: league pulse strip → This Week's
 Matchups (with Featured Matchup and Hot & Cold beside them) → Standings →
 Power Rankings + Recent Activity → Latest Records + Records in Reach (5
 each) → Last Week's Matchups
@@ -2234,10 +2235,10 @@ already carries it): the week, when waivers run next, the week's top score
 and closest game (both from the last *finished* week), and your own
 matchup. (An earlier version also showed "games on now" and a newsletter
 card; both were removed in the next round, below.)
-- *Next waivers* uses the league's waiver day from Sleeper and
-  `WAIVER_CLEAR_HOUR_ET` in `js/config.js` (3 AM ET, measured from about
-  90% of the league's completed claims in 2023–2026; Sleeper doesn't
-  publish the hour).
+- *Next waivers* (removed 2026-10-28 with the tile row; the countdown used the
+  league's waiver day from Sleeper and a 3 AM ET clear hour measured from about
+  90% of completed claims in 2023–2026, since Sleeper doesn't publish the hour.
+  It can be restored from your git history if you ever want it back.)
 
 **4. My team.** The star in the top bar (every page) opens a picker of
 the league's managers. The choice is saved in that browser only
@@ -2417,8 +2418,9 @@ updated `update-power-rankings.yml` into your repo with the rest.**
   for the team's average, a dashed line for the league average, and
   low / high on the right. Sorted by average, the average equals the Power
   Rankings table's Avg PPG. Hover a row for every week's score. The sentence
-  underneath names the steadiest team and the wildest, by the gap between best
-  and worst week.
+  underneath is gone (2026-10-28, user request): the panel has no title of its
+  own any more (the "Consistency" divider above it is the heading) and no
+  takeaway, just the freshness chip, the dot plot, the key and the footnote.
 - **Lineup slot heatmap.** For each starter slot (QB, RB1, RB2, WR1, WR2, TE,
   FLEX, SFLX, K, DEF in the league's own lineup order) the team's average
   minus the league's average for that slot, plus the sum across the slots in a
@@ -2526,15 +2528,18 @@ The Home page now follows the mockups: **desktop like #6, phone like #7**, with
 the standings from #1, the matchup preview, and Power Rankings / Hot & Cold in
 the same style. The mockup titles and panel chrome are not on the site.
 
-- **My Team card + four tiles** across the top (Next waivers, Top Score, Closest
-  Game, Your matchup once a team is picked), with the **Featured Matchup** beside
-  them. The card shows record, standing, Power rank, playoff odds, last-7 dots and
-  who you play this week (with your all-time record against them once the history
-  has loaded). Until a team is picked it holds the "Pick your team" button.
-- **Standings**: Record (with `Ovr` underneath, what used to be "All Play"), Form
-  (last 7 dots), Points (difference, `PF · PA`, and a bar), Avg/Wk, Luck, Playoffs
-  (bye / playoffs / miss bar) and ROS, with dashed Bye and Playoff lines. There is
-  no SOS column. Wide screens (1100px+) show the table; phones show a compact list
+- **My Team card** across the top with the **Featured Matchup** beside it (the
+  four tiles that used to sit above the Featured Matchup, Next waivers, Top
+  Score, Closest Game and Your matchup, were removed on 2026-10-28). The card
+  shows the team's avatar beside its name, then record, standing, Power rank,
+  playoff odds, last-7 dots and who you play this week (with your all-time
+  record against them once the history has loaded). Until a team is picked it
+  holds the "Pick your team" button.
+- **Standings** (one line per team since 2026-10-28): Record (with `Ovr` beside
+  it, what used to be "All Play"), Form (last 7 dots), Points (difference,
+  `PF · PA`, and a bar), Avg/Wk, Luck, Playoffs
+  (bye / playoffs / miss bar) and ROS, with thin dashed Bye and Playoff dividers
+  (the Legend under the table names them). There is no SOS column. Wide screens (1100px+) show the table; phones show a compact list
   and a "Full table →" button.
 - **This Week**: one comparison card per game (Record, Power rank, Avg/wk,
   Playoffs, Bye, Last 7, all-time series). On a phone each card is folded to the
@@ -2567,7 +2572,9 @@ mockup headlines, descriptions, footnotes and fact cards are left out, and
 - **Trophy Room**: a card per season, newest first. Each says which title it was
   (`REPEAT · TITLE 2` when the owner also won the year before), the champion's
   regular-season record and seed, and who they beat. The season in progress is a
-  dashed LIVE card with the week and the current leader.
+  dashed LIVE card that just says "In progress" over TBD record, seed and beat
+  (the "Week 8 of the season / Leader after Week 7" line was removed on
+  2026-10-28).
 - **Every Season at a Glance**: owners down the side, seasons across. A square is
   the regular-season finish, coloured for how the playoffs went (champion,
   runner-up, third, made it, missed); the live season is outlined yellow (inside
@@ -2620,10 +2627,10 @@ nowhere.
   their own section.
 - **Profile**: picker strip, hero (name, team, "playing since", where they stand
   now, the title line and a ring per title year, plus the representative's photo),
-  seven tiles, a Seasons at a Glance strip, and a jump bar. A newcomer's empty
-  tiles show dashes and plain notes, never "0 of 0".
-- **Season by Season**: highlight tiles for the unluckiest, luckiest and best
-  scoring year (finished seasons only), then a row per year with finish, record,
+  seven tiles (label and number only; the descriptor line under each was removed
+  on 2026-10-28), a Seasons at a Glance strip, and a jump bar. A newcomer's empty
+  tiles show dashes, never "0 of 0".
+- **Season by Season**: a row per year with finish, record,
   points for and against against the league average, the all-play record and a
   luck bar. Years with no all-play data say n/a.
 - **Head-to-Head**: opponents ranked by win rate (BEST and WORST flagged), with
@@ -2646,6 +2653,90 @@ nowhere.
   the page wiring; shared made-up league in `tests/helpers/teams-fixture.js`).
   The old `teams-picker`, `teams-heatmaps` and `teams-season-tables` tests covered
   the removed markup and are gone.
+
+## Compact Layout Pass (Home, History, Teams) — 2026-10-28
+
+User: the Home, History and Teams pages had a lot of vertical empty space that
+got in the way of reading the tables, so spacing was tightened everywhere and a
+few pieces were removed. Heights at 1200px wide (with a team picked): Home 4,459
+to 3,537px, History 3,965 to 3,294px, Teams profile 4,710 to 3,587px.
+
+**Spacing (all three pages).** 16px between panels (was 24px), panels padded
+14/18/16px (was 20/22px), 48px at the foot of the page (was 80px), 20px panel
+headings with 10px under them (were 22px with 16px), and tighter rows in every
+table and list (about 5-7px top and bottom instead of 9-11px). A heading inside
+a panel head adds no margin of its own, so there is a single 10px gap under it,
+not two. Phones get the same treatment one step tighter.
+
+**Home.**
+- The four tiles above the Featured Matchup (Next waivers, Top Score, Closest
+  Game, Your matchup) are gone, so the My Team card and the Featured Matchup now
+  sit side by side with no empty space under the card. The code that fed them was
+  removed too (`buildPulseCells`, `homeTileCells`, `pulseCellHtml`, the Eastern
+  Time and waiver-clock helpers, `latestFinalMatchups`, `HOME.highlights`,
+  `WAIVER_CLEAR_HOUR_ET`, and the `.home-tiles` / `.pulse-cell` CSS). Last Week
+  still builds its own wrap-up line. **If you ever want the waiver countdown
+  back, it is in your git history.**
+- **Your avatar sits next to the team name in the My Team card**, a round 64px
+  picture (54px on a phone). It uses the team's own Sleeper picture when the
+  team has set one (Sleeper keeps it in the user's `metadata.avatar`), otherwise
+  the manager's profile picture at full size, otherwise the team name's first
+  letter in the circle. If the image fails to load it falls back to the letter.
+  `SleeperAPI.teamAvatarUrl(user)` picks it (only `https` addresses are used)
+  and `SleeperAPI.buildStandings` rows carry it as `teamAvatar`.
+- **Standings is one line per team**: the username (when it differs from the
+  team name), the `Ovr` record and the `PF · PA` figures now sit beside the main
+  figure instead of under it. Rows went from about 50px to 36px, and the table
+  still fits without sideways scrolling at 1100, 1200 and 1440px.
+- **The Bye and Playoff dividers in Standings no longer carry text.** The
+  "Bye line · Top 2" and "Playoff line · Top 6" labels moved into the Legend at
+  the bottom (each with a small dashed swatch: grey for the bye line, gold for the
+  playoff line), and the dividers themselves are just 2px dashed rules, so the
+  table is shorter again (the Standings panel is about 595px tall for twelve
+  teams). Hovering a divider still shows its label. The Legend only lists a line
+  that exists: no bye line when the league has no byes, and a bye for everyone
+  who gets in is just the playoff line. The wording comes from
+  `standingsLineAfter`, so the table and the Legend cannot disagree.
+
+**History.** The 2026 trophy card no longer has the "Week 8 of the season",
+"Leader after Week 7" or leader-and-record text: it says "In progress" with TBD
+for record, seed and beat. `HistoryData.liveSummary` and the page's NFL-week
+fetch went with it (one fewer request). The Trophy Room cards are shorter (a
+50px badge, tighter stats), the season grid cells are 31px tall (was 40), and
+Career Records and Rings rows are about 4px tighter each.
+
+**Teams.**
+- Hero team name tops out at 46px (was 66px), the tagline, title line and rings
+  are smaller, and the Player Representative's photo is 92px (was 132px). The
+  name is still the largest type at the top. Record tiles: big numbers 34px (was
+  48px), small ones 26px (was 34px); section headings 32px (was 42px).
+- The descriptor line under every top tile (for example "Best overall win rate of
+  the 6 owners", "Completed seasons, 2019 to 2021", "5 of 9 trips", the
+  third-place years) is gone. There are seven tiles (three big, four small).
+  The notes were removed from `TeamsData.profileFacts` as well, so the data is
+  just the numbers.
+- The Unluckiest, Luckiest and Best scoring year boxes above Season by Season are
+  gone, with `TeamsData.seasonHighlights`, `teamsHighlightsHtml` and their CSS.
+
+**Power Rankings.**
+- The tier bars are gone from the table (desktop) and from the phone list; teams
+  are in plain rank order. The tier sentence in the table footnote went too, and
+  so did `PR_TIER_GAP`, `powerTiers`, `tierOddsRange` and the tier CSS.
+- Consistency: the "Every Week, One Dot" panel title and the takeaway under the
+  key are removed. The freshness chip stays, on its own line at the right of the
+  panel, and the "Consistency" divider above it is the heading. If you meant the
+  *divider* as the "title", say so and I'll flip it.
+- Lineups (the last graph): the takeaway is removed; the footnote that explains
+  the colors stays.
+- The odds-grid, Schedule Faced So Far and Road Ahead takeaways were not part of
+  the request and are unchanged.
+
+**Tests.** 878 passing. New `tests/compact-layout.test.js` guards the spacing
+tokens, the one-line Standings, the text-free Bye / Playoff dividers, the My Team avatar layout, the Teams type sizes
+and the absence of CSS for everything removed. Updated: `home-panels` (avatar and
+no-tiles tests), `fresh-home`, `history-data`, `history-page`, `teams-data`,
+`teams-page`, `power-rankings`, `power-rankings-extras`, `home-standings` (the dividers'
+text now lives in the Legend; a new test covers the Legend's line keys).
 
 ## Known limitations / ideas for later
 

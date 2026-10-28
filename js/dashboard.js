@@ -11,7 +11,6 @@ const HOME = {
   standings: [], // Sleeper's own table: Record and Points For, in Sleeper's order
   rawMatchups: [],
   rawMatchupsLast: [],
-  highlights: { week: 0, topScore: null, closest: null }, // from the latest FINISHED week
   feed: null,
   nowMs: null,
   teamStrength: null,
@@ -88,9 +87,6 @@ async function renderDashboard() {
     HOME.rawMatchupsLast = rawMatchupsLastWeek || [];
     renderMatchupsAndFeatured(HOME.rawMatchups, standings, week);
     renderLastWeekMatchups(HOME.rawMatchupsLast, standings, lastWeek);
-    // Top Score and Closest Game come from the latest FINISHED week, never a half-played one.
-    const finalWeekMatchups = latestFinalMatchups(HOME.completed, week, lastWeek, HOME.rawMatchups, HOME.rawMatchupsLast);
-    HOME.highlights = { week: Math.min(HOME.completed, week || 0), ...weekHighlights(finalWeekMatchups, standings) };
     renderMatchupsFresh();
     renderLeaguePulse();
     renderMyTeamCard();
@@ -133,87 +129,14 @@ function completedWeekCount(standings) {
   return most;
 }
 
-// The matchups of the latest week that is final: this week's once it is over, last week's
-// while this one is still being played, none before any week is done.
-function latestFinalMatchups(completed, week, lastWeek, current, last) {
-  if (!week) return [];
-  if (completed >= week) return current;
-  return lastWeek && completed === lastWeek ? last : [];
-}
-
 function onlyCompletedWeeks(deepWeeks, completed) {
   return (deepWeeks || []).filter((w) => w.week <= completed);
 }
 
 
 // ---------------------------------------------------------------
-// League pulse: week, whether games are on, when waivers run next, the
-// week's top score and closest game, and (once a manager has picked a
-// team) their own matchup. Eastern Time maths is done with Intl so it is
-// right on both sides of the daylight-saving change.
+// Your matchup, for the My Team card
 // ---------------------------------------------------------------
-const PULSE_DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function easternParts(ms) {
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    weekday: "short",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    hourCycle: "h23",
-  });
-  const p = {};
-  fmt.formatToParts(new Date(ms)).forEach((x) => {
-    p[x.type] = x.value;
-  });
-  return { dow: PULSE_DOW.indexOf(p.weekday), year: Number(p.year), month: Number(p.month), day: Number(p.day), hour: Number(p.hour) % 24, minute: Number(p.minute) };
-}
-
-// The instant (ms) when the clocks in New York read this date and hour.
-function easternWallToMs(year, month, day, hour) {
-  const target = Date.UTC(year, month - 1, day, hour, 0);
-  const offsetAt = (t) => {
-    const p = easternParts(t);
-    return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - t;
-  };
-  const first = target - offsetAt(target);
-  return target - offsetAt(first);
-}
-
-// Sleeper numbers its waiver day from Monday (0 = Mon ... 6 = Sun).
-function nextWaiverRun(nowMs, waiverDayOfWeek, hourEt) {
-  if (waiverDayOfWeek == null || waiverDayOfWeek === "" || Number.isNaN(Number(waiverDayOfWeek))) return null;
-  const target = (Number(waiverDayOfWeek) + 1) % 7; // -> Sun = 0 ... Sat = 6
-  const hour = hourEt == null ? 3 : hourEt;
-  const nowEt = easternParts(nowMs);
-  for (let add = 0; add <= 7; add++) {
-    const d = new Date(Date.UTC(nowEt.year, nowEt.month - 1, nowEt.day + add));
-    if (d.getUTCDay() !== target) continue;
-    const ms = easternWallToMs(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), hour);
-    if (ms > nowMs) return { ms, dow: PULSE_DOW[target], hour };
-  }
-  return null;
-}
-
-function hourLabel(hour) {
-  const h12 = hour % 12 === 0 ? 12 : hour % 12;
-  return `${h12}${hour < 12 ? " AM" : " PM"}`;
-}
-
-function waiverPulse(nowMs, waiverDayOfWeek, hourEt) {
-  const run = nextWaiverRun(nowMs, waiverDayOfWeek, hourEt);
-  if (!run) return null;
-  const hours = (run.ms - nowMs) / 3600000;
-  let sub;
-  if (hours < 1) sub = "in under an hour";
-  else if (hours < 24) sub = `in ${Math.round(hours)} hr`;
-  else sub = `in ${Math.floor(hours / 24)} day${Math.floor(hours / 24) === 1 ? "" : "s"}, ${Math.floor(hours % 24)} hr`;
-  return { value: `${run.dow} ${hourLabel(run.hour)} ET`, sub };
-}
-
 // Your matchup this week: [{ name, username, points }] for you and your opponent.
 function findMyMatchup(rawMatchups, standings, me) {
   const key = typeof MyTeam !== "undefined" ? MyTeam.normalize(me) : String(me || "").trim().toLowerCase();
@@ -227,74 +150,14 @@ function findMyMatchup(rawMatchups, standings, me) {
   return { me: mine, opponent, mine: mineRow, theirs: theirsRow || null };
 }
 
-function pulseCellHtml(c) {
-  return `
-      <div class="ticker-stat pulse-cell${c.wide ? " pulse-wide" : ""}${c.mine ? " pulse-mine" : ""}${c.gold ? " pulse-gold" : ""}">
-        <span class="label">${escapeHtml(c.label)}</span>
-        <span class="value"${c.countUp ? " data-count-up" : ""}>${c.valueHtml != null ? c.valueHtml : escapeHtml(c.value)}</span>
-        ${c.sub ? `<span class="sub">${escapeHtml(c.sub)}</span>` : ""}
-      </div>`;
-}
-
-function buildPulseCells(m) {
-  const cells = [];
-  // The countdown leads and the clock time sits under it ("in 10 hr" / "Wed 3 AM ET").
-  if (m.waivers) cells.push({ label: "Next waivers", value: m.waivers.sub, sub: m.waivers.value });
-  // Final results only: the latest finished week, named so nobody mistakes it for the one in progress.
-  const finalTag = m.highlightWeek ? ` \u00b7 Wk ${m.highlightWeek}` : "";
-  if (m.topScore) cells.push({ label: `Top Score${finalTag}`, value: m.topScore.pts.toFixed(1), sub: m.topScore.name, countUp: true, gold: true });
-  if (m.closest) cells.push({ label: `Closest Game${finalTag}`, value: `${m.closest.diff.toFixed(1)} pts`, sub: `${m.closest.a} ${m.closest.diff === 0 ? "vs" : "over"} ${m.closest.b}`, countUp: true });
-  if (m.week && m.hasMatchups) {
-    if (!m.me) {
-      cells.push({
-        label: "Your matchup",
-        valueHtml: `<button class="pulse-cta" type="button" data-myteam-open>Pick your team</button>`,
-        sub: "We\u2019ll pin your matchup and highlight you everywhere",
-        wide: true,
-      });
-    } else if (m.myMatch && m.myMatch.opponent) {
-      const a = m.myMatch.mine ? m.myMatch.mine.points || 0 : 0;
-      const b = m.myMatch.theirs ? m.myMatch.theirs.points || 0 : 0;
-      const lead = a === b ? "" : a > b ? " \u00b7 you\u2019re ahead" : " \u00b7 you\u2019re behind";
-      cells.push({
-        label: "Your matchup",
-        valueHtml: `<strong>${a.toFixed(1)}</strong> \u2013 ${b.toFixed(1)}`,
-        sub: `vs ${m.myMatch.opponent.username || m.myMatch.opponent.teamName}${m.anyPoints ? lead : ""}`,
-        wide: true,
-        mine: true,
-      });
-    } else if (m.myMatch) {
-      cells.push({ label: "Your matchup", value: "Bye week", sub: m.me, wide: true, mine: true });
-    } else {
-      cells.push({
-        label: "Your matchup",
-        valueHtml: `<button class="pulse-cta" type="button" data-myteam-open>Change team</button>`,
-        sub: `${m.me} isn\u2019t in this league`,
-        wide: true,
-      });
-    }
-  }
-  return cells;
-}
-
-
-// The four tiles beside the My Team card, plus the week label and the "through
-// Week N" chip in the page header. The "Your matchup" tile only appears once a
-// team is picked: the My Team card carries the "Pick your team" prompt itself.
-function homeTileCells(cells) {
-  return cells.filter((c) => !(c.valueHtml && c.valueHtml.includes("data-myteam-open")));
-}
-
+// ---------------------------------------------------------------
+// Page header: the week label and the "through Week N" chip
+// ---------------------------------------------------------------
 function renderLeaguePulse() {
   const league = HOME.league;
-  const tilesEl = document.getElementById("home-tiles");
   const subEl = document.getElementById("sb-sub");
   if (!league) return;
   const week = HOME.week;
-  const nowMs = HOME.nowMs || Date.now();
-  const me = currentMyTeam();
-  const hasMatchups = HOME.rawMatchups.length > 0;
-  const anyPoints = HOME.rawMatchups.some((m) => (m.points || 0) > 0);
 
   if (subEl) {
     subEl.textContent = league.status === "pre_draft" ? "Preseason" : league.status === "complete" ? "Season complete" : week ? `Week ${week}` : "";
@@ -302,19 +165,6 @@ function renderLeaguePulse() {
 
   const inSeason = league.status === "in_season" && week;
   setChip("home-fresh", inSeason ? freshnessChipHtml({ through: HOME.completed, current: week, note: "updates Tuesdays" }) : "");
-  const waivers = inSeason ? waiverPulse(nowMs, league.settings && league.settings.waiver_day_of_week, WAIVER_CLEAR_HOUR_ET) : null;
-  const cells = buildPulseCells({
-    week,
-    waivers,
-    highlightWeek: HOME.highlights.week,
-    topScore: HOME.highlights.topScore,
-    closest: HOME.highlights.closest,
-    hasMatchups,
-    anyPoints,
-    me,
-    myMatch: me ? findMyMatchup(HOME.rawMatchups, HOME.standings, me) : null,
-  });
-  if (tilesEl) tilesEl.innerHTML = homeTileCells(cells).map(pulseCellHtml).join("");
 }
 
 // ---------------------------------------------------------------
@@ -490,7 +340,9 @@ function buildStandingsRows() {
   });
 }
 
-// "Bye line · Top 2" after the last team that gets one, "Playoff line · Top 6" after the last that makes it.
+// A dashed divider after the last team that gets a bye and after the last that makes the playoffs.
+// The divider itself carries no text (it only keeps a hover label); the Legend under the table says
+// "Bye line · Top 2" / "Playoff line · Top 6".
 function standingsLineAfter(rank, total, byeTeams, playoffTeams) {
   if (rank >= total || !playoffTeams) return null;
   if (byeTeams && byeTeams < playoffTeams && rank === byeTeams) return { cls: "bye", text: `Bye line · Top ${byeTeams}` };
@@ -556,13 +408,20 @@ function standingsItemHtml(r, ctx) {
       </div>`;
 }
 
-function standingsLegendHtml(byeTeams, withOdds) {
+// The legend also names the two dashed dividers, using the same wording `standingsLineAfter` gives them.
+function standingsLegendHtml(byeTeams, withOdds, playoffTeams) {
+  // `Infinity` only keeps a line from being suppressed as "after the last team"; a bye for everyone who gets in is one line.
+  const lineKeys = [byeTeams, playoffTeams]
+    .map((rank) => standingsLineAfter(rank, Infinity, byeTeams, playoffTeams))
+    .filter((line, i, all) => line && all.findIndex((l) => l && l.cls === line.cls) === i)
+    .map((line) => `<span class="pr-key"><i class="hs-key-line ${line.cls}"></i>${line.text}</span>`);
   return [
     `<span class="pr-key"><i class="fd w"></i>Win</span>`,
     `<span class="pr-key"><i class="fd l"></i>Loss <span class="pr-key-note">(oldest on the left)</span></span>`,
     withOdds && byeTeams ? `<span class="pr-key"><i class="pr-swatch bye"></i>Bye</span>` : "",
     withOdds ? `<span class="pr-key"><i class="pr-swatch playoffs"></i>${byeTeams ? "Playoffs, no bye" : "Playoffs"}</span>` : "",
     withOdds ? `<span class="pr-key"><i class="pr-swatch miss"></i>Miss</span>` : "",
+    ...lineKeys,
   ]
     .filter(Boolean)
     .join("");
@@ -580,14 +439,14 @@ function renderStandings() {
     const line = standingsLineAfter(r.rank, rows.length, byeTeams, HOME.playoffTeams);
     if (!line) return "";
     return kind === "table"
-      ? `<tr class="hs-line ${line.cls}"><td colspan="${COLS}"><span>${line.text}</span></td></tr>`
-      : `<div class="hs-line ${line.cls}"><span>${line.text}</span></div>`;
+      ? `<tr class="hs-line ${line.cls}" title="${line.text}"><td colspan="${COLS}"></td></tr>`
+      : `<div class="hs-line ${line.cls}" title="${line.text}"></div>`;
   };
   body.innerHTML = rows.map((r) => standingsRowHtml(r, ctx) + lineHtml(r, "table")).join("");
   const list = document.getElementById("standings-list");
   if (list) list.innerHTML = rows.map((r) => standingsItemHtml(r, ctx) + lineHtml(r, "list")).join("");
   const legend = document.getElementById("standings-legend");
-  if (legend) legend.innerHTML = standingsLegendHtml(byeTeams, HOME.powerByRoster.size > 0);
+  if (legend) legend.innerHTML = standingsLegendHtml(byeTeams, HOME.powerByRoster.size > 0, HOME.playoffTeams);
 }
 
 
@@ -1294,8 +1153,13 @@ function myTeamCardHtml(m) {
   const sameName = t.username && String(t.username).trim().toLowerCase() === String(t.teamName).trim().toLowerCase();
   return `
       <div class="mt-top"><span class="mt-label">My team</span><span class="mt-you">You</span></div>
-      <p class="mt-name">${escapeHtml(t.teamName)}</p>
-      ${t.username && !sameName ? `<p class="mt-user">${escapeHtml(t.username)}</p>` : ""}
+      <div class="mt-head">
+        <span class="mt-avatar">${userAvatarHtml(t.teamAvatar || t.avatar, t.teamName, "mt-avatar-img")}</span>
+        <div class="mt-id">
+          <p class="mt-name">${escapeHtml(t.teamName)}</p>
+          ${t.username && !sameName ? `<p class="mt-user">${escapeHtml(t.username)}</p>` : ""}
+        </div>
+      </div>
       <div class="mt-stats">${stats.join("")}</div>
       ${form}
       ${next ? `<p class="mt-next">${next}</p>` : ""}`;

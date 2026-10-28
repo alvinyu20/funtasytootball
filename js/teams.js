@@ -257,40 +257,36 @@ function teamsHeroHtml(f, teamName, rep) {
     </header>`;
 }
 
-function teamsBigTileHtml(label, record, pct, note) {
+function teamsBigTileHtml(label, record, pct) {
   const has = pct != null && record !== "0-0";
   return `
     <div class="tm-tile big">
       <span class="tm-tile-label">${escapeHtml(label)}</span>
       <div class="tm-tile-main"><b>${has ? escapeHtml(record) : "–"}</b>${has ? `<em class="${pct >= 50 ? "up" : "down"}">${tmPct(pct)}</em>` : ""}</div>
       ${has ? tmWinBar(pct) : `<i class="bar has-tick"></i>`}
-      <p>${escapeHtml(note)}</p>
     </div>`;
 }
 
-function teamsSmallTileHtml(label, value, note) {
+function teamsSmallTileHtml(label, value) {
   return `
     <div class="tm-tile small">
       <span class="tm-tile-label">${escapeHtml(label)}</span>
       <b>${escapeHtml(value)}</b>
-      <p>${escapeHtml(note)}</p>
     </div>`;
 }
 
 function teamsTilesHtml(f) {
-  const byeNote = f.byes.note;
-  const thirdNote = f.third.years.length ? f.third.years.join(", ") : "None yet";
   return `
     <div class="tm-tiles-big">
-      ${teamsBigTileHtml("Overall Record", f.overall.record, f.overall.pct, f.overall.note)}
-      ${teamsBigTileHtml("Regular Season", f.regular.record, f.regular.pct, f.regular.note)}
-      ${teamsBigTileHtml("Playoffs", f.playoffs.record, f.playoffs.pct, f.playoffs.note)}
+      ${teamsBigTileHtml("Overall Record", f.overall.record, f.overall.pct)}
+      ${teamsBigTileHtml("Regular Season", f.regular.record, f.regular.pct)}
+      ${teamsBigTileHtml("Playoffs", f.playoffs.record, f.playoffs.pct)}
     </div>
     <div class="tm-tiles-small">
-      ${teamsSmallTileHtml("Championship Games", f.titleGames.record, f.titleGames.note)}
-      ${teamsSmallTileHtml("Playoff Appearances", f.trips.text, f.trips.note)}
-      ${teamsSmallTileHtml("First-Round Byes", f.byes.text, byeNote)}
-      ${teamsSmallTileHtml("Third Place", String(f.third.count), thirdNote)}
+      ${teamsSmallTileHtml("Championship Games", f.titleGames.record)}
+      ${teamsSmallTileHtml("Playoff Appearances", f.trips.text)}
+      ${teamsSmallTileHtml("First-Round Byes", f.byes.text)}
+      ${teamsSmallTileHtml("Third Place", String(f.third.count))}
     </div>`;
 }
 
@@ -345,39 +341,6 @@ function teamsJumpHtml(show) {
 
 // ---- Season by Season -----------------------------------------------------
 
-function teamsHighlightText(kind, row) {
-  const parts = [];
-  parts.push(row.record);
-  if (row.status === "champion") parts.push("won the title");
-  else if (row.status === "runnerUp") parts.push("lost in the final");
-  else if (row.status === "third") parts.push("finished third");
-  if (kind === "bestScoring") {
-    if (row.leagueAvg != null) parts.unshift(`${Math.abs(row.ppgFor - row.leagueAvg).toFixed(1)} ${row.ppgFor >= row.leagueAvg ? "above" : "below"} the league average`);
-    return parts.join(" · ");
-  }
-  if (row.ppgFor != null && row.leagueAvg != null) parts.push(`${row.ppgFor.toFixed(1)} per game against a ${row.leagueAvg.toFixed(1)} league average`);
-  if (row.overall) parts.push(`${row.overall.text} against everyone`);
-  return parts.join(" · ");
-}
-
-function teamsHighlightsHtml(h) {
-  const tile = (kind, label, cls, row, head) =>
-    row
-      ? `
-      <div class="tm-hl ${cls}">
-        <span class="tm-tile-label">${label}</span>
-        <b>${head}</b>
-        <p>${escapeHtml(teamsHighlightText(kind, row))}</p>
-      </div>`
-      : "";
-  return `
-    <div class="tm-highlights">
-      ${tile("unluckiest", "Unluckiest year", "bad", h.unluckiest, h.unluckiest ? `${h.unluckiest.year}, ${tmSigned(h.unluckiest.luck)}` : "")}
-      ${tile("luckiest", "Luckiest year", "good", h.luckiest, h.luckiest ? `${h.luckiest.year}, ${tmSigned(h.luckiest.luck)}` : "")}
-      ${tile("bestScoring", "Best scoring year", "good", h.bestScoring, h.bestScoring ? `${h.bestScoring.year}, ${h.bestScoring.ppgFor.toFixed(1)} per game` : "")}
-    </div>`;
-}
-
 function teamsSeasonRowHtml(r, scale) {
   const finish = r.finish != null ? `<span class="sq st-${r.status} tm-fin">#${r.finish}${r.label ? ` <small>${r.label}</small>` : ""}</span>` : "";
   const recBar = r.winPct == null ? "" : tmWinBar(r.winPct, false);
@@ -406,7 +369,7 @@ function teamsSeasonRowHtml(r, scale) {
       </li>`;
 }
 
-function teamsSeasonsHtml(name, rows, highlights) {
+function teamsSeasonsHtml(name, rows) {
   if (!rows.length) return `<div class="empty-state">No seasons yet.</div>`;
   const all = rows.flatMap((r) => [r.ppgFor, r.ppgAgainst, r.leagueAvg]).filter((v) => v != null && isFinite(v));
   const scale = {
@@ -415,7 +378,6 @@ function teamsSeasonsHtml(name, rows, highlights) {
   };
   const live = rows.some((r) => r.live);
   return `
-    ${teamsHighlightsHtml(highlights)}
     <div class="panel">
       <div class="tm-sbs-head" aria-hidden="true">
         <span>Year</span><span>Finish</span><span>Record</span><span>Points per game · for (gold), against (sage)</span><span>Vs everyone</span>
@@ -713,7 +675,7 @@ function teamsProfileHtml(owner, manager) {
 
     <div class="wrap tm-sec" id="tm-seasons">
       ${teamsSectionHead(owner.name, "Season by Season")}
-      ${teamsSeasonsHtml(owner.name, rows, TeamsData.seasonHighlights(rows))}
+      ${teamsSeasonsHtml(owner.name, rows)}
     </div>
 
     <div class="wrap tm-sec" id="tm-h2h">

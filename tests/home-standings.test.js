@@ -104,20 +104,51 @@ test("Standings, first pass: Sleeper's table in Sleeper's order, Record and PF, 
   assert.ok(/\d PF</.test(table) && !/ PA</.test(table), "only PF until the points against are known");
   assert.ok(!/ Ovr</.test(table));
   const legend = html(ctx, "standings-legend");
-  assert.ok(legend.includes("Win") && !legend.includes("Bye") && !legend.includes("Miss"), "no odds, so no odds key");
+  assert.ok(legend.includes("Win") && !legend.includes("pr-swatch") && !legend.includes("Miss"), "no odds, so no odds key");
+  assert.ok(legend.includes("Bye line · Top 2") && legend.includes("Playoff line · Top 6"), "though the dashed dividers still get named");
   assert.strictEqual(run(ctx, "HOME.rankByRoster.size"), TEAMS);
 });
 
-test("Standings: the bye and playoff lines sit in both the table and the list, after the right ranks", () => {
+test("Standings: the bye and playoff lines sit in both the table and the list, after the right ranks, with no text on them", () => {
   const ctx = firstPass();
   const table = html(ctx, "standings-body");
   const list = html(ctx, "standings-list");
-  assert.strictEqual((table.match(/Bye line · Top 2/g) || []).length, 1, "a six-team playoff means two byes, even before the snapshot says so");
-  assert.strictEqual((list.match(/Bye line · Top 2/g) || []).length, 1);
-  assert.strictEqual((table.match(/Playoff line · Top 6/g) || []).length, 1);
-  assert.strictEqual((list.match(/Playoff line · Top 6/g) || []).length, 1);
+  const count = (str, re) => (str.match(re) || []).length;
+  assert.strictEqual(count(table, /<tr class="hs-line bye"/g), 1, "a six-team playoff means two byes, even before the snapshot says so");
+  assert.strictEqual(count(table, /<tr class="hs-line playoffs"/g), 1);
+  assert.strictEqual(count(list, /<div class="hs-line bye"/g), 1);
+  assert.strictEqual(count(list, /<div class="hs-line playoffs"/g), 1);
   const rowsBefore = table.slice(0, table.indexOf("hs-line playoffs")).match(/<tr class="hs-row">/g) || [];
   assert.strictEqual(rowsBefore.length, 6, "the line falls after the sixth team");
+  // The Legend names the lines now; nothing readable is left on the dividers themselves.
+  const visible = (markup) => markup.replace(/<[^>]*>/g, " ");
+  [table, list].forEach((markup) => {
+    assert.ok(!/Bye line|Playoff line/.test(visible(markup)), "no visible 'Bye line' / 'Playoff line' text inside the standings");
+    assert.ok(!/<span>\s*(Bye|Playoff) line/.test(markup));
+  });
+  const legend = html(ctx, "standings-legend");
+  assert.strictEqual(count(legend, /Bye line · Top 2/g), 1, "the Legend says what the first dashed line is");
+  assert.strictEqual(count(legend, /Playoff line · Top 6/g), 1, "and the second");
+  assert.ok(/hs-key-line bye/.test(legend) && /hs-key-line playoffs/.test(legend), "each with its own dashed swatch");
+});
+
+test("Standings legend: one key per dashed divider, and none for a divider that does not exist", () => {
+  const ctx = homeCtx();
+  const legend = (bye, odds, playoffs) => run(ctx, `standingsLegendHtml(${bye}, ${odds}, ${playoffs})`);
+  const count = (str, re) => (str.match(re) || []).length;
+  const full = legend(2, true, 6);
+  assert.ok(full.includes("Bye line · Top 2") && full.includes("Playoff line · Top 6"));
+  assert.ok(full.indexOf("Miss") < full.indexOf("Bye line"), "the line keys follow the odds keys");
+  const noByes = legend(0, true, 4);
+  assert.ok(!noByes.includes("Bye line") && noByes.includes("Playoff line · Top 4"), "no byes, no bye line");
+  const byeForAll = legend(4, true, 4);
+  assert.strictEqual(count(byeForAll, /hs-key-line/g), 1, "a bye for everyone who gets in is just the playoff line");
+  assert.ok(byeForAll.includes("Playoff line · Top 4") && !byeForAll.includes("Bye line"));
+  const noFormat = legend(2, true, null);
+  assert.ok(!noFormat.includes("hs-key-line"), "no playoff format known, no dividers to explain");
+  const noOdds = legend(2, false, 6);
+  assert.ok(noOdds.includes("Bye line · Top 2") && noOdds.includes("Playoff line · Top 6"), "the dividers do not depend on the odds");
+  assert.ok(!noOdds.includes("Miss"));
 });
 
 test("Standings: each team name carries the username 'my team' looks for, and a manager with no team name isn't printed twice", () => {
@@ -153,9 +184,9 @@ test("Standings, second pass: Ovr under the Record, PF · PA, the difference, Av
   assert.ok(/ Ovr</.test(table) && / PF · /.test(table) && / PA</.test(table));
   assert.strictEqual((table.match(/<i class="fd /g) || []).length, TEAMS * Math.min(7, FINISHED));
   assert.ok(table.includes("pr-bar"), "the playoff bar");
-  assert.ok(table.includes("hs-line bye") && table.includes("Bye line · Top 2"), "the snapshot says two teams get a bye");
+  assert.ok(table.includes("hs-line bye"), "the snapshot says two teams get a bye");
   const legend = html(ctx, "standings-legend");
-  ["Win", "Loss", "Bye", "Playoffs, no bye", "Miss"].forEach((w) => assert.ok(legend.includes(w), w));
+  ["Win", "Loss", "Bye", "Playoffs, no bye", "Miss", "Bye line · Top 2", "Playoff line · Top 6"].forEach((w) => assert.ok(legend.includes(w), w));
   const topPct = Math.max(...rows.map((r) => r.playoffPct));
   assert.ok(table.includes(`${topPct.toFixed(1)}%`));
 });
@@ -183,8 +214,9 @@ test("Standings, second pass: without a snapshot there are no odds, only the res
   const rows = json(ctx, "buildStandingsRows()");
   rows.forEach((r) => assert.ok(r.playoffPct === null && r.ovr !== null));
   assert.ok(!html(ctx, "standings-body").includes("pr-bar"));
-  assert.ok(html(ctx, "standings-body").includes("Playoff line · Top 6"), "the lines still follow the league's own settings");
-  assert.ok(html(ctx, "standings-body").includes("Bye line · Top 2"), "and a six-team playoff still means two byes");
+  assert.ok(html(ctx, "standings-body").includes("hs-line playoffs"), "the lines still follow the league's own settings");
+  assert.ok(html(ctx, "standings-body").includes("hs-line bye"), "and a six-team playoff still means two byes");
+  assert.ok(html(ctx, "standings-legend").includes("Playoff line · Top 6") && html(ctx, "standings-legend").includes("Bye line · Top 2"), "the Legend names them");
 });
 
 test("Standings: ROS rank comes from the strength file by username", () => {

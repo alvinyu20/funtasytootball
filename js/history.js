@@ -11,7 +11,6 @@
 
 const HIST = {
   ledger: [],
-  nflState: null,
   ownerData: null, // { owners, firstYear, latestYear, maxTeams } once the full history is in
   rings: null, // { ranked, columns, letters } once the full history is in
 };
@@ -163,17 +162,14 @@ function titlesMetaText(t) {
 
 // ---- Trophy Room ----------------------------------------------------------
 
-function trophyCardHtml(card, live) {
+function trophyCardHtml(card) {
   if (card.kind === "live") {
-    const week = live && live.week ? `Week ${live.week} of the season.` : "Season in progress.";
-    const leader = live && live.leader ? ` <span class="tc-leader">Leader after Week ${live.leader.games}: ${escapeHtml(live.leader.name)}, ${escapeHtml(live.leader.record)}.</span>` : "";
     return `
       <a class="trophy-card live" href="season.html#${card.year}">
         <span class="tc-year">${card.year}</span>
         <span class="tc-pill">LIVE</span>
         <span class="tc-badge">?</span>
         <span class="tc-name">In progress</span>
-        <span class="tc-team">${week}${leader}</span>
         <span class="tc-stats">
           <span class="tc-stat"><span>Record</span><b>TBD</b></span>
           <span class="tc-stat"><span>Seed</span><b>TBD</b></span>
@@ -197,9 +193,9 @@ function trophyCardHtml(card, live) {
       </a>`;
 }
 
-function trophyRoomHtml(cards, live) {
+function trophyRoomHtml(cards) {
   if (!cards.length) return `<div class="empty-state">No champions crowned yet.</div>`;
-  return cards.map((c) => trophyCardHtml(c, live)).join("");
+  return cards.map((c) => trophyCardHtml(c)).join("");
 }
 
 // ---- season squares (Career Records strip, Every Season grid) --------------
@@ -476,13 +472,12 @@ function renderYou() {
 function renderTop() {
   const ledger = HIST.ledger;
   const titles = HistoryData.titlesByOwner(ledger);
-  const live = HistoryData.liveSummary(ledger, HIST.nflState);
 
   setHtml("hist-tiles", heroTilesHtml(HistoryData.heroStats(ledger)));
   setHtml("titles-bar", titlesBarHtml(titles));
   const meta = document.getElementById("titles-meta");
   if (meta) meta.textContent = titles.owners.length ? titlesMetaText(titles) : "";
-  setHtml("trophy-room", trophyRoomHtml(HistoryData.trophyCards(ledger), live));
+  setHtml("trophy-room", trophyRoomHtml(HistoryData.trophyCards(ledger)));
   setHtml("podium-chart", podiumChartHtml(HistoryData.podiumsBySeed(ledger)));
   renderYou();
 }
@@ -593,11 +588,10 @@ async function renderHistory() {
   const errorBox = document.getElementById("hist-error");
 
   try {
-    const [seasons, playerDirectory, rawManual, nflState] = await Promise.all([
+    const [seasons, playerDirectory, rawManual] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID), // oldest -> newest
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
-      SleeperAPI.getNflState().catch(() => null),
     ]);
     // Guard against an un-replaced template entry (champion still says
     // "REPLACE_WITH...") ever showing up on the live site.
@@ -613,7 +607,6 @@ async function renderHistory() {
     document.getElementById("sb-title").textContent = "Trophy Case";
 
     HIST.ledger = HistoryData.buildLedger(seasons, manual);
-    HIST.nflState = nflState;
 
     const totalSeasons = HIST.ledger.length;
     document.getElementById("sb-sub").textContent = `${totalSeasons} season${totalSeasons === 1 ? "" : "s"} on record`;

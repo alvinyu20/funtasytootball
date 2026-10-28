@@ -62,50 +62,8 @@ test("completedWeekCount: the most games any roster has finished, which is the w
   assert.strictEqual(n([{ wins: 0, losses: 0, ties: 0 }]), 0);
 });
 
-// ---- league pulse --------------------------------------------------------------------------------
-const at = (iso) => Date.parse(iso);
-
-test("Eastern Time maths: right on both sides of the daylight-saving changes", () => {
-  const ctx = homeCtx();
-  const parts = (iso) => json(ctx, `easternParts(${at(iso)})`);
-  assert.deepStrictEqual(
-    { dow: parts("2026-10-26T15:00:00Z").dow, hour: parts("2026-10-26T15:00:00Z").hour },
-    { dow: 1, hour: 11 },
-    "EDT: 15:00Z is 11 AM Monday"
-  );
-  assert.strictEqual(parts("2026-11-04T08:00:00Z").hour, 3, "EST after the clocks go back");
-  assert.strictEqual(parts("2026-10-28T07:00:00Z").hour, 3, "EDT before they do");
-  const wall = (y, m, d, h) => new Date(runInLoadedContext(ctx, `easternWallToMs(${y}, ${m}, ${d}, ${h})`)).toISOString();
-  assert.strictEqual(wall(2026, 10, 28, 3), "2026-10-28T07:00:00.000Z");
-  assert.strictEqual(wall(2026, 11, 4, 3), "2026-11-04T08:00:00.000Z");
-  assert.strictEqual(wall(2026, 3, 11, 3), "2026-03-11T07:00:00.000Z", "just after spring-forward");
-  assert.strictEqual(wall(2026, 3, 4, 3), "2026-03-04T08:00:00.000Z", "just before it");
-});
-
-test("Next waivers: Sleeper's waiver day (0 = Monday) at the measured clear hour, rolling to next week once it has passed", () => {
-  const ctx = homeCtx();
-  const next = (nowIso, day = 2, hour = 3) => {
-    const r = json(ctx, `nextWaiverRun(${at(nowIso)}, ${day}, ${hour})`);
-    return r && new Date(r.ms).toISOString() + " " + r.dow;
-  };
-  assert.strictEqual(next("2026-10-26T15:00:00Z"), "2026-10-28T07:00:00.000Z Wed");
-  assert.strictEqual(next("2026-10-28T06:59:00Z"), "2026-10-28T07:00:00.000Z Wed", "a minute before");
-  assert.strictEqual(next("2026-10-28T07:00:00Z"), "2026-11-04T08:00:00.000Z Wed", "at the moment they clear, the next run is a week out (and clocks changed)");
-  assert.strictEqual(next("2026-10-26T15:00:00Z", 0, 3), "2026-11-02T08:00:00.000Z Mon", "a Monday league: 3 AM has passed today, so next Monday (clocks have changed)");
-  assert.strictEqual(next("2026-10-26T15:00:00Z", 6, 3).slice(-3), "Sun");
-  assert.strictEqual(runInLoadedContext(ctx, `nextWaiverRun(0, null, 3)`), null);
-  assert.strictEqual(runInLoadedContext(ctx, `nextWaiverRun(0, undefined, 3)`), null);
-});
-
-test("Next waivers: reads as '<day> <hour> ET' with a plain countdown", () => {
-  const ctx = homeCtx();
-  const pulse = (nowIso) => json(ctx, `waiverPulse(${at(nowIso)}, 2, 3)`);
-  assert.strictEqual(pulse("2026-10-26T15:00:00Z").value, "Wed 3 AM ET");
-  assert.strictEqual(pulse("2026-10-26T15:00:00Z").sub, "in 1 day, 16 hr");
-  assert.strictEqual(pulse("2026-10-28T03:00:00Z").sub, "in 4 hr");
-  assert.strictEqual(pulse("2026-10-28T06:30:00Z").sub, "in under an hour");
-  assert.strictEqual(runInLoadedContext(ctx, `hourLabel(0) + "|" + hourLabel(12) + "|" + hourLabel(15)`), "12 AM|12 PM|3 PM");
-});
+// ---- league pulse ---------------------------------------------------------------------------------
+// (The waiver countdown and its Eastern Time maths left with the tile row; see home-panels.test.js.)
 
 const standingsFixture = [
   { rosterId: 1, username: "Alvin", teamName: "Alvin's Team" },
@@ -205,14 +163,14 @@ test("MyTeam: changing it re-draws Home's team-aware pieces and tells the page",
 });
 
 // ---- markup -------------------------------------------------------------------------------------------
-test("Home markup: My Team and the tiles up top, Standings, then This Week and Last Week, Hot & Cold beside Power Rankings, records and activity last", () => {
+test("Home markup: My Team and the Featured Matchup up top, Standings, then This Week and Last Week, Hot & Cold beside Power Rankings, records and activity last", () => {
   const html = read("index.html");
   const pos = (s) => {
     const i = html.indexOf(s);
     assert.ok(i >= 0, s);
     return i;
   };
-  const order = ["my-team-card", "home-tiles", "featured-matchup-panel", "standings-body", "matchups-list", "last-week-matchups-list", "streaks-panel", "power-rankings-snapshot", "records-reach", "latest-records", "recent-activity-panel"];
+  const order = ["my-team-card", "featured-matchup-panel", "standings-body", "matchups-list", "last-week-matchups-list", "streaks-panel", "power-rankings-snapshot", "records-reach", "latest-records", "recent-activity-panel"];
   order.forEach((id, i) => i && assert.ok(pos(`id="${order[i - 1]}"`) < pos(`id="${id}"`), `${order[i - 1]} comes before ${id}`));
   assert.ok(!/<text[^>]*>(FUNTASY|TOOTBALL)/.test(html), "the hero no longer repeats the wordmark");
   ["sb-eyebrow", "sb-title", "sb-sub", "home-fresh", "pr-fresh", "latest-fresh", "reach-fresh", "matchups-fresh", "last-week-fresh", "last-week-foot", "featured-note", "ros-note", "standings-legend", "standings-list", "standings-more", "standings-panel"].forEach((id) =>

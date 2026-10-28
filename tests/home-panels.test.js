@@ -1,6 +1,6 @@
 /*
-  Home's other panels: the tiles beside My Team, the My Team card, Hot & Cold and
-  the Power Rankings preview.
+  Home's other panels: the header, the My Team card (with its avatar), Hot & Cold
+  and the Power Rankings preview.
 */
 const test = require("node:test");
 const assert = require("node:assert");
@@ -12,64 +12,22 @@ const storageStub = (initial) => {
 };
 const userOf = (rosterId) => archive.users.find((u) => u.user_id === archive.rosters.find((r) => r.roster_id === rosterId).owner_id);
 
-// ---- tiles --------------------------------------------------------------------------------------------
-test("tiles: waivers, the last FINISHED week's top score and closest game, and a 'Pick your team' call to action until a team is picked", () => {
-  const ctx = homeCtx();
-  const cells = (m) => json(ctx, `buildPulseCells(${JSON.stringify(m)})`);
-  const base = {
-    week: 7,
-    waivers: { value: "Wed 3 AM ET", sub: "in 1 day, 16 hr" },
-    highlightWeek: 6,
-    topScore: { pts: 201.44, name: "Alvin's Team" },
-    closest: { diff: 0.62, a: "Alvin's Team", b: "Teddy Bears" },
-    hasMatchups: true,
-    anyPoints: true,
-    me: null,
-    myMatch: null,
-  };
-  const noTeam = cells(base);
-  assert.deepStrictEqual(noTeam.map((c) => c.label), ["Next waivers", "Top Score · Wk 6", "Closest Game · Wk 6", "Your matchup"]);
-  assert.ok(!noTeam.some((c) => /games/i.test(c.label)), "no 'Games on now' cell");
-  assert.deepStrictEqual([noTeam[0].value, noTeam[0].sub], ["in 1 day, 16 hr", "Wed 3 AM ET"], "the countdown leads, the clock time sits under it");
-  assert.deepStrictEqual([noTeam[1].value, noTeam[1].sub, noTeam[1].gold], ["201.4", "Alvin's Team", true], "the score is the big number, the team under it, in gold");
-  assert.deepStrictEqual([noTeam[2].value, noTeam[2].sub], ["0.6 pts", "Alvin's Team over Teddy Bears"]);
-  assert.ok(noTeam[3].valueHtml.includes("data-myteam-open") && noTeam[3].valueHtml.includes("Pick your team"));
-  const match = { me: { username: "Teddy" }, opponent: { username: "Alvin" }, mine: { points: 101.3 }, theirs: { points: 98.2 } };
-  const picked = cells({ ...base, me: "Teddy", myMatch: match });
-  assert.ok(picked[3].valueHtml.includes("<strong>101.3</strong> – 98.2"));
-  assert.strictEqual(picked[3].sub, "vs Alvin · you’re ahead");
-  assert.ok(cells({ ...base, me: "Teddy", myMatch: { ...match, mine: { points: 90 } } })[3].sub.endsWith("you’re behind"));
-  assert.strictEqual(cells({ ...base, anyPoints: false, me: "Teddy", myMatch: match })[3].sub, "vs Alvin", "no talk of leads before anyone has scored");
-  assert.strictEqual(cells({ ...base, me: "Bye", myMatch: { me: {}, opponent: null, mine: {}, theirs: null } })[3].value, "Bye week");
-  assert.ok(cells({ ...base, me: "Gone", myMatch: null })[3].valueHtml.includes("Change team"));
-  const tie = cells({ ...base, closest: { diff: 0, a: "A", b: "B" } })[2];
-  assert.strictEqual(tie.sub, "A vs B", "a dead heat isn't 'over' anybody");
-  const early = cells({ week: 1, waivers: null, highlightWeek: 0, topScore: null, closest: null, hasMatchups: false, me: null, myMatch: null });
-  assert.strictEqual(early.length, 0, "nothing finished yet: no top score or closest game to show");
+// ---- header -------------------------------------------------------------------------------------------
+test("Home has no row of tiles beside My Team: the page and its script no longer carry the waiver clock, top score or closest-game cells", () => {
+  const { read } = require("./helpers/home-fixture.js");
+  const page = read("index.html");
+  assert.ok(!page.includes("home-tiles"), "no tile container in the markup");
+  const top = page.slice(page.indexOf('class="wrap home-top"'), page.indexOf("home-standings-block"));
+  assert.ok(top.includes('id="my-team-card"') && top.includes("Featured Matchup") && !top.includes("Next waivers"), "the top row is My Team and the Featured Matchup, nothing else");
+  const src = read("js", "dashboard.js");
+  for (const gone of ["buildPulseCells", "homeTileCells", "pulseCellHtml", "waiverPulse", "nextWaiverRun", "easternParts", "easternWallToMs", "latestFinalMatchups", "HOME.highlights"]) {
+    assert.ok(!src.includes(gone), `${gone} is gone from dashboard.js`);
+  }
+  assert.ok(!/WAIVER_CLEAR_HOUR_ET/.test(read("js", "config.js")), "and its config constant with it");
+  assert.ok(!/home-tiles|pulse-cell/.test(read("css", "styles.css")), "and the tile CSS");
 });
 
-test("tiles: the 'Pick your team' prompt lives in the My Team card, so the tile row leaves it out; top score gets the gold class", () => {
-  const ctx = homeCtx();
-  const cells = [
-    { label: "A", value: "1" },
-    { label: "Your matchup", valueHtml: '<button data-myteam-open>Pick your team</button>', wide: true },
-    { label: "Top Score", value: "9", gold: true },
-    { label: "Your matchup", valueHtml: "<strong>1</strong>", mine: true },
-  ];
-  const kept = json(ctx, `homeTileCells(${JSON.stringify(cells)})`);
-  assert.deepStrictEqual(kept.map((c) => c.label), ["A", "Top Score", "Your matchup"]);
-  assert.ok(run(ctx, `pulseCellHtml({ label: "Top Score", value: "9", gold: true })`).includes("pulse-gold"));
-  assert.ok(!run(ctx, `pulseCellHtml({ label: "Top Score", value: "9" })`).includes("pulse-gold"));
-  assert.ok(run(ctx, `pulseCellHtml({ label: "x", value: "9", mine: true })`).includes("pulse-mine"));
-});
-
-test("tiles: text is escaped", () => {
-  const ctx = homeCtx();
-  const out = run(ctx, `pulseCellHtml({ label: "<b>", value: "<i>x</i>", sub: "<u>" })`);
-  assert.ok(!out.includes("<b>") && !out.includes("<i>") && !out.includes("<u>"));
-});
-
-test("renderLeaguePulse: week label in the header, four tiles after a finished week, and only finished results in them", async () => {
+test("renderLeaguePulse: the header says the week and the freshness chip says how far the data runs; nothing else is drawn", async () => {
   const ctx = homeCtx();
   ctx.__arch = archive;
   run(
@@ -77,14 +35,9 @@ test("renderLeaguePulse: week label in the header, four tiles after a finished w
     `HOME.league = __arch.league; HOME.week = 8; HOME.completed = 7; HOME.nowMs = Date.parse("2026-10-27T19:00:00Z");
      HOME.standings = SleeperAPI.buildStandings(__arch.rosters, __arch.users);
      HOME.rawMatchups = __arch.weeks.find((w) => w.week === 7).matchups;
-     HOME.highlights = { week: 7, ...weekHighlights(HOME.rawMatchups, HOME.standings) };
      renderLeaguePulse();`
   );
   assert.strictEqual(ctx.document.getElementById("sb-sub").textContent, "Week 8");
-  const tiles = html(ctx, "home-tiles");
-  assert.strictEqual((tiles.match(/ticker-stat pulse-cell/g) || []).length, 3, "waivers, top score, closest game (no matchup tile until a team is picked)");
-  assert.ok(tiles.includes("Wk 7") && tiles.includes("pulse-gold"));
-  assert.ok(!tiles.includes("Pick your team"));
   assert.ok(html(ctx, "home-fresh").includes("Through Week 7"));
 });
 
@@ -296,21 +249,12 @@ test("Power Rankings chip: says how far the snapshot runs and, if it is behind, 
 });
 
 // ---- smaller guards ------------------------------------------------------------------------------------------------------
-test("latestFinalMatchups: this week once it is over, last week while this one is on, nothing before a week is done", () => {
-  const ctx = homeCtx();
-  const pick = (completed, week, lastWeek) => run(ctx, `latestFinalMatchups(${completed}, ${week}, ${lastWeek}, "THIS", "LAST")`);
-  assert.deepStrictEqual([pick(8, 8, 7), pick(7, 8, 7)], ["THIS", "LAST"]);
-  assert.strictEqual(pick(6, 8, 7).length + pick(0, 1, null).length, 0);
-  assert.strictEqual(run(ctx, `latestFinalMatchups(0, null, null, "THIS", "LAST").length`), 0);
-});
-
-test("league pulse: a finished season has no 'through Week N' chip or waiver clock; the header says the season is over", () => {
+test("league pulse: a finished season has no 'through Week N' chip; the header says the season is over", () => {
   const ctx = homeCtx();
   ctx.__arch = archive;
   run(ctx, `HOME.league = { ...__arch.league, status: "complete" }; HOME.week = 14; HOME.completed = 14; HOME.rawMatchups = []; HOME.standings = []; renderLeaguePulse();`);
   assert.strictEqual(ctx.document.getElementById("sb-sub").textContent, "Season complete");
   assert.strictEqual(html(ctx, "home-fresh"), "");
-  assert.ok(!html(ctx, "home-tiles").includes("Next waivers"));
   run(ctx, `HOME.league = { ...__arch.league, status: "pre_draft" }; HOME.week = null; renderLeaguePulse();`);
   assert.strictEqual(ctx.document.getElementById("sb-sub").textContent, "Preseason");
 });
@@ -324,6 +268,56 @@ test("My Team card: no matchups posted means no 'Week N vs' line (and no crash);
   assert.ok(card.includes("mt-you") && !card.includes("mt-next") && !card.includes("Week 8 vs"));
   assert.ok(!card.includes("Power rank"), "a snapshot row without a Power Rank adds no Power Rank box");
   assert.ok(card.includes("12.5%"));
+});
+
+// ---- My Team avatar ---------------------------------------------------------------------------------------
+const myCardFor = (user) => {
+  const ctx = homeCtx();
+  const arch = JSON.parse(JSON.stringify(archive));
+  const roster = arch.rosters[0];
+  const idx = arch.users.findIndex((u) => u.user_id === roster.owner_id);
+  arch.users[idx] = { ...arch.users[idx], ...user };
+  ctx.localStorage = storageStub(arch.users[idx].display_name);
+  ctx.__arch = arch;
+  run(ctx, "HOME.standings = SleeperAPI.buildStandings(__arch.rosters, __arch.users); HOME.week = 8; HOME.rawMatchups = []; renderMyTeamCard();");
+  return html(ctx, "my-team-card");
+};
+
+test("My Team card: the avatar sits beside the team name — the team's own picture when it has one", () => {
+  const card = myCardFor({ avatar: "profilehash", metadata: { team_name: "Brock Hard", avatar: "https://sleepercdn.com/uploads/teamavatar.png" } });
+  assert.match(card, /<div class="mt-head">\s*<span class="mt-avatar">[\s\S]*?<img src="https:\/\/sleepercdn\.com\/uploads\/teamavatar\.png"[\s\S]*?<\/span>\s*<div class="mt-id">\s*<p class="mt-name">Brock Hard<\/p>/);
+  assert.ok(card.includes("player-photo-wrap mt-avatar-img"));
+  assert.ok(card.indexOf("mt-head") < card.indexOf("mt-stats") && card.indexOf("mt-top") < card.indexOf("mt-head"), "label row, then avatar and name, then the numbers");
+});
+
+test("My Team card: without a team picture it uses the manager's profile picture, and without either a letter", () => {
+  const plain = myCardFor({ avatar: "profilehash", metadata: { team_name: "Brock Hard" } });
+  assert.ok(plain.includes('src="https://sleepercdn.com/avatars/profilehash"'), "profile picture at full size, not the thumbnail");
+  assert.ok(!plain.includes("/thumbs/"));
+  const none = myCardFor({ avatar: null, metadata: { team_name: "Brock Hard" } });
+  assert.ok(!none.includes("<img"));
+  assert.match(none, /player-photo-fallback" style="display:flex;">B</, "the team's first letter in the circle");
+  const insecure = myCardFor({ avatar: null, metadata: { team_name: "Brock Hard", avatar: "http://evil.example/x.png" } });
+  assert.ok(!insecure.includes("evil.example"), "only https pictures are used");
+});
+
+test("My Team card: the avatar falls back to the letter if the picture fails to load, and a team name is escaped", () => {
+  const card = myCardFor({ avatar: "profilehash", metadata: { team_name: "<b>Bold</b>" } });
+  assert.ok(card.includes("onerror=\"this.style.display='none'; this.nextElementSibling.style.display='flex';\""));
+  assert.ok(!card.includes("<b>Bold</b>") && card.includes("&lt;b&gt;Bold&lt;/b&gt;"));
+});
+
+test("SleeperAPI.teamAvatarUrl: the team's own picture, else the profile picture, else nothing", () => {
+  const ctx = homeCtx();
+  const url = (u) => run(ctx, `SleeperAPI.teamAvatarUrl(${JSON.stringify(u)})`);
+  assert.strictEqual(url({ avatar: "h", metadata: { avatar: "https://sleepercdn.com/uploads/t.png" } }), "https://sleepercdn.com/uploads/t.png");
+  assert.strictEqual(url({ avatar: "h", metadata: {} }), "https://sleepercdn.com/avatars/h");
+  assert.strictEqual(url({ avatar: "h" }), "https://sleepercdn.com/avatars/h");
+  assert.strictEqual(url({ avatar: "h", metadata: { avatar: "javascript:alert(1)" } }), "https://sleepercdn.com/avatars/h");
+  assert.strictEqual(url({ avatar: null }), null);
+  assert.strictEqual(run(ctx, "SleeperAPI.teamAvatarUrl(null)"), null);
+  const rows = JSON.parse(run(ctx, `JSON.stringify(SleeperAPI.buildStandings(${JSON.stringify(archive.rosters)}, ${JSON.stringify(archive.users)}).map((t) => ({ teamAvatar: t.teamAvatar, avatar: t.avatar })))`));
+  assert.ok(rows.every((r) => r.teamAvatar === null || /^https:\/\//.test(r.teamAvatar)), "every standings row carries a ready-to-use picture URL (or null)");
 });
 
 test("my-team.js knows Home's new rows and cards, so the highlight and the YOU tag land on the whole row", () => {

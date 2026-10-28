@@ -150,20 +150,6 @@ const HistoryData = (function () {
     return cards.reverse();
   }
 
-  // What the season-in-progress card says: the week, and who leads.
-  function liveSummary(ledger, nflState) {
-    const live = [...(ledger || [])].reverse().find((s) => !s.complete && !s.champion);
-    if (!live) return null;
-    const leader = live.rows[0] || null;
-    const games = leader ? leader.wins + leader.losses + leader.ties : 0;
-    const week = nflState && String(nflState.season) === String(live.year) && Number(nflState.week) > 0 ? Number(nflState.week) : null;
-    return {
-      year: live.year,
-      week,
-      leader: leader && games > 0 ? { name: leader.name, record: recordOf(leader.wins, leader.losses, leader.ties), games } : null,
-    };
-  }
-
   // Titles by owner, most first; ties go to whoever won theirs first.
   function titlesByOwner(ledger) {
     const byKey = new Map();
@@ -564,7 +550,6 @@ const HistoryData = (function () {
     recordOf,
     buildLedger,
     trophyCards,
-    liveSummary,
     titlesByOwner,
     heroStats,
     podiumsBySeed,

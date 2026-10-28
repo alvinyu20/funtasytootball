@@ -156,29 +156,17 @@ function league() {
 }
 const snap12 = (over) => ({ season: "2026", week: 7, playoffTeams: 6, byeTeams: 2, rows: league(), ...over });
 
-test("tiers: a new tier starts wherever neighboring PR Scores are 1.4 or more apart, and only there", () => {
-  const ctx = setup();
-  const tiers = ctx.powerTiers(league());
-  const ranksOf = (tt) => JSON.parse(JSON.stringify(tt.map((t) => t.map((r) => r.powerRank)))); // out of the page's realm for deepStrictEqual
-  assert.deepStrictEqual(ranksOf(tiers), [[1], [2, 3], [4, 5, 6, 7], [8, 9, 10, 11, 12]]);
-  // exactly 1.4 apart splits; 1.39 does not
-  const rows = [fakeRow({ powerRank: 1, prScore: 2 }), fakeRow({ powerRank: 2, prScore: 3.4 }), fakeRow({ powerRank: 3, prScore: 4.79 })];
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(ctx.powerTiers(rows).map((t) => t.length))), [1, 2]);
-  assert.strictEqual(ctx.powerTiers([]).length, 0);
-});
-
-test("tiers: each header says the range of playoff odds inside it, one number for a tier of one", () => {
+test("no tiers: the table and the phone list are plain rank order — no tier bars, no tier names, no odds ranges", () => {
   const ctx = setup();
   const html = ctx.renderPowerTable(snap12(), null);
-  const tableHtml = html.slice(0, html.indexOf('<div class="pr-phone">'));
-  const headers = [...tableHtml.matchAll(/class="pr-tier-name">(Tier \d+)<\/span><span class="pr-tier-odds">([^<]*)</g)].map((m) => [m[1], m[2]]);
-  assert.deepStrictEqual(headers, [
-    ["Tier 1", "99.0% to make the playoffs"],
-    ["Tier 2", "83.0\u201391.0% to make the playoffs"],
-    ["Tier 3", "51.0\u201375.0% to make the playoffs"],
-    ["Tier 4", "11.0\u201343.0% to make the playoffs"],
-  ]);
-  assert.ok(html.includes("Tier 1</span><span class=\"pr-tier-odds\">99.0% to make it"), "the phone list says it shorter");
+  assert.ok(!/tier/i.test(html), "nothing in either drawing mentions a tier");
+  assert.ok(!html.includes("to make the playoffs") && !html.includes("to make it"), "the per-tier odds line is gone too");
+  const table = html.slice(0, html.indexOf('<div class="pr-phone">'));
+  const phone = html.slice(html.indexOf('<div class="pr-phone">'));
+  assert.strictEqual((table.match(/<tbody>[\s\S]*<\/tbody>/)[0].match(/<tr/g) || []).length, 12, "the table body is the twelve teams and nothing else");
+  assert.strictEqual((phone.match(/class="pr-phone-item/g) || []).length, 12);
+  assert.ok(!/<th colspan/.test(table), "no full-width header rows between teams");
+  assert.ok(!ctx.powerTiers && !ctx.tierOddsRange && !ctx.PR_TIER_GAP, "the tier code itself is gone");
 });
 
 test("the table and the phone list carry the same teams in the same order, and the list has nothing the table lacks", () => {
@@ -196,6 +184,17 @@ test("the table and the phone list carry the same teams in the same order, and t
   // every stat the phone list shows in its extra panel is one the table shows
   const labels = [...phone.matchAll(/<dt>([^<]*)<\/dt>/g)].map((m) => m[1]);
   assert.deepStrictEqual([...new Set(labels)], ["Avg PPG", "Luck", "ROS rank", "Std dev", "Ovr"]);
+});
+
+test("the table and the phone list come out in Power Rank order even when the snapshot lists the rows in another order", () => {
+  const ctx = setup();
+  const shuffled = league().reverse();
+  const html = ctx.renderPowerTable(snap12({ rows: shuffled }), null);
+  const table = html.slice(0, html.indexOf('<div class="pr-phone">'));
+  const phone = html.slice(html.indexOf('<div class="pr-phone">'));
+  const names = (chunk) => [...chunk.matchAll(/class="pr-name-text" data-username="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(names(table), league().map((r) => r.teamName), "best team first in the table");
+  assert.deepStrictEqual(names(phone), names(table), "and in the list");
 });
 
 test("a team's move sits beside its name: up and down arrows with the size of the move, nothing for no move, NEW for no history", () => {
@@ -411,17 +410,18 @@ test("nothing from the design mockups leaked into the page: no option labels, he
   const html = fs.readFileSync(path.join(ROOT, "power-rankings.html"), "utf8");
   const mockupOnly = [/option b/i, /every chance stays on the board/i, /same cleaner grid/i, /zones labeled/i, /best guess ringed/i, /small chances kept/i, /dash means zero/i, /expected finish<\/(h|strong)/i, /power rankings \u00b7 phone/i, /mockup/i];
   [src, html].forEach((text) => mockupOnly.forEach((re) => assert.ok(!re.test(text), String(re))));
-  assert.ok(!/mockup/i.test(css.slice(css.indexOf("POWER RANKINGS: tiered table"))));
+  assert.ok(!/mockup/i.test(css.slice(css.indexOf("POWER RANKINGS: ranked table"))));
   const page = setup().renderContent(snap12({ generatedAt: "2026-10-27T16:00:00Z" }), null, null, null);
   assert.ok(!/12 teams \u00b7 6 make the playoffs/.test(page), "the team count line already lives in the page header");
 });
 
-test("renderContent: panel headings, the season tag, and one footnote that explains the table (including the tier rule)", () => {
+test("renderContent: panel headings, the season tag, and one footnote that explains the table", () => {
   const ctx = setup();
   const html = ctx.renderContent(snap12({ generatedAt: "2026-10-27T16:00:00Z" }), null, null, null);
   assert.ok(html.includes('<h2>Power Rankings<span class="pr-season-tag">2026 \u00b7 After Week 7</span></h2>'));
   assert.ok(html.includes("<h2>Finish Probability By Rank</h2>"));
-  assert.ok(html.includes("Luck is actual win % minus Ovr win %. Tiers start where neighboring PR Scores are 1.4 or more apart."));
+  assert.ok(html.includes("Luck is actual win % minus Ovr win %."));
+  assert.ok(!html.includes("Tiers start"), "no tier rule in the footnote");
   assert.ok(html.indexOf("pr-board-wrap") < html.indexOf("Playoff Odds") && html.indexOf("Playoff Odds") < html.indexOf('class="pr-odds"'));
 });
 

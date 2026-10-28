@@ -133,31 +133,6 @@ test("trophyCards: a finished season with no champion on record gets no card and
   assert.strictEqual(cards.find((c) => c.year === 2021).repeat, false, "2021 follows a year with no known champion");
 });
 
-test("liveSummary: names the week and the leader after the games played; the week is only trusted for the same season", () => {
-  const ctx = setup();
-  const live = ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, { season: "2022", week: 3 })`);
-  assert.deepStrictEqual(live, { year: 2022, week: 3, leader: { name: "dan", record: "2-0", games: 2 } });
-  const stale = ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, { season: "2021", week: 3 })`);
-  assert.strictEqual(stale.week, null, "last season's clock says nothing about this one");
-  const noState = ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, null)`);
-  assert.strictEqual(noState.week, null);
-  assert.strictEqual(noState.leader.name, "dan");
-});
-
-test("liveSummary: Week 0 (before the season starts) is not a week to show", () => {
-  const ctx = setup();
-  assert.strictEqual(ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, { season: "2022", week: 0 })`).week, null);
-  assert.strictEqual(ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, { season: "2022", week: "4" })`).week, 4, "a week that arrives as text still counts");
-});
-
-test("liveSummary: no leader before a game is played, and nothing when every season is finished", () => {
-  const ctx = setup();
-  ctx.__chain[2].rosters.forEach((r) => Object.assign(r.settings, { wins: 0, losses: 0, ties: 0 }));
-  assert.strictEqual(ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, null)`).leader, null);
-  ctx.__chain.pop();
-  assert.strictEqual(ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, null)`), null);
-});
-
 // ---- Titles by Owner, header tiles ------------------------------------------------
 
 test("titlesByOwner: most titles first, ties to whoever won theirs first; counts finished seasons and champions", () => {
@@ -179,7 +154,6 @@ test("titlesByOwner / heroStats: a season whose final has been played counts as 
   assert.strictEqual(t.champions, 2);
   const h = ev(ctx, `${LEDGER} return HistoryData.heroStats(ledger)`);
   assert.strictEqual(h.liveYear, null, "nothing is still being played");
-  assert.strictEqual(ev(ctx, `${LEDGER} return HistoryData.liveSummary(ledger, null)`), null);
 });
 
 test("heroStats: seasons on record, finished seasons, the live year, champions and who has the most titles", () => {

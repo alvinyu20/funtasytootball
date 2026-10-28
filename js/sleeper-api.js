@@ -166,6 +166,16 @@ const SleeperAPI = {
     return `https://sleepercdn.com/avatars/${thumb ? "thumbs/" : ""}${avatarId}`;
   },
 
+  // The picture Sleeper shows for a team in this league: the team's own upload
+  // when the manager set one (user.metadata.avatar is already a full URL), else
+  // their profile picture at full size. null when there is neither.
+  teamAvatarUrl(user) {
+    if (!user) return null;
+    const own = user.metadata && user.metadata.avatar;
+    if (typeof own === "string" && /^https:\/\//.test(own)) return own;
+    return SleeperAPI.avatarUrl(user.avatar, false);
+  },
+
   // Undocumented but well-established Sleeper CDN pattern for player
   // headshots (mirrors the avatar URL convention above). Not every player
   // has a photo (notably team defenses), so callers should handle a
@@ -396,7 +406,7 @@ const SleeperAPI = {
   },
 
   // Builds a standings array: [{ rosterId, userId, teamName, username, avatar,
-  // wins, losses, ties, fpts, fptsAgainst }], sorted by wins then points.
+  // teamAvatar, wins, losses, ties, fpts, fptsAgainst }], sorted by wins then points.
   buildStandings(rosters, users) {
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     return rosters
@@ -409,6 +419,7 @@ const SleeperAPI = {
           teamName: SleeperAPI.teamName(user, r.roster_id),
           username: user ? user.display_name : null,
           avatar: user ? SleeperAPI.avatarUrl(user.avatar) : null,
+          teamAvatar: SleeperAPI.teamAvatarUrl(user),
           wins: s.wins || 0,
           losses: s.losses || 0,
           ties: s.ties || 0,
