@@ -1,11 +1,603 @@
+/*
+  History page. The numbers come from history-data.js (the ledger of seasons and
+  the owners' career rows); this file turns them into the page and handles the
+  few controls: the Career Records sort and filter, and the phone's "show all".
+
+  The top of the page (header tiles, Titles by Owner, Trophy Room, Where Podiums
+  Come From) only needs the season chain, so it appears straight away. Everything
+  built from weekly results (Every Season, Career Records, Championship Rings,
+  Your History) waits for the full history and fills in after.
+*/
+
+const HIST = {
+  ledger: [],
+  nflState: null,
+  ownerData: null, // { owners, firstYear, latestYear, maxTeams } once the full history is in
+  rings: null, // { ranked, columns, letters } once the full history is in
+};
+
+// The Career Records controls. Sort and filter are remembered while the page is open.
+const CAREER_UI = { sort: "titles", show: "all", expanded: false };
+const RINGS_UI = { expanded: false };
+
+// Phone: how many Career Records / Championship Rings rows show before "show all".
+const CAREER_PHONE_ROWS = 10;
+const RINGS_PHONE_ROWS = 5;
+const RINGS_SHOWN = 10;
+
+const CAREER_SORTS = [
+  { key: "titles", label: "Titles" },
+  { key: "podiums", label: "Podiums" },
+  { key: "playoff", label: "Playoff %" },
+  { key: "winpct", label: "Reg. season win %", short: "Win %" },
+];
+
+// Titles by Owner: the leader is yellow, everyone after that a step lighter in blue.
+const TITLE_SEGMENT_COLORS = ["#F0A340", "#4EA8DD", "#7DBFE6", "#A8D3EE", "#CBE4F4"];
+
+function histIsMine(key) {
+  return typeof MyTeam !== "undefined" && !!MyTeam.get() && MyTeam.isMine(key);
+}
+
+function histMineName() {
+  return typeof MyTeam !== "undefined" ? MyTeam.get() : null;
+}
+
+function plural(n, one, many) {
+  return `${n} ${n === 1 ? one : many || one + "s"}`;
+}
+
+// ---- header tiles and Your History --------------------------------------
+
+function heroTilesHtml(h) {
+  const most = h.mostTitles ? (h.mostTitlesNames.length > 2 ? `${h.mostTitlesNames.length} owners tied` : h.mostTitlesNames.join(", ")) : "";
+  const tiles = [
+    { label: "Seasons", value: h.seasonsComplete, sub: h.liveYear ? `complete, plus ${h.liveYear} live` : "complete" },
+    { label: "Champions", value: h.champions, sub: "different owners" },
+    { label: "Most titles", value: h.mostTitles || "—", sub: most, gold: true },
+  ];
+  return tiles
+    .map(
+      (t) => `
+      <div class="hist-tile${t.gold ? " gold" : ""}">
+        <span class="label">${escapeHtml(t.label)}</span>
+        <span class="value">${escapeHtml(String(t.value))}</span>
+        <span class="sub">${escapeHtml(t.sub)}</span>
+      </div>`
+    )
+    .join("");
+}
+
+// The card beside the header. `info` is HistoryData.yourHistory(); null means no
+// team is picked (or the picked one has no seasons on record).
+function yourHistoryHtml(info, pickedName, loading) {
+  if (!pickedName) {
+    return `
+      <div class="panel-head"><h2>Your History</h2></div>
+      <button type="button" class="you-pick" data-myteam-open>Pick your team</button>`;
+  }
+  if (loading) {
+    return `
+      <div class="panel-head"><h2>Your History</h2><span class="you-tag">YOU · ${escapeHtml(pickedName)}</span></div>
+      <div class="loading">Loading…</div>`;
+  }
+  if (!info) {
+    return `
+      <div class="panel-head"><h2>Your History</h2><span class="you-tag">YOU · ${escapeHtml(pickedName)}</span></div>
+      <p class="you-empty">No seasons on record yet.</p>`;
+  }
+
+  const rows = [];
+  rows.push({
+    label: "Titles",
+    sub: info.titleYears.length ? info.titleYears.join(", ") : "None yet",
+    value: String(info.titles),
+  });
+  rows.push({ label: "Podiums", sub: info.podiumText || "None yet", value: String(info.podiums) });
+  if (info.avgFinish != null) {
+    const rank = info.finishRank === 1 ? "Best in the league" : `${HistoryData.ord(info.finishRank)} best in the league`;
+    rows.push({ label: "Avg finish", sub: `${rank}, ${plural(info.completedYears, "season")}`, value: info.avgFinish.toFixed(1) });
+  }
+  if (info.poGames > 0) {
+    let sub;
+    if (info.playoffRank === 1) sub = "Most playoff wins in the league";
+    else if (info.playoffRank === 2 && info.aheadName) sub = `Behind only ${info.aheadName} (${info.aheadRecord})`;
+    else sub = `${HistoryData.ord(info.playoffRank)} in playoff wins`;
+    rows.push({ label: "Playoff games", sub, value: info.poRecord });
+  }
+  if (info.live) {
+    const l = info.live;
+    let sub = "The season hasn't started";
+    let cls = "";
+    if (l.games > 0) {
+      sub = `Ranked ${HistoryData.ord(l.finish)} after Week ${l.games}, ${l.inside ? "inside" : "outside"} the top ${l.playoffTeams}`;
+      cls = l.inside ? "up" : "down";
+    }
+    rows.push({ label: `${l.year} so far`, sub, value: l.games > 0 ? HistoryData.ord(l.finish).toUpperCase() : "—", cls });
+  }
+
+  return `
+    <div class="panel-head"><h2>Your History</h2><span class="you-tag">YOU · ${escapeHtml(info.name)}</span></div>
+    <dl class="you-list">
+      ${rows
+        .map(
+          (r) => `
+        <div class="you-row">
+          <dt><span>${escapeHtml(r.label)}</span><small>${escapeHtml(r.sub)}</small></dt>
+          <dd class="${r.cls || ""}">${escapeHtml(r.value)}</dd>
+        </div>`
+        )
+        .join("")}
+    </dl>`;
+}
+
+// ---- Titles by Owner -----------------------------------------------------
+
+function titlesBarHtml(t) {
+  if (!t.owners.length) return `<div class="empty-state">No champions crowned yet.</div>`;
+  const colorFor = (i) => TITLE_SEGMENT_COLORS[Math.min(i, TITLE_SEGMENT_COLORS.length - 1)];
+  const max = t.owners[0].titles;
+  const label = (o) => `${o.name}${o.titles > 1 ? ` · ${o.titles}` : ""}`;
+  const bar = t.owners
+    .map(
+      (o, i) =>
+        `<span class="tb-seg" style="flex-grow:${o.titles};background:${colorFor(i)}" title="${escapeHtml(`${o.name}: ${plural(o.titles, "title")} (${o.years.join(", ")})`)}"><span class="tb-name">${escapeHtml(label(o))}</span></span>`
+    )
+    .join("");
+  const rows = t.owners
+    .map(
+      (o, i) => `
+      <li class="tb-row">
+        <span class="tb-row-name">${escapeHtml(o.name)}</span>
+        <span class="tb-row-track"><i style="width:${(o.titles / max) * 100}%;background:${colorFor(i)}"></i></span>
+        <b>${o.titles}</b>
+      </li>`
+    )
+    .join("");
+  return `<div class="tb-bar" role="img" aria-label="${escapeHtml(t.owners.map((o) => `${o.name} ${o.titles}`).join(", "))}">${bar}</div><ul class="tb-rows">${rows}</ul>`;
+}
+
+function titlesMetaText(t) {
+  return `${plural(t.seasonsComplete, "season")} complete · ${plural(t.champions, "different champion")}`;
+}
+
+// ---- Trophy Room ----------------------------------------------------------
+
+function trophyCardHtml(card, live) {
+  if (card.kind === "live") {
+    const week = live && live.week ? `Week ${live.week} of the season.` : "Season in progress.";
+    const leader = live && live.leader ? ` <span class="tc-leader">Leader after Week ${live.leader.games}: ${escapeHtml(live.leader.name)}, ${escapeHtml(live.leader.record)}.</span>` : "";
+    return `
+      <a class="trophy-card live" href="season.html#${card.year}">
+        <span class="tc-year">${card.year}</span>
+        <span class="tc-pill">LIVE</span>
+        <span class="tc-badge">?</span>
+        <span class="tc-name">In progress</span>
+        <span class="tc-team">${week}${leader}</span>
+        <span class="tc-stats">
+          <span class="tc-stat"><span>Record</span><b>TBD</b></span>
+          <span class="tc-stat"><span>Seed</span><b>TBD</b></span>
+          <span class="tc-stat"><span>Beat</span><b>TBD</b></span>
+        </span>
+      </a>`;
+  }
+  const pill = card.repeat ? `REPEAT · TITLE ${card.titleNumber}` : `TITLE ${card.titleNumber}`;
+  return `
+      <a class="trophy-card${card.repeat ? " repeat" : ""}" href="season.html#${card.year}" data-username="${escapeHtml(card.name)}">
+        <span class="tc-year">${card.year}</span>
+        <span class="tc-pill">${escapeHtml(pill)}</span>
+        <span class="tc-badge">${escapeHtml(card.name.trim().charAt(0).toUpperCase() || "?")}</span>
+        <span class="tc-name">${escapeHtml(card.name)}</span>
+        <span class="tc-team">${card.teamName ? escapeHtml(card.teamName) : "&nbsp;"}</span>
+        <span class="tc-stats">
+          <span class="tc-stat"><span>Record</span><b>${escapeHtml(card.record)}</b></span>
+          <span class="tc-stat"><span>Seed</span><b>#${card.seed}</b></span>
+          <span class="tc-stat"><span>Beat</span><b data-no-mine>${card.beat ? escapeHtml(card.beat) : "—"}</b></span>
+        </span>
+      </a>`;
+}
+
+function trophyRoomHtml(cards, live) {
+  if (!cards.length) return `<div class="empty-state">No champions crowned yet.</div>`;
+  return cards.map((c) => trophyCardHtml(c, live)).join("");
+}
+
+// ---- season squares (Career Records strip, Every Season grid) --------------
+
+const STATUS_LABELS = {
+  champion: "Champion",
+  runnerUp: "Runner-up",
+  third: "Third place",
+  playoffs: "Made the playoffs",
+  missed: "Missed the playoffs",
+};
+const MEDAL_NUMBER = { champion: "1", runnerUp: "2", third: "3" };
+const MEDAL_LABEL = { champion: "TITLE", runnerUp: "2ND", third: "3RD" };
+
+// The hover text for one season square.
+function seasonCellTitle(cell) {
+  if (cell.status === "live") return `${cell.year}: not started`;
+  if (cell.status === "live-in" || cell.status === "live-out") {
+    return `${cell.year} so far: ${cell.status === "live-in" ? "in" : "out of"} the playoff spots (currently ${HistoryData.ord(cell.finish)})`;
+  }
+  return `${cell.year}: ${STATUS_LABELS[cell.status] || ""} (finished ${HistoryData.ord(cell.finish)} in the regular season)`;
+}
+
+function stripHtml(owner, years) {
+  const squares = years
+    .map((y) => {
+      const cell = owner.cells.find((c) => c.year === y);
+      if (!cell) return `<i class="sq sq-empty" title="${y}: not in the league"></i>`;
+      const n = MEDAL_NUMBER[cell.status] || "";
+      return `<i class="sq st-${cell.status}" title="${escapeHtml(seasonCellTitle(cell))}">${n}</i>`;
+    })
+    .join("");
+  return `<span class="cr-strip" role="img" aria-label="${escapeHtml(`${owner.name}'s seasons, ${years[0]} to ${years[years.length - 1]}`)}">${squares}</span>`;
+}
+
+function avgFinishTrackHtml(avg, maxTeams) {
+  if (avg == null) return `<span class="sg-avg-in"><span class="sg-avg-text">–</span></span>`;
+  const pos = maxTeams > 1 ? ((avg - 1) / (maxTeams - 1)) * 100 : 0;
+  return `<span class="sg-avg-in"><span class="sg-avg-text">${avg.toFixed(1)}</span><span class="sg-track" aria-hidden="true"><i style="left:${Math.min(100, Math.max(0, pos)).toFixed(1)}%"></i></span></span>`;
+}
+
+function seasonLegendHtml(latestYear, live, withTick) {
+  const sw = (cls, text) => `<span class="lg"><i class="sq mini ${cls}"></i>${escapeHtml(text)}</span>`;
+  return `
+    <div class="hist-legend${withTick ? " cr-legend" : ""}">
+      ${sw("st-champion", "Champion")}${sw("st-runnerUp", "Runner-up")}${sw("st-third", "Third")}${sw("st-playoffs", "Made playoffs")}${sw("st-missed", "Missed")}
+      ${live ? `${sw("st-live-in", `${latestYear}: in`)}${sw("st-live-out", `${latestYear}: out`)}` : ""}
+      ${withTick ? `<span class="lg"><i class="tick-key"></i>.500</span>` : ""}
+    </div>`;
+}
+
+// ---- Every Season at a Glance ----------------------------------------------
+
+function seasonGridHtml(data, liveSeason) {
+  const { owners, firstYear, latestYear, maxTeams } = data;
+  if (!owners.length || firstYear == null) return `<div class="empty-state">No seasons yet.</div>`;
+  const years = [];
+  for (let y = firstYear; y <= latestYear; y++) years.push(y);
+  const liveYear = liveSeason ? latestYear : null;
+
+  const head = `
+    <tr>
+      <th class="sg-owner" scope="col">Owner</th>
+      ${years.map((y) => `<th scope="col" class="sg-year${y === liveYear ? " live" : ""}">${y}</th>`).join("")}
+      <th scope="col" class="sg-avg">Avg finish</th>
+    </tr>`;
+
+  const body = owners
+    .map((o) => {
+      const cells = years
+        .map((y) => {
+          const cell = o.cells.find((c) => c.year === y);
+          if (!cell) return `<td class="sg-cell"><i class="sq sq-empty" title="${y}: not in the league"></i></td>`;
+          const label = MEDAL_LABEL[cell.status];
+          return `<td class="sg-cell"><span class="sq st-${cell.status}" title="${escapeHtml(seasonCellTitle(cell))}"><b>${cell.finish}</b>${label ? `<small>${label}</small>` : ""}</span></td>`;
+        })
+        .join("");
+      return `
+      <tr class="sg-row${o.former ? " is-former" : ""}" data-username="${escapeHtml(o.name)}">
+        <th scope="row" class="sg-owner"><a class="subtle-link sg-name" ${o.userId ? `href="teams.html#${encodeURIComponent(o.userId)}"` : ""}>${escapeHtml(o.name)}</a></th>
+        ${cells}
+        <td class="sg-avg">${avgFinishTrackHtml(o.avgFinish, maxTeams)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  return `
+    <div class="sg-wrap stay-scrollable">
+      <table class="sg-table"><thead>${head}</thead><tbody>${body}</tbody></table>
+    </div>
+    ${seasonLegendHtml(latestYear, !!liveYear, false)}`;
+}
+
+// ---- Career Records ---------------------------------------------------------
+
+function barHtml(pctValue, kind, tick) {
+  const w = Math.max(0, Math.min(100, pctValue || 0));
+  return `<i class="bar${tick ? " has-tick" : ""}"><i class="fill ${kind}" style="width:${w.toFixed(1)}%"></i></i>`;
+}
+
+function medalHtml(n, kind, label) {
+  return `<b class="medal ${kind}${n ? "" : " none"}" title="${escapeHtml(label)}">${n || "–"}</b>`;
+}
+
+function careerRowHtml(o, i, years, latestYear) {
+  const tags = [];
+  if (o.former) tags.push(`<span class="tag">FORMER</span>`);
+  if (o.isNew) tags.push(`<span class="tag">NEW ${latestYear}</span>`);
+  const tripsText = `${o.trips} of ${o.completedYears}`;
+  const tripsPct = o.completedYears > 0 ? `${Math.round(o.tripPct)}%` : "–";
+  const poText = o.poGames > 0 ? HistoryData.recordOf(o.poW, o.poL, o.poT) : "–";
+  const regText = o.regGames > 0 ? HistoryData.recordOf(o.regW, o.regL, o.regT) : "–";
+  const regPct = o.regGames > 0 ? `${o.regPct.toFixed(1)}%` : "–";
+  const poKind = o.poPct >= 50 ? "up" : "down";
+  const regKind = o.regPct >= 50 ? "up" : "down";
+  return `
+      <li class="cr-row${i >= CAREER_PHONE_ROWS ? " cr-extra" : ""}${o.former ? " is-former" : ""}" data-username="${escapeHtml(o.name)}">
+        <span class="cr-rank">${i + 1}</span>
+        <span class="cr-owner"><a class="subtle-link cr-name" ${o.userId ? `href="teams.html#${encodeURIComponent(o.userId)}"` : ""}>${escapeHtml(o.name)}</a>${tags.join("")}</span>
+        <span class="cr-medals">${medalHtml(o.titles, "gold", "Titles")}${medalHtml(o.seconds, "silver", "Runner-up finishes")}${medalHtml(o.thirds, "bronze", "Third places")}</span>
+        <span class="cr-strip-cell">${stripHtml(o, years)}</span>
+        <span class="cr-trips"><em>${tripsText}</em>${barHtml(o.completedYears > 0 ? o.tripPct : 0, "up", false)}<b>${tripsPct}</b></span>
+        <span class="cr-po"><em>${poText}</em>${barHtml(o.poGames > 0 ? o.poPct : 0, poKind, true)}</span>
+        <span class="cr-reg"><em>${regText}</em>${barHtml(o.regGames > 0 ? o.regPct : 0, regKind, true)}<b>${regPct}</b></span>
+        <span class="cr-line2">${o.trips}/${o.completedYears} playoffs · ${poText} · ${regText}</span>
+      </li>`;
+}
+
+function careerControlsHtml(ui, owners, latestYear) {
+  const active = owners.filter((o) => o.active).length;
+  const sortPills = CAREER_SORTS.map(
+    (s) =>
+      `<button type="button" class="pill${ui.sort === s.key ? " on" : ""}" data-sort="${s.key}" aria-pressed="${ui.sort === s.key}">${
+        s.short ? `<span class="pill-long">${escapeHtml(s.label)}</span><span class="pill-short">${escapeHtml(s.short)}</span>` : escapeHtml(s.label)
+      }</button>`
+  ).join("");
+  const showPills = [
+    { key: "all", label: `All ${owners.length}` },
+    { key: "active", label: `Active in ${latestYear} (${active})` },
+  ]
+    .map((s) => `<button type="button" class="pill${ui.show === s.key ? " on" : ""}" data-show="${s.key}" aria-pressed="${ui.show === s.key}">${escapeHtml(s.label)}</button>`)
+    .join("");
+  return `
+    <div class="cr-ctl"><span class="cr-ctl-label">Sort</span>${sortPills}</div>
+    <div class="cr-ctl"><span class="cr-ctl-label">Show</span>${showPills}</div>`;
+}
+
+function careerListHtml(data, ui) {
+  const { owners, firstYear, latestYear } = data;
+  const shown = HistoryData.sortOwners(HistoryData.filterOwners(owners, ui.show), ui.sort);
+  if (!shown.length || firstYear == null) return `<div class="empty-state">No completed seasons yet.</div>`;
+  const years = [];
+  for (let y = firstYear; y <= latestYear; y++) years.push(y);
+  const rows = shown.map((o, i) => careerRowHtml(o, i, years, latestYear)).join("");
+  const more = shown.length > CAREER_PHONE_ROWS ? `<button type="button" class="cr-more" data-more="career">${ui.expanded ? "Show fewer owners" : `Show all ${shown.length} owners`}</button>` : "";
+  const live = data.owners.some((o) => o.cells.some((c) => !c.complete));
+  return `
+    <div class="cr-table">
+      <div class="cr-head" aria-hidden="true">
+        <span class="cr-rank">#</span>
+        <span class="cr-owner">Owner</span>
+        <span class="cr-medals">Titles · 2nd · 3rd</span>
+        <span class="cr-strip-cell">Seasons ${firstYear} → ${latestYear}</span>
+        <span class="cr-trips">Playoff trips</span>
+        <span class="cr-po">Playoff games</span>
+        <span class="cr-reg">Regular season</span>
+      </div>
+      <ol class="cr-rows${ui.expanded ? " expanded" : ""}">${rows}</ol>
+    </div>
+    ${more}
+    ${seasonLegendHtml(latestYear, live, true)}`;
+}
+
+// ---- Championship Rings -----------------------------------------------------
+
+function ringIconsHtml(n) {
+  const icon = `<svg class="ring-icon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="3.6"/></svg>`;
+  const shown = Math.min(n, 6);
+  return `<span class="rg-rings" role="img" aria-label="${plural(n, "ring")}">${icon.repeat(shown)}${n > shown ? `<b>×${n}</b>` : ""}</span>`;
+}
+
+function ringsListHtml(rings) {
+  const { ranked, columns, letters } = rings;
+  if (!ranked.length) return `<div class="empty-state">No champions crowned yet.</div>`;
+  const maxStarts = Math.max(1, ...ranked.map((p) => p.totalGamesStarted));
+
+  const rows = ranked
+    .map((p, i) => {
+      const squares = columns
+        .map((col) => {
+          const ring = p.rings.find((r) => r.season === col.year);
+          if (!ring) return `<i class="sq sq-empty" title="${col.year}: not on the champion's roster"></i>`;
+          const mine = histIsMine(col.ownerKey);
+          return `<i class="sq st-champion${mine ? " is-mine" : ""}" title="${escapeHtml(`${col.year}: won with ${col.ownerName}`)}">${escapeHtml(letters.get(col.ownerKey) || "")}</i>`;
+        })
+        .join("");
+      return `
+      <li class="rg-row${i >= RINGS_PHONE_ROWS ? " rg-extra" : ""}">
+        <span class="rg-rank">${i + 1}</span>
+        <span class="rg-player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span class="rg-name">${playerLinkHtml(p.playerId, escapeHtml(p.name))}</span></span>
+        ${ringIconsHtml(p.rings.length)}
+        <span class="rg-squares">${squares}</span>
+        <span class="rg-gs">${barHtml((p.totalGamesStarted / maxStarts) * 100, "dim", false)}<b>${p.totalGamesStarted}</b></span>
+      </li>`;
+    })
+    .join("");
+
+  const seen = new Set();
+  const legendOwners = columns.filter((c) => (seen.has(c.ownerKey) ? false : (seen.add(c.ownerKey), true)));
+  const legend = legendOwners
+    .map((c) => `<span class="lg"><i class="sq mini st-champion${histIsMine(c.ownerKey) ? " is-mine" : ""}">${escapeHtml(letters.get(c.ownerKey) || "")}</i>${escapeHtml(c.ownerName)}${histIsMine(c.ownerKey) ? " (you)" : ""}</span>`)
+    .join("");
+  const more = ranked.length > RINGS_PHONE_ROWS ? `<button type="button" class="cr-more" data-more="rings">${RINGS_UI.expanded ? "Show fewer players" : `Show all ${ranked.length} players`}</button>` : "";
+
+  return `
+    <div class="rg-table">
+      <div class="rg-head" aria-hidden="true">
+        <span class="rg-rank">#</span>
+        <span class="rg-player">Player</span>
+        <span class="rg-rings">Rings</span>
+        <span class="rg-squares">${columns.map((c) => `<span>${c.year}</span>`).join("")}</span>
+        <span class="rg-gs">Games started</span>
+      </div>
+      <ol class="rg-rows${RINGS_UI.expanded ? " expanded" : ""}">${rows}</ol>
+    </div>
+    ${more}
+    <div class="hist-legend">${legend}<span class="lg"><i class="sq mini sq-empty"></i>Not on a champion's roster</span></div>`;
+}
+
+function ringsMetaText(columns) {
+  if (!columns.length) return "";
+  return `Sleeper era · ${columns[0].year} → ${columns[columns.length - 1].year}`;
+}
+
+// ---- Where Podiums Come From ------------------------------------------------
+
+function podiumChartHtml(pod) {
+  if (!pod.seasons) return `<div class="empty-state">No champions crowned yet.</div>`;
+  const rows = pod.rows
+    .map((r) => {
+      const seg = (cls, n, label) => (n ? `<i class="pc-seg ${cls}" style="flex-grow:${n}" title="${escapeHtml(`${label}: ${n}`)}">${n}</i>` : "");
+      return `
+      <div class="pc-row">
+        <span class="pc-label">Seed ${r.seed}</span>
+        <span class="pc-track"><span class="pc-bar" style="width:${((r.total / pod.seasons) * 100).toFixed(2)}%">${seg("title", r.title, "Titles")}${seg("second", r.second, "Runner-ups")}${seg("third", r.third, "Thirds")}</span></span>
+        <b class="pc-total">${r.total}</b>
+      </div>`;
+    })
+    .join("");
+  return `
+    <div class="pc-rows">${rows}</div>
+    <div class="hist-legend">
+      <span class="lg"><i class="sq mini st-champion"></i>Title</span>
+      <span class="lg"><i class="sq mini st-runnerUp"></i>Runner-up</span>
+      <span class="lg"><i class="sq mini st-third"></i>Third</span>
+      <span class="lg pc-of">Podiums out of ${pod.seasons}</span>
+    </div>`;
+}
+
+// ---- drawing the page -------------------------------------------------------
+
+function setHtml(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+function renderYou() {
+  const picked = histMineName();
+  const loading = !!picked && !HIST.ownerData;
+  const info = picked && HIST.ownerData ? HistoryData.yourHistory(HIST.ownerData.owners, HIST.ledger, picked) : null;
+  setHtml("hist-you", yourHistoryHtml(info, picked, loading));
+}
+
+function renderTop() {
+  const ledger = HIST.ledger;
+  const titles = HistoryData.titlesByOwner(ledger);
+  const live = HistoryData.liveSummary(ledger, HIST.nflState);
+
+  setHtml("hist-tiles", heroTilesHtml(HistoryData.heroStats(ledger)));
+  setHtml("titles-bar", titlesBarHtml(titles));
+  const meta = document.getElementById("titles-meta");
+  if (meta) meta.textContent = titles.owners.length ? titlesMetaText(titles) : "";
+  setHtml("trophy-room", trophyRoomHtml(HistoryData.trophyCards(ledger), live));
+  setHtml("podium-chart", podiumChartHtml(HistoryData.podiumsBySeed(ledger)));
+  renderYou();
+}
+
+function renderCareer() {
+  if (!HIST.ownerData) return;
+  setHtml("career-controls", careerControlsHtml(CAREER_UI, HIST.ownerData.owners, HIST.ownerData.latestYear));
+  setHtml("career-list", careerListHtml(HIST.ownerData, CAREER_UI));
+}
+
+function renderSeasonGrid() {
+  if (!HIST.ownerData) return;
+  const live = HIST.ledger.length && !HIST.ledger[HIST.ledger.length - 1].complete;
+  // The grid keeps the default (Titles) order whatever the Career Records are sorted by.
+  const data = { ...HIST.ownerData, owners: HistoryData.sortOwners(HIST.ownerData.owners, "titles") };
+  setHtml("season-grid", seasonGridHtml(data, live));
+}
+
+function renderRings() {
+  if (!HIST.rings) return;
+  setHtml("rings-list", ringsListHtml(HIST.rings));
+  const meta = document.getElementById("rings-meta");
+  if (meta) meta.textContent = ringsMetaText(HIST.rings.columns);
+}
+
+// The Career Records controls and the "show all" buttons. Wired once; the
+// buttons themselves are redrawn, so this listens on the stable containers.
+function initHistoryControls() {
+  const controls = document.getElementById("career-controls");
+  if (controls) {
+    controls.onclick = (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest("button") : null;
+      if (!btn) return;
+      if (btn.getAttribute("data-sort")) CAREER_UI.sort = btn.getAttribute("data-sort");
+      else if (btn.getAttribute("data-show")) CAREER_UI.show = btn.getAttribute("data-show");
+      else return;
+      renderCareer();
+    };
+  }
+  const career = document.getElementById("career-list");
+  if (career) {
+    career.onclick = (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest("[data-more]") : null;
+      if (!btn) return;
+      CAREER_UI.expanded = !CAREER_UI.expanded;
+      renderCareer();
+    };
+  }
+  const rings = document.getElementById("rings-list");
+  if (rings) {
+    rings.onclick = (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest("[data-more]") : null;
+      if (!btn) return;
+      RINGS_UI.expanded = !RINGS_UI.expanded;
+      renderRings();
+    };
+  }
+  document.addEventListener("myteam:change", () => {
+    renderYou();
+    renderRings();
+  });
+}
+
+function playerName(playerId, playerDirectory) {
+  const p = playerDirectory && playerDirectory[playerId];
+  if (!p) return "Unknown Player";
+  return p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unknown Player";
+}
+
+// Everything that needs the weekly results: one pass over the full history feeds
+// Every Season, Career Records, Championship Rings and Your History.
+async function renderFromFullHistory(seasons, playerDirectory, manual) {
+  let deepSeasons;
+  try {
+    deepSeasons = await DeepHistory.buildAll(seasons, () => {});
+  } catch (err) {
+    console.error(err);
+    ["season-grid", "career-list", "rings-list"].forEach((id) => setHtml(id, `<div class="empty-state">Couldn't load this section.</div>`));
+    return;
+  }
+
+  try {
+    const stats = DeepHistory.computeStats(seasons, deepSeasons, playerDirectory);
+    HIST.ownerData = HistoryData.buildOwners(stats.managers, manual, HIST.ledger);
+    renderSeasonGrid();
+    renderCareer();
+    renderYou();
+  } catch (err) {
+    console.error(err);
+    ["season-grid", "career-list"].forEach((id) => setHtml(id, `<div class="empty-state">Couldn't load career records.</div>`));
+  }
+
+  try {
+    const ranked = HistoryData.computeRings(seasons, deepSeasons, playerDirectory)
+      .slice(0, RINGS_SHOWN)
+      .map((p) => ({ ...p, name: playerName(p.playerId, playerDirectory) }));
+    const columns = HistoryData.ringColumns(HIST.ledger);
+    const letters = HistoryData.ownerLetters(columns.map((c) => ({ key: c.ownerKey, name: c.ownerName })));
+    HIST.rings = { ranked, columns, letters };
+    renderRings();
+  } catch (err) {
+    console.error(err);
+    setHtml("rings-list", `<div class="empty-state">Couldn't load championship rings.</div>`);
+  }
+}
+
 async function renderHistory() {
   const errorBox = document.getElementById("hist-error");
 
   try {
-    const [seasons, playerDirectory, rawManual] = await Promise.all([
+    const [seasons, playerDirectory, rawManual, nflState] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID), // oldest -> newest
       SleeperAPI.getPlayerDirectory(),
       fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
+      SleeperAPI.getNflState().catch(() => null),
     ]);
     // Guard against an un-replaced template entry (champion still says
     // "REPLACE_WITH...") ever showing up on the live site.
@@ -20,315 +612,23 @@ async function renderHistory() {
     document.getElementById("sb-eyebrow").textContent = "ALL-TIME";
     document.getElementById("sb-title").textContent = "Trophy Case";
 
-    const totalSeasons = seasons.length + manual.seasons.length;
+    HIST.ledger = HistoryData.buildLedger(seasons, manual);
+    HIST.nflState = nflState;
+
+    const totalSeasons = HIST.ledger.length;
     document.getElementById("sb-sub").textContent = `${totalSeasons} season${totalSeasons === 1 ? "" : "s"} on record`;
 
-    // ---- Champions ledger (Sleeper-tracked seasons) ----
-    const sleeperLedger = seasons.map(({ league, rosters, users, bracket }) => {
-      const champRosterId = SleeperAPI.findChampionRosterId(bracket);
-      let champName = "In progress";
-      let champUsername = null;
-      let champAvatarUrl = null;
-      let champUserId = null;
-      if (champRosterId != null) {
-        const roster = rosters.find((r) => r.roster_id === champRosterId);
-        const user = users.find((u) => u.user_id === (roster && roster.owner_id));
-        champName = SleeperAPI.teamName(user, champRosterId);
-        champUsername = user ? user.display_name : null;
-        champAvatarUrl = user && user.avatar ? SleeperAPI.avatarUrl(user.avatar) : null;
-        champUserId = roster ? roster.owner_id : null;
-      } else if (league.status === "complete") {
-        champName = "Unavailable"; // completed but bracket data missing/unusual format
-      }
-      return {
-        year: league.season,
-        champion: champName,
-        championUsername: champUsername,
-        championAvatarUrl: champAvatarUrl,
-        championUserId: champUserId,
-        sourceBadge: "Sleeper",
-        notes: "",
-      };
-    });
+    initHistoryControls();
+    renderTop();
 
-    // ---- Manual pre-Sleeper seasons ----
-    const manualLedger = (manual.seasons || []).map((s) => ({
-      year: s.year,
-      champion: s.champion || "Unknown",
-      sourceBadge: "ESPN",
-      notes: "",
-    }));
-
-    const fullLedger = [...sleeperLedger, ...manualLedger].sort((a, b) => b.year - a.year);
-
-    // ---- Trophy Room: a visual grid of every confirmed champion ----
-    const isPlaceholder = (name) => !name || name.startsWith("REPLACE_WITH");
-    const trophyEntries = fullLedger.filter((row) => row.champion && row.champion !== "In progress" && row.champion !== "Unavailable" && !isPlaceholder(row.champion));
-    document.getElementById("trophy-room").innerHTML = trophyEntries.length
-      ? trophyEntries
-          .map((row) => {
-            const displayName = row.championUsername || row.champion;
-            // The team name only adds anything when it's a distinct
-            // custom name — for a manager who never set one, teamName()
-            // just falls back to their username anyway, and printing
-            // the same string twice would look like a mistake, not a detail.
-            const teamName = row.championUsername && row.champion && row.champion !== row.championUsername ? row.champion : null;
-            const card = `
-            ${userAvatarHtml(row.championAvatarUrl, displayName, "player-photo-lg")}
-            <div class="trophy-year">${escapeHtml(String(row.year))}</div>
-            <div class="trophy-champion-name">${escapeHtml(displayName)}</div>
-            ${teamName ? `<div class="trophy-team-name">${escapeHtml(teamName)}</div>` : ""}`;
-            return `<a class="trophy-card" href="season.html#${row.year}">${card}</a>`;
-          })
-          .join("")
-      : `<div class="empty-state">No champions crowned yet.</div>`;
-
-    // ---- All-time career records — deferred, since this needs full deep
-    //      history (not just the fast season-chain data used above) to
-    //      correctly separate genuine playoff games from regular season
-    //      and consolation-bracket games. Kicked off after the fast stuff
-    //      above is already on screen. ----
-    renderCareerRecords(seasons, playerDirectory, manual);
-
-    // ---- Championship Rings: every player who was ever on a title
-    // team's roster, Sleeper era only (no player-level data exists for
-    // the ESPN era — see data/manual-history.json). Kicked off after
-    // the fast stuff above is already on screen, since it needs full
-    // deep history (every week's roster) to know who was actually on
-    // each champion's roster, not just who's in the league today. ----
-    renderChampionshipRings(seasons, playerDirectory);
+    // Needs the weekly results, so it lands after the fast sections are on screen.
+    renderFromFullHistory(seasons, playerDirectory, manual);
   } catch (err) {
     console.error(err);
     errorBox.textContent = "Couldn't load league history — " + err.message;
     errorBox.style.display = "block";
-  }
-}
-
-/*
-  A player earns one "ring" for a season if they were on the roster of
-  that season's championship team at ANY point during the season — not
-  just during the championship game, and regardless of whether they
-  were ever started. Counts distinct championship seasons per player
-  (a player rostered by the same eventual champion in two different
-  weeks of the SAME season only earns that season's ring once), ranks
-  the top 10, and keeps which year(s)/manager(s) each ring came from so
-  the table can show the breakdown, not just a bare count. Also tracks
-  how many of those weeks they were actually STARTED (not just
-  rostered) for the champion, summed across every championship season
-  they were part of.
-
-  Kickers and defenses are excluded from eligibility entirely — a K/DEF
-  is much more a product of whichever streaming target was available
-  that week than a meaningful part of "this roster," so including them
-  would mostly just reward whoever happened to roster the right
-  matchup, not roster-building.
-*/
-const RING_INELIGIBLE_POSITIONS = new Set(["K", "DEF"]);
-
-async function renderChampionshipRings(seasons, playerDirectory) {
-  const tbody = document.getElementById("rings-body");
-  try {
-    const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
-
-    // playerId -> [{ season, ownerName, gamesStarted }], one entry per
-    // distinct championship season that player was ever rostered by
-    // the winner, with how many of that season's weeks they started.
-    const ringsByPlayer = new Map();
-
-    seasons.forEach((seasonEntry, idx) => {
-      const { league, rosters, users, bracket } = seasonEntry;
-      const championRosterId = SleeperAPI.findChampionRosterId(bracket);
-      if (championRosterId == null) return; // season still in progress, or no bracket on record
-
-      const roster = rosters.find((r) => r.roster_id === championRosterId);
-      const user = users.find((u) => u.user_id === (roster && roster.owner_id));
-      const ownerName = (user && user.display_name) || SleeperAPI.teamName(user, championRosterId);
-      const ownerId = roster ? roster.owner_id : null;
-
-      // playerId -> weeks started for the champion roster this season.
-      // A player's mere presence as a Map key (regardless of count,
-      // including 0) is what makes them eligible for this season's
-      // ring — matches the previous Set-based "were they ever on this
-      // roster" check, just now also carrying the start count.
-      const deep = deepSeasons[idx];
-      const startsThisSeasonByPlayer = new Map();
-      (deep ? deep.weeks : []).forEach((w) => {
-        (w.matchups || []).forEach((m) => {
-          if (m.roster_id !== championRosterId) return;
-          const starterSet = new Set(m.starters || []);
-          (m.players || []).forEach((pid) => {
-            if (!pid || pid === "0") return;
-            const position = playerDirectory && playerDirectory[pid] && playerDirectory[pid].position;
-            if (RING_INELIGIBLE_POSITIONS.has(position)) return;
-            if (!startsThisSeasonByPlayer.has(pid)) startsThisSeasonByPlayer.set(pid, 0);
-            if (starterSet.has(pid)) startsThisSeasonByPlayer.set(pid, startsThisSeasonByPlayer.get(pid) + 1);
-          });
-        });
-      });
-
-      startsThisSeasonByPlayer.forEach((gamesStarted, pid) => {
-        if (!ringsByPlayer.has(pid)) ringsByPlayer.set(pid, []);
-        ringsByPlayer.get(pid).push({ season: league.season, ownerName, ownerId, gamesStarted });
-      });
-    });
-
-    const ranked = [...ringsByPlayer.entries()]
-      .map(([pid, rings]) => ({
-        playerId: pid,
-        name: playerName(pid, playerDirectory),
-        rings: rings.sort((a, b) => a.season - b.season),
-        totalGamesStarted: rings.reduce((sum, r) => sum + r.gamesStarted, 0),
-      }))
-      .sort((a, b) => b.rings.length - a.rings.length || b.totalGamesStarted - a.totalGamesStarted)
-      .slice(0, 10);
-
-    tbody.innerHTML = ranked.length
-      ? ranked
-          .map(
-            (p, i) => `
-      <tr>
-        <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell player-cell" data-label="Player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.name))}</span></td>
-        <td data-label="Rings">${p.rings.length}</td>
-        <td data-label="Games Started">${p.totalGamesStarted}</td>
-        <td class="rings-won-with" data-label="Won With">${p.rings.map((r) => `${escapeHtml(String(r.season))} (${r.ownerId ? `<a href="teams.html#${encodeURIComponent(r.ownerId)}" class="subtle-link">${escapeHtml(r.ownerName)}</a>` : escapeHtml(r.ownerName)})`).join(", ")}</td>
-      </tr>`
-          )
-          .join("")
-      : `<tr><td colspan="5" class="empty-state">No champions crowned yet.</td></tr>`;
-  } catch (err) {
-    console.error(err);
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Couldn't load championship rings.</td></tr>`;
-  }
-}
-
-function playerName(playerId, playerDirectory) {
-  const p = playerDirectory && playerDirectory[playerId];
-  if (!p) return "Unknown Player";
-  return p.full_name || `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unknown Player";
-}
-
-let CAREER_ROWS = [];
-let CAREER_SORT = { key: "gold", dir: "desc" };
-// Numeric stat columns default to descending (biggest first, the way a
-// sports leaderboard reads) on their first click; Owner is the one
-// exception, since a name reads naturally sorted A-Z rather than Z-A.
-const CAREER_SORT_ASC_DEFAULT = new Set(["name"]);
-
-function sortCareerRows(rows, key, dir) {
-  return [...rows].sort((a, b) => {
-    const av = a[key];
-    const bv = b[key];
-    if (typeof av === "string") return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
-    return dir === "asc" ? av - bv : bv - av;
-  });
-}
-
-function renderCareerTable() {
-  const sorted = sortCareerRows(CAREER_ROWS, CAREER_SORT.key, CAREER_SORT.dir);
-  document.getElementById("career-body").innerHTML = sorted.length
-    ? sorted
-        .map(
-          (m, i) => `
-      <tr>
-        <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell" data-label="Owner">${m.userId ? `<a href="teams.html#${encodeURIComponent(m.userId)}" class="subtle-link">${escapeHtml(m.name)}</a>` : escapeHtml(m.name)}</td>
-        <td data-label="Gold">${m.gold || "—"}</td>
-        <td data-label="Silver">${m.silver || "—"}</td>
-        <td data-label="Bronze">${m.bronze || "—"}</td>
-        <td data-label="App">${m.playoffApp}</td>
-        <td data-label="Pct">${m.playoffPct.toFixed(0)}%</td>
-        <td data-label="Years">${m.years}</td>
-        <td data-label="Playoff Record">${m.playoffWins}-${m.playoffLosses}${m.playoffTies ? "-" + m.playoffTies : ""}</td>
-        <td data-label="Playoff Win %">${m.playoffWinPct.toFixed(1)}%</td>
-        <td data-label="Reg Season Record">${m.regWins}-${m.regLosses}${m.regTies ? "-" + m.regTies : ""}</td>
-        <td data-label="Reg Season Win %">${m.regWinPct.toFixed(1)}%</td>
-      </tr>`
-        )
-        .join("")
-    : `<tr><td colspan="12" class="empty-state">No completed seasons yet.</td></tr>`;
-
-  document.querySelectorAll("#career-table th.sortable").forEach((th) => {
-    th.classList.remove("sort-active", "sort-asc", "sort-desc");
-    if (th.dataset.sortKey === CAREER_SORT.key) th.classList.add("sort-active", CAREER_SORT.dir === "asc" ? "sort-asc" : "sort-desc");
-  });
-}
-
-function initCareerTableSorting() {
-  document.querySelectorAll("#career-table th.sortable").forEach((th) => {
-    th.onclick = () => {
-      const key = th.dataset.sortKey;
-      if (CAREER_SORT.key === key) {
-        CAREER_SORT.dir = CAREER_SORT.dir === "asc" ? "desc" : "asc";
-      } else {
-        CAREER_SORT.key = key;
-        CAREER_SORT.dir = CAREER_SORT_ASC_DEFAULT.has(key) ? "asc" : "desc";
-      }
-      renderCareerTable();
-    };
-  });
-}
-
-async function renderCareerRecords(seasons, playerDirectory, manual) {
-  try {
-    const deepSeasons = await DeepHistory.buildAll(seasons, () => {});
-    const stats = DeepHistory.computeStats(seasons, deepSeasons, playerDirectory);
-
-    // Fold in ESPN-era (pre-Sleeper) totals AND season-by-season entries
-    // for any manager who's also played in the Sleeper era. Deliberately
-    // keyed by looking each Sleeper manager's own username up in the
-    // manual data, not the other way around — a name that only ever
-    // appears in the manual data (never continued into the Sleeper era)
-    // has no Sleeper manager object to merge onto in the first place, so
-    // it's naturally excluded here without needing an explicit allow-list.
-    const manualStatsByTeam = ManualHistory.computeManagerStats(manual);
-    stats.managers.forEach((m) => {
-      if (!m.username) return;
-      const manualForThisManager = manualStatsByTeam.get(m.username);
-      if (!manualForThisManager) return;
-      ManualHistory.mergeIntoManager(m, manualForThisManager.totals);
-      // The per-season array (not just the totals) is what the career
-      // trend grid below draws its sparklines from, so a manager who
-      // played both eras shows their whole career's shape, not just
-      // the Sleeper-tracked half of it.
-      m.seasons = [...m.seasons, ...manualForThisManager.seasons];
-    });
-
-    // Career Records table — Titles (gold/silver/bronze), Playoffs
-    // (appearances/rate/years played), and separate Playoff and Regular
-    // Season records, each independently sortable by clicking its header
-    // (see initCareerTableSorting).
-    CAREER_ROWS = stats.managers.map((m) => {
-      const years = (m.seasons || []).length;
-      const playoffPct = years > 0 ? (m.playoffAppearances / years) * 100 : 0;
-      const playoffGames = m.careerPlayoffWins + m.careerPlayoffLosses + m.careerPlayoffTies;
-      const playoffWinPct = playoffGames > 0 ? (m.careerPlayoffWins / playoffGames) * 100 : 0;
-      const regGames = m.careerRegularSeasonWins + m.careerRegularSeasonLosses + m.careerRegularSeasonTies;
-      const regWinPct = regGames > 0 ? (m.careerRegularSeasonWins / regGames) * 100 : 0;
-      return {
-        userId: m.userId,
-        name: m.username || m.teamName || "Unknown",
-        gold: m.championships || 0,
-        silver: m.runnerUps || 0,
-        bronze: m.thirdPlaceFinishes || 0,
-        playoffApp: m.playoffAppearances || 0,
-        playoffPct,
-        years,
-        playoffWins: m.careerPlayoffWins,
-        playoffLosses: m.careerPlayoffLosses,
-        playoffTies: m.careerPlayoffTies,
-        playoffWinPct,
-        regWins: m.careerRegularSeasonWins,
-        regLosses: m.careerRegularSeasonLosses,
-        regTies: m.careerRegularSeasonTies,
-        regWinPct,
-      };
-    });
-    renderCareerTable();
-    initCareerTableSorting();
-  } catch (err) {
-    console.error(err);
-    document.getElementById("career-body").innerHTML = `<tr><td colspan="12" class="empty-state">Couldn't load career records.</td></tr>`;
+    const errorWrap = document.getElementById("hist-error-wrap");
+    if (errorWrap) errorWrap.style.display = "block";
   }
 }
 

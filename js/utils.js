@@ -308,3 +308,61 @@ function featuredMatchupPair(rawMatchups, standings) {
   });
   return best;
 }
+
+
+// ---------------------------------------------------------------
+// Small number and bar helpers shared by Home and the Power Rankings page
+// ---------------------------------------------------------------
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function round2(v) {
+  return Math.round(v * 100) / 100;
+}
+
+// One decimal place, or a dash for anything that is not a number.
+function num1(v) {
+  return Number.isFinite(v) ? v.toFixed(1) : "\u2014";
+}
+
+// "+8.1" / "-3.0" / "0.0": the sign always shows except on zero (and on a
+// -0.04 that rounds to zero, which would otherwise print "-0.0").
+function signed1(n) {
+  const r = Math.round(n * 10) / 10;
+  if (r === 0) return "0.0";
+  return (r > 0 ? "+" : "") + r.toFixed(1);
+}
+
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// "6-1-1" -> { w: 6, l: 1, t: 1 }; null for anything else.
+function parseRecordString(text) {
+  const m = String(text == null ? "" : text).match(/^(\d+)-(\d+)(?:-(\d+))?$/);
+  return m ? { w: Number(m[1]), l: Number(m[2]), t: Number(m[3] || 0) } : null;
+}
+
+// A won-lost(-tied) record as the site writes it: "6-1", "6-1-1".
+function recordText(wins, losses, ties) {
+  return `${wins || 0}-${losses || 0}${ties ? "-" + ties : ""}`;
+}
+
+// One team's chances split three ways: first-round bye, playoffs without one,
+// and missing out. Always adds up to 100.
+function playoffSplit(row, byeTeams) {
+  const playoffs = clamp(Number.isFinite(row.playoffPct) ? row.playoffPct : 0, 0, 100);
+  const bye = byeTeams ? clamp(Number.isFinite(row.byePct) ? row.byePct : 0, 0, playoffs) : 0;
+  return { bye, playoffs: playoffs - bye, miss: 100 - playoffs };
+}
+
+// The three-part bar (bye / playoffs / miss) used by the Power Rankings table and Home.
+function playoffBarHtml(row, byeTeams) {
+  const s = playoffSplit(row, byeTeams);
+  const seg = (cls, v) => (v > 0 ? `<i class="pr-seg ${cls}" style="flex-basis:${round2(v)}%"></i>` : "");
+  const label = `${byeTeams ? `Bye ${s.bye.toFixed(1)}%, playoffs without a bye ${s.playoffs.toFixed(1)}%` : `Playoffs ${s.playoffs.toFixed(1)}%`}, miss ${s.miss.toFixed(1)}%`;
+  return `<span class="pr-bar" role="img" aria-label="${label}" title="${label}">${seg("bye", s.bye)}${seg("playoffs", s.playoffs)}${seg("miss", s.miss)}</span>`;
+}

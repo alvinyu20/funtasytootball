@@ -1,5 +1,6 @@
 /*
-  Power Rankings page. Deliberately does NOT calculate anything here —
+  Power Rankings page. (Small helpers it shares with Home -- num1, signed1, ordinal,
+  playoffBarHtml and friends -- live in utils.js.) Deliberately does NOT calculate anything here —
   it just reads and displays data/power-rankings-snapshot.json, which
   scripts/update-power-rankings.js writes. See that script's own
   comments for why this page isn't live: the ROS component needs
@@ -63,6 +64,9 @@ function formatGeneratedAt(iso) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+// A rank move in words-free form, shown beside a team's name: ▲2 for a climb,
+// ▼1 for a drop, nothing at all when the rank held, NEW for a team that had no
+// rank last week.
 function deltaBadge(row, lastWeekRanks) {
   if (!lastWeekRanks || lastWeekRanks[row.teamName] == null) {
     return `<span class="muted-inline">NEW</span>`;
@@ -70,84 +74,312 @@ function deltaBadge(row, lastWeekRanks) {
   const diff = lastWeekRanks[row.teamName] - row.powerRank; // positive = moved up (rank number decreased)
   if (diff > 0) return `<span class="luck-positive">▲${formatRank(diff)}</span>`;
   if (diff < 0) return `<span class="luck-negative">▼${formatRank(Math.abs(diff))}</span>`;
-  return `<span class="muted-inline">–</span>`;
+  return "";
+}
+
+/*
+  ---- Power Rankings table ---------------------------------------------------
+  Two drawings of the same rows: a wide table (from 1100px up) and a tap-to-open
+  list for anything narrower. Both group the teams into tiers, show the same
+  numbers, and the page decides which one is visible with CSS alone. The phone
+  list carries nothing the table does not.
+*/
+
+// A new tier starts wherever neighbouring PR Scores are at least this far apart.
+const PR_TIER_GAP = 1.4;
+
+// Luck: actual win % minus all-play win %, in percentage points. The same
+// number (and the same formula) Home's standings show.
+function rowLuckPct(row) {
+  const ap = parseRecordString(row.overallRecord);
+  const games = (row.wins || 0) + (row.losses || 0) + (row.ties || 0);
+  if (!ap || !games) return null;
+  const apGames = ap.w + ap.l + ap.t;
+  if (!apGames) return null;
+  return ((row.wins || 0) / games - ap.w / apGames) * 100;
+}
+
+function luckHtml(row) {
+  const luck = rowLuckPct(row);
+  if (luck == null) return `<span class="luck-neutral">—</span>`;
+  const rounded = Math.round(luck * 10) / 10;
+  const cls = rounded > 0 ? "luck-positive" : rounded < 0 ? "luck-negative" : "luck-neutral";
+  return `<span class="${cls}">${signed1(luck)}%</span>`;
+}
+
+// Teams in rank order, cut into tiers where the PR Score jumps.
+function powerTiers(rows) {
+  const sorted = [...rows].sort((a, b) => a.powerRank - b.powerRank || a.prScore - b.prScore);
+  const tiers = [];
+  sorted.forEach((row, i) => {
+    if (!i || row.prScore - sorted[i - 1].prScore >= PR_TIER_GAP - 1e-9) tiers.push([]);
+    tiers[tiers.length - 1].push(row);
+  });
+  return tiers;
+}
+
+// "99.8%" for one team, "95.5–96.3%" for a range: the playoff odds inside a tier.
+function tierOddsRange(tier) {
+  const pcts = tier.map((r) => r.playoffPct).filter(Number.isFinite);
+  if (!pcts.length) return "";
+  const lo = Math.min(...pcts).toFixed(1);
+  const hi = Math.max(...pcts).toFixed(1);
+  return lo === hi ? `${lo}%` : `${lo}–${hi}%`;
+}
+
+function minMax(values) {
+  const v = values.filter(Number.isFinite);
+  return v.length ? { min: Math.min(...v), max: Math.max(...v) } : { min: 0, max: 0 };
+}
+
+// Where a value sits between the league's lowest and highest, 0-100.
+function spanPct(value, span) {
+  if (!Number.isFinite(value) || span.max === span.min) return 50;
+  return round2(clamp(((value - span.min) / (span.max - span.min)) * 100, 0, 100));
+}
+
+// A bar that never vanishes for the lowest team: 10-100% of the track.
+function ppgBarWidth(ppg, span) {
+  if (!Number.isFinite(ppg)) return 0;
+  if (span.max === span.min) return 100;
+  return round2(10 + 90 * spanPct(ppg, span) / 100);
+}
+
+function powerNameHtml(row, lastWeekRanks) {
+  const move = deltaBadge(row, lastWeekRanks);
+  return `<span class="pr-name"><span class="pr-name-text" data-username="${escapeHtml(row.username || row.teamName)}">${escapeHtml(row.teamName)}</span>${move ? `<span class="pr-move">${move}</span>` : ""}</span>`;
+}
+
+function rosText(row) {
+  return row.rosRank != null ? "#" + row.rosRank : "—";
+}
+
+function tableLegendHtml(byeTeams, withDots) {
+  return `<p class="pr-legend">
+    ${byeTeams ? `<span class="pr-key"><i class="pr-swatch bye"></i>Bye</span>` : ""}
+    <span class="pr-key"><i class="pr-swatch playoffs"></i>${byeTeams ? "Playoffs, no bye" : "Playoffs"}</span>
+    <span class="pr-key"><i class="pr-swatch miss"></i>Miss</span>
+    ${withDots ? `<span class="pr-key"><i class="pr-dot-key"></i>Dots show how close PR Scores are</span>` : ""}
+  </p>`;
+}
+
+function renderBoardRow(row, ctx) {
+  return `
+      <tr class="pr-board-row">
+        <td class="pr-rank">#${formatRank(row.powerRank)}</td>
+        <td class="pr-team">${powerNameHtml(row, ctx.lastWeekRanks)}</td>
+        <td class="pr-score"><span class="pr-score-num">${Number.isFinite(row.prScore) ? row.prScore.toFixed(2) : "—"}</span><span class="pr-line"><i class="pr-dot" style="left:${spanPct(row.prScore, ctx.scoreSpan)}%"></i></span></td>
+        <td class="pr-record"><span class="pr-rec">${escapeHtml(row.record)}</span><span class="pr-ovr">${escapeHtml(row.overallRecord)} Ovr</span></td>
+        <td class="pr-luck">${luckHtml(row)}</td>
+        <td class="pr-ppg"><span class="pr-ppg-num">${num1(row.avgPpg)}</span><span class="pr-ppg-track"><i style="width:${ppgBarWidth(row.avgPpg, ctx.ppgSpan)}%"></i></span></td>
+        <td class="pr-sd">${num1(row.stdDev)}</td>
+        <td class="pr-chance">${playoffBarHtml(row, ctx.byeTeams)}<span class="pr-pct">${num1(row.playoffPct)}%</span></td>
+        <td class="pr-ros">${rosText(row)}</td>
+      </tr>`;
+}
+
+function renderPhoneItem(row, ctx) {
+  const id = `pr-detail-${String(row.rosterId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const ap = parseRecordString(row.overallRecord);
+  return `
+      <div class="pr-phone-item">
+        <button type="button" class="pr-phone-row" aria-expanded="false" aria-controls="${id}">
+          <span class="pr-phone-rank">#${formatRank(row.powerRank)}</span>
+          <span class="pr-phone-name">${powerNameHtml(row, ctx.lastWeekRanks)}</span>
+          <span class="pr-phone-score">${Number.isFinite(row.prScore) ? row.prScore.toFixed(2) : "—"}</span>
+          <span class="pr-phone-rec">${escapeHtml(row.record)}</span>
+          ${playoffBarHtml(row, ctx.byeTeams)}
+          <span class="pr-phone-pct">${num1(row.playoffPct)}%<i class="pr-chevron" aria-hidden="true"></i></span>
+        </button>
+        <div class="pr-phone-detail" id="${id}" hidden>
+          <dl class="pr-detail-grid">
+            <div><dt>Avg PPG</dt><dd>${num1(row.avgPpg)}</dd></div>
+            <div><dt>Luck</dt><dd>${luckHtml(row)}</dd></div>
+            <div><dt>ROS rank</dt><dd>${rosText(row)}</dd></div>
+            <div><dt>Std dev</dt><dd>${num1(row.stdDev)}</dd></div>
+            <div><dt>Ovr</dt><dd>${ap ? escapeHtml(row.overallRecord) : "—"}</dd></div>
+          </dl>
+        </div>
+      </div>`;
 }
 
 function renderPowerTable(snapshot, lastWeekRanks) {
-  const rows = snapshot.rows
+  const rows = snapshot.rows;
+  const byeTeams = snapshot.byeTeams || 0;
+  const ctx = {
+    lastWeekRanks,
+    byeTeams,
+    scoreSpan: minMax(rows.map((r) => r.prScore)),
+    ppgSpan: minMax(rows.map((r) => r.avgPpg)),
+  };
+  const tiers = powerTiers(rows);
+
+  const tableBody = tiers
     .map(
-      (r) => `
-    <tr>
-      <td class="rank" data-label="Rank">#${formatRank(r.powerRank)}</td>
-      <td class="team-cell"${r.username ? ` data-username="${escapeHtml(r.username)}"` : ""}>${escapeHtml(r.teamName)}</td>
-      <td data-label="Δ">${deltaBadge(r, lastWeekRanks)}</td>
-      <td data-label="PR Score">${r.prScore.toFixed(2)}</td>
-      <td data-label="Record">${r.record}</td>
-      <td data-label="Overall">${r.overallRecord}</td>
-      <td data-label="Luck">#${formatRank(r.luckRank)}</td>
-      <td data-label="Avg PPG">${r.avgPpg.toFixed(1)}</td>
-      <td data-label="Std Dev">${r.stdDev.toFixed(1)}</td>
-      <td data-label="Playoff%">${r.playoffPct.toFixed(1)}%</td>
-      <td data-label="Bye%">${r.byePct != null ? r.byePct.toFixed(1) + "%" : "—"}</td>
-      <td data-label="ROS">${r.rosRank != null ? "#" + r.rosRank : "—"}</td>
-      <td data-label="Boom">${r.boom}</td>
-      <td data-label="Bust">${r.bust}</td>
-    </tr>`
+      (tier, i) => `
+      <tr class="pr-tier-row"><th colspan="9" scope="colgroup"><div class="pr-tier-inner"><span class="pr-tier-name">Tier ${i + 1}</span><span class="pr-tier-odds">${tierOddsRange(tier)} to make the playoffs</span></div></th></tr>${tier
+        .map((r) => renderBoardRow(r, ctx))
+        .join("")}`
     )
     .join("");
 
-  // compact-mobile + stay-scrollable: on a phone this stays a real table
-  // (same treatment as the Home page Standings) and pans sideways, rather
-  // than the old one-card-per-team stack, which turned 14 columns into a
-  // very tall wall of label/value rows.
+  const phoneBody = tiers
+    .map(
+      (tier, i) => `
+      <div class="pr-phone-tier"><span class="pr-tier-name">Tier ${i + 1}</span><span class="pr-tier-odds">${tierOddsRange(tier)} to make it</span></div>${tier
+        .map((r) => renderPhoneItem(r, ctx))
+        .join("")}`
+    )
+    .join("");
+
   return `
-    <div class="heatmap-table-wrap stay-scrollable">
-      <table class="stat-table compact-mobile sticky-cols-2">
+    <div class="pr-board-wrap">
+      <table class="pr-board">
         <thead>
           <tr>
-            <th>Rank</th><th>Team</th><th>Δ</th><th>PR Score</th><th>Record</th><th>Overall</th>
-            <th>Luck</th><th>Avg PPG</th><th>Std Dev</th><th>Playoff%</th><th>Bye%</th><th>ROS</th><th>Boom</th><th>Bust</th>
+            <th class="pr-rank">Rank</th><th class="pr-team">Team</th><th class="pr-score">PR Score</th><th class="pr-record">Record</th>
+            <th class="pr-luck">Luck</th><th class="pr-ppg">Avg PPG</th><th class="pr-sd">Std Dev</th><th class="pr-chance">${byeTeams ? "Bye · Playoffs · Out" : "Playoffs · Out"}</th><th class="pr-ros">ROS</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${tableBody}</tbody>
       </table>
+      ${tableLegendHtml(byeTeams, true)}
+    </div>
+    <div class="pr-phone">${phoneBody}
+      ${tableLegendHtml(byeTeams, false)}
     </div>`;
 }
 
-function ordinal(n) {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+// Opens or closes one team's extra numbers in the phone list.
+function togglePhoneRow(button) {
+  const detail = document.getElementById(button.getAttribute("aria-controls"));
+  if (!detail) return;
+  const open = button.getAttribute("aria-expanded") !== "true";
+  button.setAttribute("aria-expanded", open ? "true" : "false");
+  detail.hidden = !open;
+  const item = button.closest(".pr-phone-item");
+  if (item) item.classList.toggle("open", open);
 }
 
-function probCell(pct, rank) {
-  const label = ordinal(rank);
-  if (pct < 1) return `<td class="heat-cell empty" data-label="${label}">${pct < 0.05 ? "—" : pct.toFixed(1) + "%"}</td>`;
-  const bg = interpolateColor("#6B5A2E", "#E8B23D", Math.min(1, pct / 100));
-  return `<td class="heat-cell" data-label="${label}" style="background:${bg}">${pct.toFixed(1)}%</td>`;
+/*
+  ---- Finish probability grid ----------------------------------------------
+  One row per team, one column per final rank, ordered by expected finish so
+  the grid reads top to bottom as a ranking. Every cell shows its chance as a
+  whole number; anything under 1% keeps a decimal and a faint tile, and only a
+  chance that truly never came up in the simulation is a dash.
+*/
+
+// How many simulated seasons the snapshot came from (older snapshots did not
+// say; they were all 1,000).
+function simRunsOf(snapshot) {
+  return Number.isFinite(snapshot.simRuns) && snapshot.simRuns > 0 ? snapshot.simRuns : 1000;
+}
+
+// Average final rank implied by a team's finish distribution (percentages).
+function expectedFinish(dist) {
+  if (!Array.isArray(dist) || !dist.length) return null;
+  const total = dist.reduce((s, p) => s + (Number.isFinite(p) ? p : 0), 0);
+  if (!(total > 0)) return null;
+  return dist.reduce((s, p, i) => s + (i + 1) * (Number.isFinite(p) ? p : 0), 0) / total;
+}
+
+// Which of the six shades a chance belongs to ("none" for a true zero).
+function oddsShade(pct) {
+  if (!Number.isFinite(pct) || pct <= 0) return "none";
+  if (pct < 1) return "u1";
+  if (pct < 5) return "s1";
+  if (pct < 10) return "s5";
+  if (pct < 20) return "s10";
+  if (pct < 35) return "s20";
+  return "s35";
+}
+
+// The number printed in a cell: whole percent, one decimal under 1%, "<0.1"
+// for the rare sliver below that, a dash for nothing.
+function oddsLabel(pct) {
+  const shade = oddsShade(pct);
+  if (shade === "none") return "—";
+  if (shade === "u1") return pct < 0.1 ? "<0.1" : Math.min(0.9, Math.round(pct * 10) / 10).toFixed(1);
+  return String(Math.round(pct));
+}
+
+function trimPct(pct) {
+  return String(Math.round(pct * 100) / 100);
 }
 
 function renderOddsTable(snapshot) {
   const n = snapshot.rows.length;
-  const line = snapshot.playoffTeams > 0 && snapshot.playoffTeams < n ? snapshot.playoffTeams : 0; // last column that still makes the playoffs
-  const cut = (i) => (line && i + 1 === line ? " playoff-edge" : "");
-  const header = Array.from({ length: n }, (_, i) => `<th class="${i + 1 <= line ? "in-playoffs" : ""}${cut(i)}">${i + 1}</th>`).join("");
-  const rows = snapshot.rows
-    .map((r) => {
-      const cells = (r.finishDistribution || []).map((pct, i) => probCell(pct, i + 1).replace("<td class=\"", `<td class="${line && i + 1 === line ? "playoff-edge " : ""}`)).join("");
-      return `<tr><td class="team-cell"${r.username ? ` data-username="${escapeHtml(r.username)}"` : ""}>${escapeHtml(r.teamName)}</td>${cells}</tr>`;
+  const playoffTeams = snapshot.playoffTeams > 0 && snapshot.playoffTeams < n ? snapshot.playoffTeams : 0; // last column that still makes the playoffs
+  const byeLine = playoffTeams && snapshot.byeTeams > 0 && snapshot.byeTeams < playoffTeams ? snapshot.byeTeams : 0; // last column with a bye
+  const runs = simRunsOf(snapshot);
+  const runsText = runs.toLocaleString("en-US");
+
+  const sorted = snapshot.rows
+    .map((r) => ({ r, exp: expectedFinish(r.finishDistribution) }))
+    .sort((a, b) => (a.exp == null) - (b.exp == null) || a.exp - b.exp || a.r.powerRank - b.r.powerRank);
+
+  const edgeClass = (rank) => `${byeLine && rank === byeLine ? " bye-edge" : ""}${playoffTeams && rank === playoffTeams ? " playoff-edge" : ""}`;
+
+  const zoneRow = playoffTeams
+    ? `<tr class="pr-zone-row"><th></th>${byeLine ? `<th colspan="${byeLine}" class="zone zone-bye">Bye</th>` : ""}<th colspan="${playoffTeams - byeLine}" class="zone zone-playoffs">Playoffs</th><th colspan="${n - playoffTeams}" class="zone zone-out">Out</th><th colspan="2"></th></tr>`
+    : "";
+  const rankCols = Array.from({ length: n }, (_, i) => `<th class="rk">${i + 1}</th>`).join("");
+  const header = `${zoneRow}<tr><th class="pr-odds-team">Final rank →</th>${rankCols}<th class="pr-odds-exp">Exp.</th><th class="pr-odds-playoffs">Playoffs</th></tr>`;
+
+  let zeroCells = 0;
+  let sliverCells = 0;
+  const spreads = [];
+  const body = sorted
+    .map(({ r, exp }) => {
+      const dist = r.finishDistribution || [];
+      const peak = Math.max(0, ...dist.filter(Number.isFinite));
+      const bestIdx = peak > 0 ? dist.findIndex((p) => p === peak) : -1;
+      if (peak > 0 && dist.length) spreads.push({ r, peak, bestRank: bestIdx + 1 });
+      const cells = Array.from({ length: n }, (_, i) => {
+        const pct = Number.isFinite(dist[i]) ? dist[i] : null;
+        const shade = oddsShade(pct);
+        if (pct != null && shade === "none") zeroCells += 1;
+        if (shade === "u1") sliverCells += 1;
+        const title = pct == null ? "" : ` title="${escapeHtml(r.teamName)} · ${ordinal(i + 1)} place · ${trimPct(pct)}%"`;
+        return `<td class="odds-cell ${shade}${i === bestIdx ? " best" : ""}${edgeClass(i + 1)}"${title}>${pct == null ? "—" : oddsLabel(pct)}</td>`;
+      }).join("");
+      return `<tr><td class="pr-odds-team"><span class="pr-name"><span class="pr-name-text" data-username="${escapeHtml(r.username || r.teamName)}">${escapeHtml(r.teamName)}</span></span></td>${cells}<td class="pr-odds-exp">${exp == null ? "—" : exp.toFixed(1)}</td><td class="pr-odds-playoffs">${num1(r.playoffPct)}%</td></tr>`;
     })
     .join("");
+
+  const legend = `<p class="pr-legend odds-legend">
+    <span class="pr-legend-label">Chance</span>
+    <span class="pr-key"><i class="odds-key none">—</i>None in ${runsText} runs</span>
+    <span class="pr-key"><i class="odds-key u1"></i>Under 1</span>
+    <span class="pr-key"><i class="odds-key s1"></i>1–5</span>
+    <span class="pr-key"><i class="odds-key s5"></i>5–10</span>
+    <span class="pr-key"><i class="odds-key s10"></i>10–20</span>
+    <span class="pr-key"><i class="odds-key s20"></i>20–35</span>
+    <span class="pr-key"><i class="odds-key s35"></i>35+</span>
+    <span class="pr-key"><i class="odds-key ring"></i>Most likely finish</span>
+  </p>`;
+
+  // Surest bet and widest-open team, then how many cells never happened.
+  let takeaway = "";
+  if (spreads.length >= 2) {
+    const surest = [...spreads].sort((a, b) => b.peak - a.peak || a.r.powerRank - b.r.powerRank)[0];
+    const widest = [...spreads].sort((a, b) => a.peak - b.peak || b.r.powerRank - a.r.powerRank)[0];
+    const parts = [`${escapeHtml(surest.r.teamName)} is the surest bet, finishing ${ordinal(surest.bestRank)} in ${Math.round(surest.peak)}% of runs.`];
+    if (widest !== surest) parts.push(`${escapeHtml(widest.r.teamName)} has the most open range: even its likeliest finish (${ordinal(widest.bestRank)}) only comes up ${Math.round(widest.peak)}% of the time.`);
+    parts.push(`Of the ${n * n} cells, ${zeroCells} never happened in ${runsText} runs and another ${sliverCells} are under 1% but still possible.`);
+    takeaway = `<p class="pr-takeaway"><strong>Takeaway:</strong> ${parts.join(" ")}</p>`;
+  }
+
   return `
     <div class="heatmap-table-wrap stay-scrollable">
-      <table class="stat-table compact-mobile sticky-cols-1 odds-table">
-        <thead><tr><th>Team</th>${header}</tr></thead>
-        <tbody>${rows}</tbody>
+      <table class="pr-odds">
+        <thead>${header}</thead>
+        <tbody>${body}</tbody>
       </table>
     </div>
-    <p class="heatmap-note">Probability of finishing in each final position, from a 1,000-run simulation of the rest of the season — columns are final rank (1st, 2nd, …).${
-      line ? ` The gold line after ${ordinal(line)} place is the playoff cutoff.` : ""
-    }</p>`;
+    ${legend}
+    ${takeaway}
+    <p class="heatmap-note">Each row is a team's chance of finishing in each final spot, from a ${runsText}-run simulation of the rest of the season. Teams are ordered by expected finish (Exp.).</p>`;
 }
 
 // "Snapshot · Through Week 6 · Oct 13 · updates with each ROS refresh". Blue when the
@@ -165,11 +397,12 @@ function snapshotChip(snapshot, nflWeek) {
 
 function renderContent(snapshot, lastWeekRanks, nflWeek, extras) {
   const chip = snapshotChip(snapshot, nflWeek);
+  const season = snapshot.season != null && snapshot.week != null ? `<span class="pr-season-tag">${escapeHtml(snapshot.season)} · After Week ${escapeHtml(snapshot.week)}</span>` : "";
   return `
     <div class="wrap"><div class="panel">
-      <div class="panel-head"><h2>Power Rankings</h2>${chip}</div>
+      <div class="panel-head"><h2>Power Rankings${season}</h2>${chip}</div>
       ${renderPowerTable(snapshot, lastWeekRanks)}
-      <p class="heatmap-note">Weighted composite of record, all-play record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better.</p>
+      <p class="heatmap-note">Weighted composite of record, Ovr (all-play) record, scoring average, simulated playoff odds, and ROS rank. Lower PR Score is better. Luck is actual win % minus Ovr win %. Tiers start where neighboring PR Scores are ${PR_TIER_GAP} or more apart.</p>
     </div></div>
 
     <div class="yard-divider">
@@ -225,14 +458,6 @@ const SLOT_SHORT_LABELS = { SUPER_FLEX: "SFLX", SUPERFLEX: "SFLX" };
 // the same season as the snapshot above them.
 function extrasMatchSnapshot(extras, snapshot) {
   return !!extras && String(extras.season) === String(snapshot.season) && extras.week === snapshot.week;
-}
-
-// "+8.1" / "-3.0" / "0.0": the sign always shows except on zero (and on a
-// -0.04 that rounds to zero, which would otherwise print "-0.0").
-function signed1(n) {
-  const r = Math.round(n * 10) / 10;
-  if (r === 0) return "0.0";
-  return (r > 0 ? "+" : "") + r.toFixed(1);
 }
 
 // Position along an axis as a percentage, kept inside the track.
@@ -321,6 +546,16 @@ function renderSosPanel(sos, chip) {
     </div>`;
 }
 
+// How the Road Ahead rates an opponent: mostly by FantasyPros rest-of-season
+// strength (when the file says it used it), the rest by points per game so far.
+function roadAheadNote(sos) {
+  const w = sos.remaining && Number.isFinite(sos.remaining.rosWeight) ? sos.remaining.rosWeight : 0;
+  const rated = w > 0
+    ? `every opponent rated ${Math.round(w * 100)}% on its FantasyPros rest-of-season strength and ${Math.round((1 - w) * 100)}% on its points per game so far, both put on the points-per-game scale`
+    : "every opponent rated by its points per game so far";
+  return `Each team's remaining regular-season games, with ${rated}. Bars show the distance from the league average of ${sos.leagueAvgPpg.toFixed(1)} PPG. It's a proxy, not a projection.`;
+}
+
 function renderRoadAheadPanel(sos, chip) {
   const rows = [...sos.rows].filter((r) => r.ahead).sort((a, b) => b.ahead.delta - a.ahead.delta || a.teamName.localeCompare(b.teamName));
   if (!rows.length) return "";
@@ -331,7 +566,7 @@ function renderRoadAheadPanel(sos, chip) {
     .map((r) => {
       const d = r.ahead.delta;
       const width = Math.round((Math.abs(d) / maxAbs) * 50 * 100) / 100;
-      const title = `${r.teamName}: remaining opponents average ${r.ahead.oppPpg.toFixed(1)} PPG (${signed1(d)} vs the league's ${sos.leagueAvgPpg.toFixed(1)})`;
+      const title = `${r.teamName}: remaining opponents rate ${r.ahead.oppPpg.toFixed(1)} PPG (${signed1(d)} vs the league's ${sos.leagueAvgPpg.toFixed(1)})`;
       return `
       <div class="road-row" title="${escapeHtml(title)}">
         <span class="road-name"${usernameAttr(r.teamName)}>${escapeHtml(r.teamName)}</span>
@@ -345,7 +580,7 @@ function renderRoadAheadPanel(sos, chip) {
   const easiest = rows[rows.length - 1];
   const takeaway =
     rows.length > 1
-      ? `<strong>Worth knowing:</strong> ${escapeHtml(hardest.teamName)}${hardest.record ? ` (${escapeHtml(hardest.record)})` : ""} has the toughest remaining slate at ${hardest.ahead.oppPpg.toFixed(1)} PPG per opponent; ${escapeHtml(easiest.teamName)} has the easiest.`
+      ? `<strong>Worth knowing:</strong> ${escapeHtml(hardest.teamName)}${hardest.record ? ` (${escapeHtml(hardest.record)})` : ""} has the toughest remaining slate, with opponents rating ${hardest.ahead.oppPpg.toFixed(1)} PPG on average; ${escapeHtml(easiest.teamName)} has the easiest.`
       : "";
 
   return `
@@ -357,7 +592,7 @@ function renderRoadAheadPanel(sos, chip) {
       </div>
       <p class="pr-legend"><span class="pr-key"><i class="pr-swatch hard"></i>Harder than the league average</span><span class="pr-key"><i class="pr-swatch easy"></i>Easier</span></p>
       ${takeaway ? `<p class="pr-takeaway">${takeaway}</p>` : ""}
-      <p class="heatmap-note">Each team's remaining regular-season games, with every opponent rated by its points per game so far. Bars show the distance from the league average of ${sos.leagueAvgPpg.toFixed(1)} PPG. It's a proxy, not a projection.</p>
+      <p class="heatmap-note">${roadAheadNote(sos)}</p>
     </div>`;
 }
 
@@ -502,3 +737,8 @@ function renderExtrasSections(snapshot, extras, chip) {
 }
 
 document.addEventListener("DOMContentLoaded", renderPowerRankings);
+// One listener for the whole page: tapping a team in the phone list opens its extra numbers.
+document.addEventListener("click", (e) => {
+  const button = e.target && e.target.closest ? e.target.closest(".pr-phone-row") : null;
+  if (button) togglePhoneRow(button);
+});

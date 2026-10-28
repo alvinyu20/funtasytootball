@@ -1,16 +1,31 @@
 // ---------------------------------------------------------------
 // Home page state. Everything the "my team" switch needs to redraw
-// without asking Sleeper again lives here.
+// without asking Sleeper again lives here, and every panel is drawn from
+// it, so a panel can be drawn again whenever more data arrives (the
+// season's weekly results, the all-time history) or the picked team changes.
 // ---------------------------------------------------------------
 const HOME = {
   league: null,
   week: null,
   completed: 0, // weeks every roster's Record already includes (finished weeks only)
-  standings: [],
+  standings: [], // Sleeper's own table: Record and Points For, in Sleeper's order
   rawMatchups: [],
+  rawMatchupsLast: [],
   highlights: { week: 0, topScore: null, closest: null }, // from the latest FINISHED week
   feed: null,
   nowMs: null,
+  teamStrength: null,
+  playoffTeams: null,
+  // Filled in once the season's weekly data and the Power Rankings snapshot are in.
+  summary: null, // DeepHistory.computeSeasonSummary over the finished weeks
+  results: new Map(), // rosterId -> [{ week, result: "W" | "L" | "T", own, opp }], oldest first
+  avgByRoster: new Map(), // rosterId -> points per game over the finished weeks
+  snapshot: null, // data/power-rankings-snapshot.json
+  powerByRoster: new Map(), // rosterId -> that team's row in the snapshot
+  lastWeekRanks: null,
+  rankByRoster: new Map(), // rosterId -> place in the Standings table as drawn
+  // Filled in last, once the full season chain is read: all-time records between managers.
+  h2h: null, // { rec: Map(userId -> Map(opponentUserId -> { wins, losses, ties })), name: Map(userId -> username) }
 };
 
 function currentMyTeam() {
@@ -35,7 +50,7 @@ async function renderDashboard() {
       throw new Error("League not found.");
     }
 
-    document.title = (SITE_TITLE || league.name || "League") + " \u2014 Home";
+    document.title = (SITE_TITLE || league.name || "League") + " — Home";
     document.getElementById("sb-eyebrow").textContent = `${league.season} SEASON`;
     document.getElementById("sb-title").textContent = league.name || "Fantasy League";
 
@@ -51,15 +66,18 @@ async function renderDashboard() {
     HOME.league = league;
     HOME.week = week;
     HOME.standings = standings;
+    HOME.teamStrength = teamStrength;
+    HOME.playoffTeams = (league.settings && league.settings.playoff_teams) || null;
     // Weeks that are final: the same rule every page uses (see DeepHistory.completedThroughWeek).
     const finishedThrough = DeepHistory.completedThroughWeek({ league, rosters, nflWeek: week });
     HOME.completed = Number.isFinite(finishedThrough) ? finishedThrough : week || 0;
     HOME.nowMs = Date.now();
 
     renderLeaguePulse();
-    renderStandingsTable(standings, teamStrength, league.settings && league.settings.playoff_teams);
+    renderStandings();
     bindStandingsToggle();
-    renderStandingsFresh(teamStrength);
+    renderStandingsNotes();
+    renderMyTeamCard();
 
     const lastWeek = week && week > 1 ? week - 1 : null;
     const [rawMatchups, rawMatchupsLastWeek] = await Promise.all([
@@ -67,26 +85,26 @@ async function renderDashboard() {
       lastWeek ? SleeperAPI.getMatchups(LEAGUE_ID, lastWeek).catch(() => []) : Promise.resolve([]),
     ]);
     HOME.rawMatchups = rawMatchups || [];
-    const { pairs: matchupPairs } = renderMatchupsAndFeatured(rawMatchups, standings, week);
-    const { pairs: lastWeekPairs } = renderLastWeekMatchups(rawMatchupsLastWeek, standings, lastWeek);
+    HOME.rawMatchupsLast = rawMatchupsLastWeek || [];
+    renderMatchupsAndFeatured(HOME.rawMatchups, standings, week);
+    renderLastWeekMatchups(HOME.rawMatchupsLast, standings, lastWeek);
     // Top Score and Closest Game come from the latest FINISHED week, never a half-played one.
-    const finalWeekMatchups = HOME.completed >= week ? rawMatchups : lastWeek && HOME.completed === lastWeek ? rawMatchupsLastWeek : [];
+    const finalWeekMatchups = latestFinalMatchups(HOME.completed, week, lastWeek, HOME.rawMatchups, HOME.rawMatchupsLast);
     HOME.highlights = { week: Math.min(HOME.completed, week || 0), ...weekHighlights(finalWeekMatchups, standings) };
     renderMatchupsFresh();
     renderLeaguePulse();
-    openLastWeekOnDesktop();
-    applyMyTeam();
+    renderMyTeamCard();
+    if (typeof MyTeam !== "undefined") MyTeam.decorate(document.body);
     initScrollAnimations();
 
     fetchJsonSafe(RECORDS_FEED_FILE, null).then(renderLatestRecords);
 
     // ---- Phase 2: heavier data (full-season fetch), doesn't block the above ----
-    const allH2hPairs = [...matchupPairs.map((p) => ({ ...p, idPrefix: "cur" })), ...lastWeekPairs.map((p) => ({ ...p, idPrefix: "last" }))];
     if (league.status !== "pre_draft" && week) {
-      renderStreaksAndPowerRankings(league, rosters, users, week, playerDirectory, teamStrength);
+      renderSeasonDetail(league, rosters, users, week, playerDirectory, teamStrength);
       renderRecentActivity(LEAGUE_ID, week, rosters, users, playerDirectory);
-      if (allH2hPairs.length) {
-        renderMatchupHeadToHead(allH2hPairs, playerDirectory);
+      if (HOME.rawMatchups.length || HOME.rawMatchupsLast.length) {
+        renderMatchupHeadToHead(playerDirectory);
       }
     } else {
       document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Check back once the season starts.</div>`;
@@ -115,9 +133,18 @@ function completedWeekCount(standings) {
   return most;
 }
 
+// The matchups of the latest week that is final: this week's once it is over, last week's
+// while this one is still being played, none before any week is done.
+function latestFinalMatchups(completed, week, lastWeek, current, last) {
+  if (!week) return [];
+  if (completed >= week) return current;
+  return lastWeek && completed === lastWeek ? last : [];
+}
+
 function onlyCompletedWeeks(deepWeeks, completed) {
   return (deepWeeks || []).filter((w) => w.week <= completed);
 }
+
 
 // ---------------------------------------------------------------
 // League pulse: week, whether games are on, when waivers run next, the
@@ -202,7 +229,7 @@ function findMyMatchup(rawMatchups, standings, me) {
 
 function pulseCellHtml(c) {
   return `
-      <div class="ticker-stat pulse-cell${c.wide ? " pulse-wide" : ""}${c.mine ? " pulse-mine" : ""}">
+      <div class="ticker-stat pulse-cell${c.wide ? " pulse-wide" : ""}${c.mine ? " pulse-mine" : ""}${c.gold ? " pulse-gold" : ""}">
         <span class="label">${escapeHtml(c.label)}</span>
         <span class="value"${c.countUp ? " data-count-up" : ""}>${c.valueHtml != null ? c.valueHtml : escapeHtml(c.value)}</span>
         ${c.sub ? `<span class="sub">${escapeHtml(c.sub)}</span>` : ""}
@@ -211,11 +238,12 @@ function pulseCellHtml(c) {
 
 function buildPulseCells(m) {
   const cells = [];
-  if (m.waivers) cells.push({ label: "Next waivers", value: m.waivers.value, sub: m.waivers.sub });
+  // The countdown leads and the clock time sits under it ("in 10 hr" / "Wed 3 AM ET").
+  if (m.waivers) cells.push({ label: "Next waivers", value: m.waivers.sub, sub: m.waivers.value });
   // Final results only: the latest finished week, named so nobody mistakes it for the one in progress.
   const finalTag = m.highlightWeek ? ` \u00b7 Wk ${m.highlightWeek}` : "";
-  if (m.topScore) cells.push({ label: `Top Score${finalTag}`, value: `${m.topScore.pts.toFixed(1)} \u00b7 ${m.topScore.name}`, countUp: true });
-  if (m.closest) cells.push({ label: `Closest Game${finalTag}`, value: `${m.closest.diff.toFixed(1)} pt gap`, sub: `${m.closest.a} vs ${m.closest.b}`, countUp: true });
+  if (m.topScore) cells.push({ label: `Top Score${finalTag}`, value: m.topScore.pts.toFixed(1), sub: m.topScore.name, countUp: true, gold: true });
+  if (m.closest) cells.push({ label: `Closest Game${finalTag}`, value: `${m.closest.diff.toFixed(1)} pts`, sub: `${m.closest.a} ${m.closest.diff === 0 ? "vs" : "over"} ${m.closest.b}`, countUp: true });
   if (m.week && m.hasMatchups) {
     if (!m.me) {
       cells.push({
@@ -249,11 +277,19 @@ function buildPulseCells(m) {
   return cells;
 }
 
+
+// The four tiles beside the My Team card, plus the week label and the "through
+// Week N" chip in the page header. The "Your matchup" tile only appears once a
+// team is picked: the My Team card carries the "Pick your team" prompt itself.
+function homeTileCells(cells) {
+  return cells.filter((c) => !(c.valueHtml && c.valueHtml.includes("data-myteam-open")));
+}
+
 function renderLeaguePulse() {
   const league = HOME.league;
-  const tickerEl = document.getElementById("sb-ticker");
+  const tilesEl = document.getElementById("home-tiles");
   const subEl = document.getElementById("sb-sub");
-  if (!league || !tickerEl) return;
+  if (!league) return;
   const week = HOME.week;
   const nowMs = HOME.nowMs || Date.now();
   const me = currentMyTeam();
@@ -265,6 +301,7 @@ function renderLeaguePulse() {
   }
 
   const inSeason = league.status === "in_season" && week;
+  setChip("home-fresh", inSeason ? freshnessChipHtml({ through: HOME.completed, current: week, note: "updates Tuesdays" }) : "");
   const waivers = inSeason ? waiverPulse(nowMs, league.settings && league.settings.waiver_day_of_week, WAIVER_CLEAR_HOUR_ET) : null;
   const cells = buildPulseCells({
     week,
@@ -277,7 +314,7 @@ function renderLeaguePulse() {
     me,
     myMatch: me ? findMyMatchup(HOME.rawMatchups, HOME.standings, me) : null,
   });
-  tickerEl.innerHTML = cells.map(pulseCellHtml).join("");
+  if (tilesEl) tilesEl.innerHTML = homeTileCells(cells).map(pulseCellHtml).join("");
 }
 
 // ---------------------------------------------------------------
@@ -288,16 +325,11 @@ function setChip(id, html) {
   if (el) el.innerHTML = html || "";
 }
 
-function renderStandingsFresh(teamStrength) {
-  const league = HOME.league;
-  const inSeason = league && league.status === "in_season";
-  setChip(
-    "standings-fresh",
-    inSeason ? freshnessChipHtml({ through: HOME.completed, current: HOME.week, note: "updates Tuesdays" }) : ""
-  );
+// Under the Standings: where the ROS ranks and the playoff odds come from, and how old they are.
+function renderStandingsNotes() {
+  const teamStrength = HOME.teamStrength;
   const stale = teamStrength && teamStrength.asOf ? daysSinceDate(teamStrength.asOf, HOME.nowMs || Date.now()) : null;
-  setChip(
-    "ros-note",
+  const rosChip =
     teamStrength && teamStrength.asOf
       ? freshnessChipHtml({
           label: "ROS ranks",
@@ -306,8 +338,13 @@ function renderStandingsFresh(teamStrength) {
           tone: stale != null && stale > 10 ? "behind" : "snap",
           title: "Rest-of-season strength from FantasyPros, refreshed by hand when the league checks it",
         })
-      : ""
-  );
+      : "";
+  const snap = HOME.snapshot;
+  const oddsChip =
+    snap && !snap.preseason && snap.week != null
+      ? freshnessChipHtml({ label: "Playoff odds", through: snap.week, current: HOME.week, note: "updates with each ROS refresh" })
+      : "";
+  setChip("ros-note", oddsChip + rosChip);
 }
 
 function renderMatchupsFresh() {
@@ -320,7 +357,6 @@ function renderMatchupsFresh() {
   const anyPoints = HOME.rawMatchups.some((m) => (m.points || 0) > 0);
   const state = HOME.completed >= week ? "final" : anyPoints ? "progress" : "upcoming";
   setChip("matchups-fresh", freshnessChipHtml({ label: MATCHUP_STATUS_LABEL[state], week, title: "Scores come straight from Sleeper; a week only counts toward records once it is final" }));
-  setChip("last-week-fresh", HOME.week > 1 ? freshnessChipHtml({ label: "Final", week: HOME.week - 1 }) : "");
 }
 
 // A feed or snapshot "as of" chip, in the same words everywhere.
@@ -335,118 +371,225 @@ function feedFreshChip(asOf, currentSeason, currentWeek) {
   });
 }
 
-// The Last Week panel is a collapsible: closed on a phone (it is mostly
-// history), open on a wide screen where there is room for it.
-function openLastWeekOnDesktop() {
-  const el = document.getElementById("last-week-panel");
-  if (!el || typeof window === "undefined" || !window.matchMedia) return;
-  if (window.matchMedia("(min-width: 921px)").matches) el.setAttribute("open", "");
-}
-
-// On a phone the Standings table keeps the columns people check first (record, points
-// for, luck, ROS, strength of schedule) and tucks PA, Avg/Wk and Overall behind a
-// button, so nothing important is off-screen on arrival. Wide screens show them all.
+// On a phone the Standings are a compact list; "Full table" swaps it for the
+// whole table (panning sideways) and back. From 1100px up the table is always
+// shown and the button is hidden by CSS.
 function bindStandingsToggle() {
   const btn = document.getElementById("standings-more");
-  const table = document.getElementById("home-standings");
-  if (!btn || !table || btn.getAttribute("data-bound")) return;
+  const panel = document.getElementById("standings-panel");
+  if (!btn || !panel || btn.getAttribute("data-bound")) return;
   btn.setAttribute("data-bound", "1");
   btn.addEventListener("click", () => {
-    const on = table.classList.toggle("show-all");
+    const on = panel.classList.toggle("show-full");
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.textContent = on ? "Show fewer columns" : "Show all columns";
+    btn.textContent = on ? "Compact list" : "Full table →";
   });
 }
 
-// Phase 1 (fast): # / Team / Record / PF / ROS are all available straight
-// from the light buildStandings() + team-strength.json fetch, so they
-// render immediately. PA / Avg-Wk / Overall / Luck / SOS need the full
-// single-season weekly fetch (DeepHistory.computeSeasonSummary), which is
-// Phase 2 work -- those columns show "—" here and get filled in for real
-// by renderEnrichedStandings below once that data lands. The column COUNT
-// never changes between the two passes, just which cells have real values,
-// so the table never jumps around.
-const STANDINGS_COLSPAN = 10;
 
-function renderStandingsTable(standings, teamStrength, playoffTeams) {
-  const strengthByUsername = (teamStrength && teamStrength.teams) || {};
-  const tbody = document.getElementById("standings-body");
-  tbody.innerHTML = standings
-    .map((t, i) => {
-      const strength = t.username && strengthByUsername[t.username];
-      const row = `
-      <tr>
-        <td class="rank" data-label="#">${i + 1}</td>
-        <td class="team-cell" data-label="Team"${t.username ? ` data-username="${escapeHtml(t.username)}"` : ""}>${t.userId ? `<a href="teams.html#${encodeURIComponent(t.userId)}" class="subtle-link">${escapeHtml(t.teamName)}</a>` : escapeHtml(t.teamName)}</td>
-        <td data-label="Record">${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
-        <td data-label="PF">${t.fpts.toFixed(1)}</td>
-        <td class="col-more" data-label="PA">—</td>
-        <td class="col-more" data-label="Avg/Wk">—</td>
-        <td class="col-more" data-label="Overall">—</td>
-        <td data-label="Luck">—</td>
-        <td data-label="ROS">${strength ? "#" + strength.rank : "—"}</td>
-        <td data-label="SOS">—</td>
+// ---------------------------------------------------------------
+// Results and form. Everything below that talks about "the last 7" or a
+// streak reads the same list: each team's finished games, oldest first.
+// ---------------------------------------------------------------
+const FORM_GAMES = 7;
+
+// deepWeeks: [{ week, matchups }] -> Map rosterId -> [{ week, result: "W" | "L" | "T", own, opp }].
+function teamResultsByRoster(deepWeeks) {
+  const out = new Map();
+  (deepWeeks || []).forEach(({ week, matchups }) => {
+    const pairs = new Map();
+    (matchups || []).forEach((m) => {
+      if (m.matchup_id == null) return;
+      if (!pairs.has(m.matchup_id)) pairs.set(m.matchup_id, []);
+      pairs.get(m.matchup_id).push(m);
+    });
+    pairs.forEach((pair) => {
+      if (pair.length < 2) return;
+      const [a, b] = pair;
+      [
+        { rid: a.roster_id, own: a.points || 0, opp: b.points || 0 },
+        { rid: b.roster_id, own: b.points || 0, opp: a.points || 0 },
+      ].forEach(({ rid, own, opp }) => {
+        const result = own > opp ? "W" : own < opp ? "L" : "T";
+        if (!out.has(rid)) out.set(rid, []);
+        out.get(rid).push({ week, result, own, opp });
+      });
+    });
+  });
+  out.forEach((list) => list.sort((x, y) => x.week - y.week));
+  return out;
+}
+
+// The last few results as dots, newest on the right: a filled yellow dot for a
+// win, a hollow blue one for a loss, a hollow pale one for a tie.
+function formDotsHtml(results, n) {
+  const last = (results || []).slice(-(n || FORM_GAMES));
+  if (!last.length) return `<span class="form-dots form-none">—</span>`;
+  const word = { W: "win", L: "loss", T: "tie" };
+  const label = `Last ${last.length}, oldest first: ${last.map((r) => word[r.result]).join(", ")}`;
+  return `<span class="form-dots" role="img" aria-label="${label}" title="${label}">${last.map((r) => `<i class="fd ${r.result.toLowerCase()}"></i>`).join("")}</span>`;
+}
+
+// "lost the last 2", "won last week": the current run in words ("" before any game).
+function formNote(results) {
+  const list = results || [];
+  if (!list.length) return "";
+  const latest = list[list.length - 1].result;
+  let len = 0;
+  for (let i = list.length - 1; i >= 0 && list[i].result === latest; i--) len++;
+  const verb = { W: "won", L: "lost", T: "tied" }[latest];
+  return len === 1 ? `${verb} last week` : `${verb} the last ${len}`;
+}
+
+// ---------------------------------------------------------------
+// Standings: one row per team, drawn twice from the same rows (a wide table and
+// a compact list) with CSS choosing which one shows. Playoff odds come from the
+// Power Rankings snapshot, so this table and that page always agree.
+//
+// Two passes, like the rest of Home: the first (Sleeper's own table: Record,
+// Points For, ROS) is on screen at once; the second fills in Form, Points
+// Against, Avg/Wk, Luck and the odds when the season's weekly data lands. The
+// columns never change between the two, only which cells have real values.
+// ---------------------------------------------------------------
+function homeByeTeams() {
+  const snap = HOME.snapshot;
+  if (snap && Number.isFinite(snap.byeTeams)) return snap.byeTeams;
+  return HOME.playoffTeams === 6 ? 2 : 0;
+}
+
+function buildStandingsRows() {
+  const full = !!(HOME.summary && HOME.summary.standings && HOME.summary.standings.length);
+  const source = full ? HOME.summary.standings : HOME.standings;
+  const strength = (HOME.teamStrength && HOME.teamStrength.teams) || {};
+  return source.map((t, i) => {
+    const power = HOME.powerByRoster.get(t.rosterId) || null;
+    const ros = t.username && strength[t.username];
+    const pf = Number.isFinite(t.fpts) ? t.fpts : null;
+    const pa = full && Number.isFinite(t.fptsAgainst) ? t.fptsAgainst : null;
+    return {
+      rank: i + 1,
+      rosterId: t.rosterId,
+      userId: t.userId,
+      teamName: t.teamName,
+      username: t.username,
+      wins: t.wins,
+      losses: t.losses,
+      ties: t.ties,
+      record: recordText(t.wins, t.losses, t.ties),
+      ovr: full ? recordText(t.overallWins, t.overallLosses, t.overallTies) : null,
+      pf,
+      pa,
+      diff: pf != null && pa != null ? pf - pa : null,
+      avg: HOME.avgByRoster.has(t.rosterId) ? HOME.avgByRoster.get(t.rosterId) : null,
+      luck: full && Number.isFinite(t.luckPct) ? t.luckPct : null,
+      results: HOME.results.get(t.rosterId) || [],
+      playoffPct: power && Number.isFinite(power.playoffPct) ? power.playoffPct : null,
+      byePct: power && Number.isFinite(power.byePct) ? power.byePct : null,
+      ros: ros ? ros.rank : null,
+    };
+  });
+}
+
+// "Bye line · Top 2" after the last team that gets one, "Playoff line · Top 6" after the last that makes it.
+function standingsLineAfter(rank, total, byeTeams, playoffTeams) {
+  if (rank >= total || !playoffTeams) return null;
+  if (byeTeams && byeTeams < playoffTeams && rank === byeTeams) return { cls: "bye", text: `Bye line · Top ${byeTeams}` };
+  if (rank === playoffTeams) return { cls: "playoffs", text: `Playoff line · Top ${playoffTeams}` };
+  return null;
+}
+
+function diffClass(diff) {
+  return diff > 0 ? "pos" : diff < 0 ? "neg" : "zero";
+}
+
+// Points for minus points against, as a bar growing out of a centre line: yellow to
+// the right for a team scoring more than it allows, blue to the left for the reverse.
+// Every row shares one scale (the biggest gap in the table).
+function diffBarHtml(diff, maxAbs) {
+  if (diff == null) return `<span class="hs-diffbar" aria-hidden="true"></span>`;
+  const width = diff === 0 ? 0 : Math.max(1.5, round2((Math.abs(diff) / (maxAbs || 1)) * 50));
+  return `<span class="hs-diffbar" aria-hidden="true"><i class="hs-fill ${diffClass(diff)}" style="width:${width}%"></i></span>`;
+}
+
+function standingsNameHtml(r) {
+  const label = r.userId ? `<a href="teams.html#${encodeURIComponent(r.userId)}" class="subtle-link">${escapeHtml(r.teamName)}</a>` : escapeHtml(r.teamName);
+  return `<span class="hs-name"${r.username ? ` data-username="${escapeHtml(r.username)}"` : ""}>${label}</span>`;
+}
+
+function oddsCellHtml(r, byeTeams) {
+  return r.playoffPct == null ? `<span class="hs-none">—</span>` : `${playoffBarHtml(r, byeTeams)}<span class="hs-pct">${num1(r.playoffPct)}%</span>`;
+}
+
+function standingsRowHtml(r, ctx) {
+  const diffText = r.diff == null ? "—" : signed1(r.diff);
+  const forAgainst = r.pa == null ? (r.pf == null ? "" : `${num1(r.pf)} PF`) : `${num1(r.pf)} PF · ${num1(r.pa)} PA`;
+  return `
+      <tr class="hs-row">
+        <td class="hs-rank">${r.rank}</td>
+        <td class="hs-team">${standingsNameHtml(r)}${usernameSubHtml(r.teamName, r.username)}</td>
+        <td class="hs-rec"><span class="hs-rec-main">${escapeHtml(r.record)}</span>${r.ovr ? `<span class="hs-sub">${escapeHtml(r.ovr)} Ovr</span>` : ""}</td>
+        <td class="hs-form">${r.results.length ? formDotsHtml(r.results) : `<span class="hs-none">—</span>`}</td>
+        <td class="hs-pts"><span class="hs-pts-text"><span class="hs-diff ${r.diff == null ? "zero" : diffClass(r.diff)}">${diffText}</span><span class="hs-sub">${forAgainst}</span></span>${diffBarHtml(r.diff, ctx.maxAbs)}</td>
+        <td class="hs-avg">${r.avg == null ? "—" : num1(r.avg)}</td>
+        <td class="hs-luck">${r.luck == null ? "—" : luckBadge(r.luck)}</td>
+        <td class="hs-odds">${oddsCellHtml(r, ctx.byeTeams)}</td>
+        <td class="hs-ros">${r.ros == null ? "—" : "#" + r.ros}</td>
       </tr>`;
-      if (playoffTeams && i + 1 === playoffTeams && i + 1 < standings.length) {
-        return row + `<tr class="playoff-cutoff-row"><td colspan="${STANDINGS_COLSPAN}" class="playoff-cutoff-label">Playoff Line</td></tr>`;
-      }
-      return row;
-    })
+}
+
+// The compact list: name, record and odds on top; form, point difference and the odds bar under them.
+function standingsItemHtml(r, ctx) {
+  const diffText = r.diff == null ? "" : signed1(r.diff);
+  return `
+      <div class="hs-item">
+        <div class="hs-l1">
+          <span class="hs-prank">${r.rank}</span>
+          ${standingsNameHtml(r)}
+          <span class="hs-prec">${escapeHtml(r.record)}</span>
+          <span class="hs-ppct">${r.playoffPct == null ? "—" : num1(r.playoffPct) + "%"}</span>
+        </div>
+        <div class="hs-l2">
+          ${r.results.length ? formDotsHtml(r.results) : ""}
+          <span class="hs-pdiff ${r.diff == null ? "zero" : diffClass(r.diff)}">${diffText}</span>
+          ${r.playoffPct == null ? "" : playoffBarHtml(r, ctx.byeTeams)}
+        </div>
+      </div>`;
+}
+
+function standingsLegendHtml(byeTeams, withOdds) {
+  return [
+    `<span class="pr-key"><i class="fd w"></i>Win</span>`,
+    `<span class="pr-key"><i class="fd l"></i>Loss <span class="pr-key-note">(oldest on the left)</span></span>`,
+    withOdds && byeTeams ? `<span class="pr-key"><i class="pr-swatch bye"></i>Bye</span>` : "",
+    withOdds ? `<span class="pr-key"><i class="pr-swatch playoffs"></i>${byeTeams ? "Playoffs, no bye" : "Playoffs"}</span>` : "",
+    withOdds ? `<span class="pr-key"><i class="pr-swatch miss"></i>Miss</span>` : "",
+  ]
+    .filter(Boolean)
     .join("");
 }
 
-// Phase 2: replaces the table above with every column fully populated,
-// once the single-season deep fetch (already needed for streaks/Power
-// Rankings) is in hand. Reuses DeepHistory.computeSeasonSummary -- the
-// same function the Season page itself builds its "Final Standings" table
-// from -- so this is the same Record/PF/PA/Avg-Wk/Overall/Luck/SOS data,
-// just for the in-progress current season. ROS keeps coming from
-// team-strength.json (computeSeasonSummary doesn't know about that file).
-function renderEnrichedStandings(league, rosters, users, deep, playerDirectory, teamStrength, playoffTeams) {
-  try {
-    const seasonEntry = { league, rosters, users, bracket: [] };
-    // Only finished weeks, so Overall/Luck/Avg/SOS cover the same weeks as the
-    // Record and PF beside them. Before any week is final there's nothing to add.
-    const finishedWeeks = onlyCompletedWeeks(deep.weeks, HOME.completed);
-    if (!finishedWeeks.length) return;
-    const summary = DeepHistory.computeSeasonSummary(seasonEntry, { ...deep, weeks: finishedWeeks }, playerDirectory, null, null, null);
-    const strengthByUsername = (teamStrength && teamStrength.teams) || {};
-
-    const avgByRosterId = new Map();
-    (summary.teamAverages || []).forEach((t) => {
-      if (t.rosterId != null) avgByRosterId.set(t.rosterId, t.average);
-    });
-
-    const tbody = document.getElementById("standings-body");
-    tbody.innerHTML = summary.standings
-      .map((t, i) => {
-        const strength = t.username && strengthByUsername[t.username];
-        const row = `
-        <tr>
-          <td class="rank" data-label="#">${i + 1}</td>
-          <td class="team-cell" data-label="Team"${t.username ? ` data-username="${escapeHtml(t.username)}"` : ""}>${t.userId ? `<a href="teams.html#${encodeURIComponent(t.userId)}" class="subtle-link">${escapeHtml(t.teamName)}</a>` : escapeHtml(t.teamName)}</td>
-          <td data-label="Record">${t.wins}-${t.losses}${t.ties ? "-" + t.ties : ""}</td>
-          <td data-label="PF">${t.fpts.toFixed(1)}</td>
-          <td class="col-more" data-label="PA">${t.fptsAgainst.toFixed(1)}</td>
-          <td class="col-more" data-label="Avg/Wk">${avgByRosterId.has(t.rosterId) ? avgByRosterId.get(t.rosterId).toFixed(1) : "—"}</td>
-          <td class="col-more" data-label="Overall">${t.overallWins}-${t.overallLosses}${t.overallTies ? "-" + t.overallTies : ""}</td>
-          <td data-label="Luck">${luckBadge(t.luckPct)}</td>
-          <td data-label="ROS">${strength ? "#" + strength.rank : "—"}</td>
-          <td data-label="SOS">${t.avgOpponentPF != null ? t.avgOpponentPF.toFixed(1) : "—"}</td>
-        </tr>`;
-        if (playoffTeams && i + 1 === playoffTeams && i + 1 < summary.standings.length) {
-          return row + `<tr class="playoff-cutoff-row"><td colspan="${STANDINGS_COLSPAN}" class="playoff-cutoff-label">Playoff Line</td></tr>`;
-        }
-        return row;
-      })
-      .join("");
-  } catch (err) {
-    // Best-effort enhancement -- Phase 1's lighter table above is still
-    // correct (just missing a few columns), so leave it as-is rather than
-    // replacing working data with an error state.
-    console.warn("Couldn't load enriched standings:", err);
-  }
+function renderStandings() {
+  const body = document.getElementById("standings-body");
+  if (!body) return;
+  const rows = buildStandingsRows();
+  HOME.rankByRoster = new Map(rows.map((r) => [r.rosterId, r.rank]));
+  const byeTeams = homeByeTeams();
+  const ctx = { byeTeams, maxAbs: Math.max(1, ...rows.map((r) => Math.abs(r.diff || 0))) };
+  const COLS = 9;
+  const lineHtml = (r, kind) => {
+    const line = standingsLineAfter(r.rank, rows.length, byeTeams, HOME.playoffTeams);
+    if (!line) return "";
+    return kind === "table"
+      ? `<tr class="hs-line ${line.cls}"><td colspan="${COLS}"><span>${line.text}</span></td></tr>`
+      : `<div class="hs-line ${line.cls}"><span>${line.text}</span></div>`;
+  };
+  body.innerHTML = rows.map((r) => standingsRowHtml(r, ctx) + lineHtml(r, "table")).join("");
+  const list = document.getElementById("standings-list");
+  if (list) list.innerHTML = rows.map((r) => standingsItemHtml(r, ctx) + lineHtml(r, "list")).join("");
+  const legend = document.getElementById("standings-legend");
+  if (legend) legend.innerHTML = standingsLegendHtml(byeTeams, HOME.powerByRoster.size > 0);
 }
+
 
 // ---------------------------------------------------------------
 // Matchup status. A matchup is FINAL once its week is over (the same rule
@@ -515,233 +658,402 @@ function weekHighlights(rawMatchups, standings) {
       if (!topScore || t.pts > topScore.pts) topScore = t;
     });
     const diff = Math.abs((a.points || 0) - (b.points || 0));
-    if (!closest || diff < closest.diff) closest = { diff, a: aName, b: bName };
+    // Winner first, so "McConkey Bonk over Count Pukula's Castle" reads the right way round.
+    const aWon = (a.points || 0) >= (b.points || 0);
+    if (!closest || diff < closest.diff) closest = { diff, a: aWon ? aName : bName, b: aWon ? bName : aName };
   });
   return { topScore: topScore && topScore.pts > 0 ? topScore : null, closest: topScore && topScore.pts > 0 ? closest : null };
 }
 
-// Shared by both the This Week's and Last Week's Matchups sections: one
-// matchup card, team name primary (matching the rest of the Home page),
-// username as a small subtitle right underneath (only when it adds
-// something), score to the side with a W/L tag once it is final, a status
-// label, and an empty head-to-head slot (filled in later, in the
-// background, by renderMatchupHeadToHead) identified by idPrefix so the
-// two sections' cards never collide even when the same two rosters appear
-// in both.
-function matchupCardHtml(a, b, aName, bName, aUsername, bUsername, idPrefix, order, status) {
-  const st = status || "final";
-  const users = [aUsername, bUsername].filter(Boolean).map((u) => String(u).trim().toLowerCase()).join("|");
-  const out = matchupOutcome(a, b, st);
-  const ptsClass = (side) => (out.lead ? (out.lead === side ? "lead" : "trail") : "even");
+
+
+// ---------------------------------------------------------------
+// Matchup preview. Each game is a small "tale of the tape": the two teams'
+// record, Power Rank, points per week, playoff odds, bye odds and last seven
+// results side by side, with the brighter mark on whichever side has the edge,
+// and the all-time series underneath. The Featured Matchup is the same
+// comparison, bigger. Everything is drawn from HOME, so a card draws again,
+// fuller, when the season's weekly data and the all-time history arrive.
+// ---------------------------------------------------------------
+function sameManager(username, me) {
+  const key = String(me == null ? "" : me).trim().toLowerCase();
+  return !!key && String(username == null ? "" : username).trim().toLowerCase() === key;
+}
+
+// A Power Rank as written next to a team: whole ranks plain, a tie between two
+// teams (5.5) with its decimal.
+function rankText(r) {
+  return Number.isInteger(r) ? String(r) : r.toFixed(1);
+}
+
+// One side of a game. `row` is Sleeper's matchup row, `team` the team's entry in
+// the Standings (may be missing), `nameFallback` what to call it if so.
+function matchupSide(row, team, nameFallback) {
+  const rid = row.roster_id;
+  const power = HOME.powerByRoster.get(rid) || null;
+  const num = (v) => (Number.isFinite(v) ? v : null);
+  return {
+    rosterId: rid,
+    userId: team ? team.userId : null,
+    name: (team && team.teamName) || nameFallback || `Roster ${rid}`,
+    username: team ? team.username : null,
+    wins: team ? team.wins || 0 : 0,
+    losses: team ? team.losses || 0 : 0,
+    ties: team ? team.ties || 0 : 0,
+    record: team ? recordText(team.wins, team.losses, team.ties) : "",
+    points: row.points || 0,
+    powerRank: power ? num(power.powerRank) : null,
+    avg: HOME.avgByRoster.has(rid) ? HOME.avgByRoster.get(rid) : power ? num(power.avgPpg) : null,
+    playoffPct: power ? num(power.playoffPct) : null,
+    byePct: power ? num(power.byePct) : null,
+    results: HOME.results.get(rid) || [],
+  };
+}
+
+function winShare(s) {
+  const games = s.wins + s.losses + s.ties;
+  return games ? (s.wins + s.ties / 2) / games : null;
+}
+
+// Which side has the edge on a number: "a", "b", or null when level or unknown.
+function edgeOf(av, bv, lowerIsBetter) {
+  if (!Number.isFinite(av) || !Number.isFinite(bv) || av === bv) return null;
+  const aBetter = lowerIsBetter ? av < bv : av > bv;
+  return aBetter ? "a" : "b";
+}
+
+function compareRowHtml(label, a, b) {
+  const cell = (c, side) => `<span class="cmp-val ${side}${c.edge ? " edge" : ""}">${c.text}</span>`;
+  const bar = (c, side) => `<span class="cmp-bar ${side}">${c.bar == null ? "" : `<i class="${c.edge ? "edge" : ""}" style="width:${round2(c.bar * 100)}%"></i>`}</span>`;
+  return `<div class="cmp-row">${cell(a, "a")}${bar(a, "a")}<span class="cmp-label">${label}</span>${bar(b, "b")}${cell(b, "b")}</div>`;
+}
+
+// The rows of one comparison. A row only appears when both teams have the number.
+function matchupCompareHtml(a, b, byeTeams) {
+  const rows = [];
+  const recEdge = edgeOf(winShare(a), winShare(b));
+  rows.push(compareRowHtml("Record", { text: escapeHtml(a.record), edge: recEdge === "a" }, { text: escapeHtml(b.record), edge: recEdge === "b" }));
+  if (a.powerRank != null && b.powerRank != null) {
+    const e = edgeOf(a.powerRank, b.powerRank, true);
+    rows.push(compareRowHtml("Power rank", { text: `#${rankText(a.powerRank)}`, edge: e === "a" }, { text: `#${rankText(b.powerRank)}`, edge: e === "b" }));
+  }
+  if (a.avg != null && b.avg != null) {
+    const e = edgeOf(a.avg, b.avg);
+    const top = Math.max(a.avg, b.avg) || 1;
+    rows.push(
+      compareRowHtml(
+        "Avg / wk",
+        { text: num1(a.avg), edge: e === "a", bar: Math.max(0.06, a.avg / top) },
+        { text: num1(b.avg), edge: e === "b", bar: Math.max(0.06, b.avg / top) }
+      )
+    );
+  }
+  const pctRow = (label, key) => {
+    if (a[key] == null || b[key] == null) return;
+    const e = edgeOf(a[key], b[key]);
+    const width = (v) => (v > 0 ? Math.max(0.015, v / 100) : 0);
+    rows.push(
+      compareRowHtml(
+        label,
+        { text: `${num1(a[key])}%`, edge: e === "a", bar: width(a[key]) },
+        { text: `${num1(b[key])}%`, edge: e === "b", bar: width(b[key]) }
+      )
+    );
+  };
+  pctRow("Playoffs", "playoffPct");
+  if (byeTeams) pctRow("Bye", "byePct");
+  if (a.results.length || b.results.length) {
+    rows.push(
+      `<div class="cmp-row cmp-form"><span class="cmp-val a"></span><span class="cmp-bar a">${formDotsHtml(a.results)}</span><span class="cmp-label">Last ${FORM_GAMES}</span><span class="cmp-bar b">${formDotsHtml(b.results)}</span><span class="cmp-val b"></span></div>`
+    );
+  }
+  return `<div class="mu-compare">${rows.join("")}</div>`;
+}
+
+// ---- all-time series between the two managers (needs the full history) ----------
+// Manager A's all-time record against manager B, or null until the history has loaded.
+function allTimeRecord(userIdA, userIdB) {
+  if (!HOME.h2h || !userIdA || !userIdB) return null;
+  const list = HOME.h2h.rec.get(userIdA);
+  const r = list && list.get(userIdB);
+  const wins = r ? r.wins || 0 : 0;
+  const losses = r ? r.losses || 0 : 0;
+  const ties = r ? r.ties || 0 : 0;
+  return { wins, losses, ties, total: wins + losses + ties };
+}
+
+// The series line for a game: "You are 3-6 all-time" when the picked team is one of
+// the two, otherwise "All-time: sofarrsogood 4-5 mayshisha" (usernames, like the rest
+// of Home's history lines). "" until the history has loaded. `variant` "featured"
+// spells it out ("All-time series: you are 3-6 against YuWillLose").
+function seriesText(a, b, variant) {
+  const rec = allTimeRecord(a.userId, b.userId);
+  if (!rec) return "";
+  if (!rec.total) return "First-ever meeting";
+  const featured = variant === "featured";
+  const lead = featured ? "All-time series: " : "";
+  const nameOf = (s) => (HOME.h2h.name && HOME.h2h.name.get(s.userId)) || s.username || s.name;
+  const me = currentMyTeam();
+  if (sameManager(a.username, me) || sameManager(b.username, me)) {
+    const mine = sameManager(a.username, me) ? a : b;
+    const other = mine === a ? b : a;
+    const r = mine === a ? rec : allTimeRecord(b.userId, a.userId);
+    const text = recordText(r.wins, r.losses, r.ties);
+    return featured ? `${lead}you are ${text} against ${nameOf(other)}` : `You are ${text} all-time`;
+  }
+  const text = `${nameOf(a)} ${recordText(rec.wins, rec.losses, rec.ties)} ${nameOf(b)}`;
+  return featured ? `${lead}${text}` : `All-time: ${text}`;
+}
+
+// ---- This Week: one card per game --------------------------------------------------
+function matchupSideHtml(s, status, out, key, lead) {
+  const winner = lead === key && status === "final";
+  const sameName = s.username && String(s.username).trim().toLowerCase() === String(s.name).trim().toLowerCase();
+  const user = s.username && !sameName ? `<span class="mu-user">${escapeHtml(s.username)}</span>` : "";
+  const pr = s.powerRank != null ? `<span class="mu-pr">PR #${rankText(s.powerRank)}</span>` : "";
+  const tone = lead ? (lead === key ? "lead" : "trail") : "even";
+  const score = status === "upcoming" ? "" : `<span class="mu-score ${tone}">${scoreText(s.points, status)}</span>${outcomeTagHtml(out[key])}`;
   return `
-      <div class="matchup status-${st}" data-order="${order || 0}" data-users="${escapeHtml(users)}">
-        <div class="matchup-row">
-          <div class="side${out.lead === "a" && st === "final" ? " winner" : ""}">
-            <span class="name">${escapeHtml(aName)}</span>
-            ${usernameSubHtml(aName, aUsername)}
-            <span class="pts ${ptsClass("a")}">${scoreText(a.points, st)}</span>
-            ${outcomeTagHtml(out.a)}
-          </div>
-          <span class="vs">VS</span>
-          <div class="side right${out.lead === "b" && st === "final" ? " winner" : ""}">
-            <span class="name">${escapeHtml(bName)}</span>
-            ${usernameSubHtml(bName, bUsername)}
-            <span class="pts ${ptsClass("b")}">${scoreText(b.points, st)}</span>
-            ${outcomeTagHtml(out.b)}
-          </div>
+          <span class="mu-side${key === "b" ? " right" : ""}${winner ? " winner" : ""}">
+            <span class="mu-name"${s.username ? ` data-username="${escapeHtml(s.username)}"` : ""}>${escapeHtml(s.name)}</span>
+            <span class="mu-sub">${user}<span class="mu-rec">${escapeHtml(s.record)}</span>${pr}</span>
+            ${score}
+          </span>`;
+}
+
+// a, b: the two sides (see matchupSide), a on the left. o: { status, idPrefix, order, byeTeams }.
+function matchupPreviewCardHtml(a, b, o) {
+  const status = o.status || "final";
+  const out = matchupOutcome(a, b, status);
+  const users = [a.username, b.username].filter(Boolean).map((u) => String(u).trim().toLowerCase()).join("|");
+  const series = seriesText(a, b, "card");
+  const id = `mu-${o.idPrefix}-${Math.min(a.rosterId, b.rosterId)}-${Math.max(a.rosterId, b.rosterId)}`;
+  return `
+      <details class="mu-card status-${status}" id="${id}" data-order="${o.order || 0}" data-users="${escapeHtml(users)}" open>
+        <summary class="mu-head">
+          ${matchupSideHtml(a, status, out, "a", out.lead)}<span class="mu-vs">VS</span>${matchupSideHtml(b, status, out, "b", out.lead)}
+          ${series ? `<span class="mu-glance">${escapeHtml(series)}</span>` : ""}
+        </summary>
+        <div class="mu-body">
+          ${matchupCompareHtml(a, b, o.byeTeams)}
+          ${series ? `<div class="mu-series">${escapeHtml(series)}</div>` : ""}
         </div>
-        <div class="matchup-foot">
-          <span class="matchup-status st-${st}">${MATCHUP_STATUS_LABEL[st]}</span>
-          <span class="matchup-h2h" id="h2h-${idPrefix}-${a.roster_id}-${b.roster_id}"></span>
-        </div>
-      </div>`;
+      </details>`;
+}
+
+// Sleeper's rows for one week -> [[leader, other], ...] for every real game (byes skipped).
+function matchupPairs(rawMatchups) {
+  const byId = new Map();
+  (rawMatchups || []).forEach((m) => {
+    if (m.matchup_id == null) return;
+    if (!byId.has(m.matchup_id)) byId.set(m.matchup_id, []);
+    byId.get(m.matchup_id).push(m);
+  });
+  const pairs = [];
+  byId.forEach((group) => {
+    if (group.length < 2) return;
+    pairs.push(group.slice().sort((x, y) => (y.points || 0) - (x.points || 0)));
+  });
+  return pairs;
+}
+
+// The picked team's side goes on the left of its own game.
+function mineFirst(pair, standingsByRoster, me) {
+  const second = standingsByRoster.get(pair[1].roster_id);
+  return sameManager(second && second.username, me) ? [pair[1], pair[0]] : pair;
 }
 
 function renderMatchupsAndFeatured(rawMatchups, standings, week) {
   const matchupsEl = document.getElementById("matchups-list");
   const featuredEl = document.getElementById("featured-matchup-panel");
+  setChip("featured-note", "");
 
   if (!week) {
     matchupsEl.innerHTML = `<div class="empty-state">No matchups to show right now.</div>`;
     featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
-    return { pairs: [] };
+    return;
   }
   if (!rawMatchups || rawMatchups.length === 0) {
     matchupsEl.innerHTML = `<div class="empty-state">Matchups for week ${week} aren't posted yet.</div>`;
     featuredEl.innerHTML = `<div class="empty-state">Matchups for week ${week} aren't posted yet.</div>`;
-    return { pairs: [] };
+    return;
   }
 
   const weekIsFinal = HOME.completed >= week;
-  const nameByRoster = new Map(standings.map((t) => [t.rosterId, t.teamName]));
   const standingsByRoster = new Map(standings.map((t) => [t.rosterId, t]));
-  const byMatchupId = new Map();
-  rawMatchups.forEach((m) => {
-    if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
-    byMatchupId.get(m.matchup_id).push(m);
-  });
+  const me = currentMyTeam();
+  const byeTeams = homeByeTeams();
 
-  const cards = [];
-  const pairs = []; // {rosterA, rosterB, userIdA, userIdB, aName, bName} -- for the head-to-head enrichment pass (Phase 2)
-  byMatchupId.forEach((pair) => {
-    if (pair.length < 2) return; // bye week / odd roster count
-    const [a, b] = pair.sort((x, y) => (y.points || 0) - (x.points || 0));
-    const aName = nameByRoster.get(a.roster_id) || `Roster ${a.roster_id}`;
-    const bName = nameByRoster.get(b.roster_id) || `Roster ${b.roster_id}`;
+  const cards = matchupPairs(rawMatchups).map((pair, i) => {
+    const [a, b] = mineFirst(pair, standingsByRoster, me);
     const status = matchupStatus(a, b, weekIsFinal);
-
-    const sa = standingsByRoster.get(a.roster_id);
-    const sb = standingsByRoster.get(b.roster_id);
-
-    pairs.push({
-      rosterA: a.roster_id,
-      rosterB: b.roster_id,
-      userIdA: sa ? sa.userId : null,
-      userIdB: sb ? sb.userId : null,
-      aName,
-      bName,
-    });
-
-    cards.push(matchupCardHtml(a, b, aName, bName, sa && sa.username, sb && sb.username, "cur", cards.length, status));
+    const A = matchupSide(a, standingsByRoster.get(a.roster_id));
+    const B = matchupSide(b, standingsByRoster.get(b.roster_id));
+    return {
+      order: i,
+      users: [A.username, B.username].filter(Boolean).map((u) => String(u).trim().toLowerCase()),
+      html: matchupPreviewCardHtml(A, B, { status, idPrefix: "cur", order: i, byeTeams }),
+    };
   });
+  matchupsEl.innerHTML = matchupDisplayOrder(cards, me).map((i) => cards[i].html).join("") || `<div class="empty-state">No matchups posted yet.</div>`;
 
-  matchupsEl.innerHTML = cards.join("") || `<div class="empty-state">No matchups posted yet.</div>`;
   const picked = featuredMatchupPair(rawMatchups, standings);
-  const featuredPair = picked && {
-    ...picked,
-    aName: nameByRoster.get(picked.a.roster_id) || `Roster ${picked.a.roster_id}`,
-    bName: nameByRoster.get(picked.b.roster_id) || `Roster ${picked.b.roster_id}`,
-    status: matchupStatus(picked.a, picked.b, weekIsFinal),
-  };
-  featuredEl.innerHTML = featuredPair ? featuredMatchupHtml(featuredPair, week) : `<div class="empty-state">No matchups to feature yet.</div>`;
+  if (picked) {
+    const swap = sameManager(picked.sb && picked.sb.username, me);
+    const left = swap ? { row: picked.b, team: picked.sb } : { row: picked.a, team: picked.sa };
+    const right = swap ? { row: picked.a, team: picked.sa } : { row: picked.b, team: picked.sb };
+    const f = { a: left.row, b: right.row, sa: left.team, sb: right.team, status: matchupStatus(picked.a, picked.b, weekIsFinal) };
+    featuredEl.innerHTML = featuredMatchupHtml(f, week);
+    const state = f.status === "upcoming" ? "" : `<span class="matchup-status st-${f.status}">${MATCHUP_STATUS_LABEL[f.status]}</span> · `;
+    setChip("featured-note", `${state}Best combined record on the slate`);
+  } else {
+    featuredEl.innerHTML = `<div class="empty-state">No matchups to feature yet.</div>`;
+  }
 
-  return { pairs };
+  syncMatchupCards();
 }
 
-// The one matchup picked for the best combined record on the slate. It carries the same
-// status label and W/L tags as the cards, so a finished game reads as finished.
-function featuredMatchupHtml(f, week) {
-  const { a, b, aName, bName, sa, sb, status } = f;
-  const out = matchupOutcome(a, b, status);
-  const record = (s) => (s ? `${s.wins}-${s.losses}${s.ties ? "-" + s.ties : ""}` : "");
-  const ptsClass = (side) => (out.lead ? (out.lead === side ? "lead" : "trail") : "even");
-  const side = (name, s, row, key) => `
-        <div class="side${out.lead === key && status === "final" ? " winner" : ""}">
-          <div class="name">${escapeHtml(name)}</div>
-          <div class="record">${record(s)}</div>
-          <div class="pts ${ptsClass(key)}">${scoreText(row.points, status)}</div>
-          ${outcomeTagHtml(out[key])}
+// The one game picked for the best combined record on the slate, drawn bigger. Same
+// comparison as the cards, same status and score treatment once it is under way.
+// f: { a, b, sa, sb, status } (Sleeper rows and Standings entries, left side first).
+function featuredMatchupHtml(f) {
+  const A = matchupSide(f.a, f.sa, f.aName);
+  const B = matchupSide(f.b, f.sb, f.bName);
+  const status = f.status || "final";
+  const out = matchupOutcome(A, B, status);
+  const users = [A.username, B.username].filter(Boolean).map((u) => String(u).trim().toLowerCase()).join("|");
+  const side = (s, key) => {
+    const winner = out.lead === key && status === "final";
+    const sameName = s.username && String(s.username).trim().toLowerCase() === String(s.name).trim().toLowerCase();
+    const tone = out.lead ? (out.lead === key ? "lead" : "trail") : "even";
+    return `
+        <div class="mu-side mu-fside${key === "b" ? " right" : ""}${winner ? " winner" : ""}">
+          <div class="mu-fname mu-name"${s.username ? ` data-username="${escapeHtml(s.username)}"` : ""}>${escapeHtml(s.name)}</div>
+          ${s.username && !sameName ? `<div class="mu-fuser">${escapeHtml(s.username)}</div>` : ""}
+          ${status === "upcoming" ? "" : `<div class="mu-score ${tone}">${scoreText(s.points, status)}</div>${outcomeTagHtml(out[key])}`}
         </div>`;
+  };
+  const series = seriesText(A, B, "featured");
   return `
-      <div class="featured-matchup">${side(aName, sa, a, "a")}
-        <div class="vs">VS</div>${side(bName, sb, b, "b")}
-      </div>
-      <div class="featured-matchup-sub"><span class="matchup-status st-${status}">${MATCHUP_STATUS_LABEL[status]}</span> Week ${week} · picked for the best combined record on the slate</div>`;
+      <div class="mu-featured status-${status}" data-users="${escapeHtml(users)}">
+        <div class="mu-fhead">${side(A, "a")}<div class="mu-vs">VS</div>${side(B, "b")}</div>
+        ${matchupCompareHtml(A, B, homeByeTeams())}
+        ${series ? `<div class="mu-series">${escapeHtml(series)}</div>` : ""}
+      </div>`;
 }
 
-// Same card format as This Week's Matchups (team name, username subtitle,
-// final score with the W/L tags, empty h2h slot filled in later), but no
-// ticker/featured side effects -- those are specific to the CURRENT week.
-// idPrefix "last" keeps this section's h2h element ids distinct from "cur"'s.
+// ---- phone: a card is its two names and the series line until it is tapped ----------
+const MU_PHONE_QUERY = "(max-width: 720px)";
+
+function isPhoneWidth() {
+  return typeof window !== "undefined" && !!window.matchMedia && window.matchMedia(MU_PHONE_QUERY).matches;
+}
+
+const openMatchupCards = new Set();
+
+// Wide screens show every card open; on a phone each starts closed (and stays open
+// if it was opened, even when the panel is drawn again with fuller numbers).
+function syncMatchupCards() {
+  if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return;
+  const phone = isPhoneWidth();
+  document.querySelectorAll(".mu-card").forEach((card) => {
+    card.open = phone ? openMatchupCards.has(card.id) : true;
+  });
+}
+
+// ---- Last Week: a plain scoreboard ----------------------------------------------------
+// The one game where the lowest-ranked team beat the highest-ranked one, by the widest
+// gap in Power Rank. games: [{ winner: { name, rank }, loser: { name, rank } }].
+function biggestUpset(games) {
+  let best = null;
+  (games || []).forEach((g) => {
+    if (!g.winner || !g.loser || !Number.isFinite(g.winner.rank) || !Number.isFinite(g.loser.rank)) return;
+    const gap = g.winner.rank - g.loser.rank;
+    if (gap > 0 && (!best || gap > best.gap)) best = { winner: g.winner, loser: g.loser, gap };
+  });
+  return best;
+}
+
+function rankWord(r) {
+  return Number.isInteger(r) ? ordinal(r) : `#${r.toFixed(1)}`;
+}
+
+function recapRowHtml(a, b, status, order) {
+  const out = matchupOutcome(a, b, status);
+  const tie = status !== "upcoming" && a.points === b.points;
+  const by = tie ? { label: "Tie", value: "" } : status === "final" ? { label: "Won by", value: `+${Math.abs(a.points - b.points).toFixed(1)}` } : status === "progress" ? { label: "Leads by", value: `+${Math.abs(a.points - b.points).toFixed(1)}` } : { label: "", value: "" };
+  const users = [a.username, b.username].filter(Boolean).map((u) => String(u).trim().toLowerCase()).join("|");
+  const side = (s, key) => {
+    const tone = out.lead ? (out.lead === key ? "lead" : "trail") : "even";
+    return `<span class="lw-side ${key}"><span class="lw-name"${s.username ? ` data-username="${escapeHtml(s.username)}"` : ""}>${escapeHtml(s.name)}</span><span class="lw-score ${tone}">${scoreText(s.points, status)}</span></span>`;
+  };
+  return `
+      <div class="lw-row status-${status}" data-order="${order || 0}" data-users="${escapeHtml(users)}">
+        ${side(a, "a")}
+        <span class="lw-by"><span class="lw-by-label">${by.label}</span><span class="lw-by-value">${by.value}</span></span>
+        ${side(b, "b")}
+      </div>`;
+}
+
+// The one-line wrap-up under the scoreboard: top score, closest game, biggest upset.
+function recapFootText(rawMatchups, standings) {
+  const h = weekHighlights(rawMatchups, standings);
+  if (!h.topScore) return "";
+  const parts = [`Top score ${h.topScore.pts.toFixed(1)} (${h.topScore.name})`, `Closest ${h.closest.diff.toFixed(1)}`];
+  const byRoster = new Map((standings || []).map((t) => [t.rosterId, t]));
+  const games = matchupPairs(rawMatchups)
+    .filter((p) => (p[0].points || 0) > (p[1].points || 0))
+    .map(([w, l]) => {
+      const entry = (row) => {
+        const p = HOME.powerByRoster.get(row.roster_id);
+        const t = byRoster.get(row.roster_id);
+        return { name: (t && t.teamName) || `Roster ${row.roster_id}`, rank: p ? p.powerRank : null };
+      };
+      return { winner: entry(w), loser: entry(l) };
+    });
+  const upset = biggestUpset(games);
+  if (upset) parts.push(`Biggest upset: ${upset.winner.name} (${rankWord(upset.winner.rank)}) over ${upset.loser.name} (${rankWord(upset.loser.rank)})`);
+  return parts.join(" · ");
+}
+
 function renderLastWeekMatchups(rawMatchups, standings, lastWeek) {
   const el = document.getElementById("last-week-matchups-list");
-  if (!el) return { pairs: [] };
+  if (!el) return;
+  setChip("last-week-fresh", "");
+  setChip("last-week-foot", "");
 
   if (!lastWeek) {
     el.innerHTML = `<div class="empty-state">No prior week yet this season.</div>`;
-    return { pairs: [] };
+    return;
   }
   if (!rawMatchups || rawMatchups.length === 0) {
     el.innerHTML = `<div class="empty-state">Week ${lastWeek} matchups aren't available.</div>`;
-    return { pairs: [] };
+    return;
   }
 
-  const nameByRoster = new Map(standings.map((t) => [t.rosterId, t.teamName]));
   const standingsByRoster = new Map(standings.map((t) => [t.rosterId, t]));
-  const byMatchupId = new Map();
-  rawMatchups.forEach((m) => {
-    if (!byMatchupId.has(m.matchup_id)) byMatchupId.set(m.matchup_id, []);
-    byMatchupId.get(m.matchup_id).push(m);
-  });
-
   // Last week is only "final" if it really is: the week before the current one
   // normally is, but a lagging Sleeper still counts as in progress.
   const weekIsFinal = HOME.completed >= lastWeek;
-  const cards = [];
-  const pairs = [];
-  byMatchupId.forEach((pair) => {
-    if (pair.length < 2) return;
-    const [a, b] = pair.sort((x, y) => (y.points || 0) - (x.points || 0));
-    const aName = nameByRoster.get(a.roster_id) || `Roster ${a.roster_id}`;
-    const bName = nameByRoster.get(b.roster_id) || `Roster ${b.roster_id}`;
-    const sa = standingsByRoster.get(a.roster_id);
-    const sb = standingsByRoster.get(b.roster_id);
-
-    pairs.push({
-      rosterA: a.roster_id,
-      rosterB: b.roster_id,
-      userIdA: sa ? sa.userId : null,
-      userIdB: sb ? sb.userId : null,
-      aName,
-      bName,
-    });
-
-    cards.push(matchupCardHtml(a, b, aName, bName, sa && sa.username, sb && sb.username, "last", cards.length, matchupStatus(a, b, weekIsFinal)));
+  const me = currentMyTeam();
+  const games = matchupPairs(rawMatchups).map((pair, i) => {
+    const [a, b] = pair; // leader first
+    const status = matchupStatus(a, b, weekIsFinal);
+    const A = matchupSide(a, standingsByRoster.get(a.roster_id));
+    const B = matchupSide(b, standingsByRoster.get(b.roster_id));
+    return {
+      order: i,
+      users: [A.username, B.username].filter(Boolean).map((u) => String(u).trim().toLowerCase()),
+      html: recapRowHtml(A, B, status, i),
+    };
   });
+  el.innerHTML = matchupDisplayOrder(games, me).map((i) => games[i].html).join("") || `<div class="empty-state">No matchups posted that week.</div>`;
 
-  el.innerHTML = cards.join("") || `<div class="empty-state">No matchups posted that week.</div>`;
-  return { pairs };
-}
-
-// Fills in each matchup card's all-time head-to-head line (both This
-// Week's and Last Week's sections at once -- see idPrefix on each pair),
-// once the full season history is available. Deliberately separate from
-// (and run after) renderMatchupsAndFeatured/renderLastWeekMatchups: those
-// functions' whole job is to get matchups on screen from the fast,
-// single-call standings/matchups data, with no multi-season fetch
-// blocking them. Head-to-head needs a manager's full career record
-// against each opponent, which only exists after walking the entire
-// season chain (the same fetchSeasonChain -> buildAll -> computeStats
-// pipeline Teams/Records/Rivalries already use) -- a real
-// network-and-compute cost best paid in the background, after the
-// matchups the person actually came here to see are already on screen.
-// The card itself still shows team names (matching the rest of the Home
-// page), but the All-Time record line uses usernames, not team names.
-async function renderMatchupHeadToHead(pairs, playerDirectory) {
-  try {
-    const seasonChain = await SleeperAPI.getSeasonChain(LEAGUE_ID);
-    if (seasonChain.length === 0) return;
-    const deepSeasons = await DeepHistory.buildAll(seasonChain, () => {});
-    const { managers } = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
-    const h2hByUserId = new Map(managers.map((m) => [m.userId, m.headToHead]));
-    const usernameByUserId = new Map(managers.map((m) => [m.userId, m.username || m.teamName]));
-
-    pairs.forEach(({ rosterA, rosterB, userIdA, userIdB, aName, bName, idPrefix }) => {
-      const el = document.getElementById(`h2h-${idPrefix}-${rosterA}-${rosterB}`);
-      if (!el || !userIdA || !userIdB) return;
-      const aUsername = usernameByUserId.get(userIdA) || aName;
-      const bUsername = usernameByUserId.get(userIdB) || bName;
-      const list = h2hByUserId.get(userIdA) || [];
-      const rec = list.find((h) => h.opponentUserId === userIdB);
-      if (!rec) {
-        el.textContent = "First-ever meeting";
-        return;
-      }
-      const total = rec.wins + rec.losses + rec.ties;
-      if (!total) {
-        el.textContent = "First-ever meeting";
-        return;
-      }
-      const tieStr = rec.ties ? `-${rec.ties}` : "";
-      el.textContent = `All-Time: ${aUsername} ${rec.wins}-${rec.losses}${tieStr} ${bUsername}`;
-    });
-  } catch (err) {
-    // Best-effort enhancement -- the matchup cards above already rendered
-    // fine without this, so a failure here (e.g. a season in the chain
-    // failing to fetch) just means the h2h line stays empty, not an error
-    // banner over working matchup data.
-    console.warn("Couldn't load head-to-head history for this week's matchups:", err);
-  }
+  const scores = rawMatchups.filter((m) => m.matchup_id != null).map((m) => m.points || 0);
+  const avg = weekIsFinal && scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null;
+  setChip("last-week-fresh", freshnessChipHtml({ label: weekIsFinal ? "Final" : "In progress", week: lastWeek, note: avg != null ? `Avg ${avg.toFixed(1)}` : "" }));
+  const foot = document.getElementById("last-week-foot");
+  if (foot) foot.textContent = weekIsFinal ? recapFootText(rawMatchups, standings) : "";
 }
 
 // ---------------------------------------------------------------
@@ -844,182 +1156,19 @@ function renderRecordsInReach(feed) {
   el.innerHTML = html;
 }
 
-function computeCurrentStreaks(deepWeeks, rosterInfo) {
-  const resultsByRoster = new Map();
-  deepWeeks.forEach(({ week, matchups }) => {
-    const pairs = new Map();
-    matchups.forEach((m) => {
-      if (m.matchup_id == null) return;
-      if (!pairs.has(m.matchup_id)) pairs.set(m.matchup_id, []);
-      pairs.get(m.matchup_id).push(m);
-    });
-    pairs.forEach((pair) => {
-      if (pair.length < 2) return;
-      const [a, b] = pair;
-      [
-        { rid: a.roster_id, own: a.points || 0, opp: b.points || 0 },
-        { rid: b.roster_id, own: b.points || 0, opp: a.points || 0 },
-      ].forEach(({ rid, own, opp }) => {
-        const result = own > opp ? "W" : own < opp ? "L" : "T";
-        if (!resultsByRoster.has(rid)) resultsByRoster.set(rid, []);
-        resultsByRoster.get(rid).push({ week, result });
-      });
-    });
-  });
-
-  const streaks = [];
-  resultsByRoster.forEach((results, rosterId) => {
-    results.sort((a, b) => a.week - b.week);
-    if (!results.length) return;
-    let len = 0;
-    let result = null;
-    for (let i = results.length - 1; i >= 0; i--) {
-      if (result === null) {
-        result = results[i].result;
-        len = 1;
-      } else if (results[i].result === result) {
-        len += 1;
-      } else {
-        break;
-      }
-    }
-    if ((result === "W" || result === "L") && len >= 2) {
-      const info = rosterInfo.get(rosterId);
-      streaks.push({ teamName: info ? info.username || info.teamName : "Unknown", result, length: len });
-    }
-  });
-  return streaks.sort((a, b) => b.length - a.length);
+// ---------------------------------------------------------------
+// Display order of cards: the picked manager's game first, the rest as they were.
+// ---------------------------------------------------------------
+// cards: [{ order, users: ["a", "b"] }] -> the indexes in display order, the
+// matchups involving `me` first and everything else in its original order.
+function matchupDisplayOrder(cards, me) {
+  const key = String(me || "").trim().toLowerCase();
+  return cards
+    .map((c, i) => ({ i, order: c.order, mine: !!key && c.users.includes(key) }))
+    .sort((x, y) => (y.mine ? 1 : 0) - (x.mine ? 1 : 0) || x.order - y.order || x.i - y.i)
+    .map((x) => x.i);
 }
 
-function renderStreaksPanel(streaks) {
-  const el = document.getElementById("streaks-panel");
-  const hot = streaks.filter((s) => s.result === "W").slice(0, 3);
-  const cold = streaks.filter((s) => s.result === "L").slice(0, 3);
-  if (!hot.length && !cold.length) {
-    el.innerHTML = `<div class="empty-state">No streaks of 2+ games yet.</div>`;
-    return;
-  }
-  el.innerHTML = [...hot, ...cold]
-    .map(
-      (s) => `
-    <div class="streak-row">
-      <span class="name">${escapeHtml(s.teamName)}</span>
-      <span class="streak-badge ${s.result === "W" ? "hot" : "cold"}">${s.result === "W" ? "🔥" : "🥶"} ${s.length}${s.result}</span>
-    </div>`
-    )
-    .join("");
-}
-
-function renderPowerRankingsSnapshot(snapshot, lastWeekRanks) {
-  const el = document.getElementById("power-rankings-snapshot");
-  if (!snapshot || !snapshot.rows || !snapshot.rows.length) {
-    el.innerHTML = `<div class="empty-state">No power rankings yet.</div>`;
-    return;
-  }
-  const fmtRank = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-  // Preseason rows are just {rank, username, teamName} — there's no PR
-  // Score/record/playoff odds yet to build a real ranking from, so this
-  // is a plain top-3 list with no delta column rather than trying to
-  // force the full-season row shape onto data that doesn't have it.
-  if (snapshot.preseason) {
-    const rows = snapshot.rows
-      .slice(0, 3)
-      .map(
-        (r) => `
-      <div class="pr-mini-row">
-        <span class="pr-mini-rank">#${r.rank}</span>
-        <span class="pr-mini-name">${escapeHtml(r.username)}</span>
-        <span class="pr-mini-delta muted-inline">PRESEASON</span>
-      </div>`
-      )
-      .join("");
-    el.innerHTML = rows + `<a class="dash-more-link" href="power-rankings.html">See Full Power Rankings →</a>`;
-    return;
-  }
-
-  const top3 = snapshot.rows.slice(0, 3);
-  const rows = top3
-    .map((r) => {
-      let deltaHtml = `<span class="pr-mini-delta muted-inline">NEW</span>`;
-      if (lastWeekRanks && lastWeekRanks[r.teamName] != null) {
-        const diff = lastWeekRanks[r.teamName] - r.powerRank;
-        if (diff > 0) deltaHtml = `<span class="pr-mini-delta luck-positive">▲${fmtRank(diff)}</span>`;
-        else if (diff < 0) deltaHtml = `<span class="pr-mini-delta luck-negative">▼${fmtRank(Math.abs(diff))}</span>`;
-        else deltaHtml = `<span class="pr-mini-delta muted-inline">–</span>`;
-      }
-      return `
-      <div class="pr-mini-row">
-        <span class="pr-mini-rank">#${fmtRank(r.powerRank)}</span>
-        <span class="pr-mini-name">${escapeHtml(r.teamName)}</span>
-        ${deltaHtml}
-      </div>`;
-    })
-    .join("");
-  el.innerHTML = rows + `<a class="dash-more-link" href="power-rankings.html">See Full Power Rankings →</a>`;
-}
-
-// Streaks are computed live (deterministic from actual results — no
-// randomness involved, so there's nothing to gain from freezing them
-// into a snapshot the way Power Rankings needed). Power Rankings and
-// the clinch/eliminate hero story, though, both come from
-// data/power-rankings-snapshot.json — the same saved-not-live snapshot
-// scripts/update-power-rankings.js writes, exactly as on the dedicated
-// Power Rankings page. This used to call DeepHistory.computePowerRankings
-// directly here too, which re-ran an unseeded Monte Carlo simulation on
-// every single page load — different random playoff odds (and
-// therefore a different top-3 order) on every refresh. Reading the same
-// saved snapshot this page's dedicated view uses fixes that by
-// construction: both places now show the exact same numbers, updated
-// only when someone actually runs the update script.
-async function renderStreaksAndPowerRankings(league, rosters, users, week, playerDirectory, teamStrength) {
-  try {
-    const seasonEntry = { league, rosters, users, bracket: [] };
-    const [deep, snapshot, powerRankHistory] = await Promise.all([
-      DeepHistory.fetchSeasonDeep(seasonEntry, () => {}),
-      fetchJsonSafe(POWER_RANKINGS_SNAPSHOT_FILE, null),
-      fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} }),
-    ]);
-
-    let streaks = [];
-    const finishedWeeks = onlyCompletedWeeks(deep.weeks, HOME.completed);
-    setChip("hotcold-fresh", freshnessChipHtml({ through: HOME.completed, current: week, note: "updates Tuesdays" }));
-    if (finishedWeeks.length) {
-      const usersById = new Map(users.map((u) => [u.user_id, u]));
-      const rosterInfo = new Map();
-      rosters.forEach((r) => {
-        const user = usersById.get(r.owner_id);
-        rosterInfo.set(r.roster_id, { teamName: SleeperAPI.teamName(user, r.roster_id), username: user ? user.display_name : null });
-      });
-      streaks = computeCurrentStreaks(finishedWeeks, rosterInfo);
-      renderStreaksPanel(streaks);
-    } else {
-      document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">No finished games yet \u2014 streaks start after Week 1.</div>`;
-    }
-
-    const prRows = snapshot && !snapshot.preseason ? snapshot.rows : null;
-    let lastWeekRanks = null;
-    if (prRows) {
-      const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(snapshot.season)]) || {};
-      lastWeekRanks = seasonHistory[String(snapshot.week - 1)] || null;
-    }
-    renderPowerRankingsSnapshot(snapshot, lastWeekRanks);
-    setChip(
-      "pr-fresh",
-      snapshot && !snapshot.preseason
-        ? freshnessChipHtml({ label: "Snapshot", through: snapshot.week, current: week, note: "updates with each ROS refresh" })
-        : snapshot
-        ? freshnessChipHtml({ label: "Preseason", tone: "snap" })
-        : ""
-    );
-
-    renderEnrichedStandings(league, rosters, users, deep, playerDirectory, teamStrength, league.settings && league.settings.playoff_teams);
-  } catch (err) {
-    console.error(err);
-    document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Couldn't load streak data.</div>`;
-    document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">Couldn't load power rankings.</div>`;
-  }
-}
 
 function describeTransaction(tx, rosterInfoByRosterId, playerDirectory) {
   const teamLabel = (rid) => {
@@ -1080,55 +1229,351 @@ async function renderRecentActivity(leagueId, currentWeek, rosters, users, playe
   }
 }
 
-// ---------------------------------------------------------------
-// My team on Home: pin the picked manager's matchup first, then redraw the
-// pieces that depend on who it is (the pulse cell and Records in Reach).
-// The row highlight itself is js/my-team.js's job.
-// ---------------------------------------------------------------
 
-// cards: [{ order, users: ["a", "b"] }] -> the indexes in display order, the
-// matchups involving `me` first and everything else in its original order.
-function matchupDisplayOrder(cards, me) {
-  const key = String(me || "").trim().toLowerCase();
-  return cards
-    .map((c, i) => ({ i, order: c.order, mine: !!key && c.users.includes(key) }))
-    .sort((x, y) => (y.mine ? 1 : 0) - (x.mine ? 1 : 0) || x.order - y.order || x.i - y.i)
-    .map((x) => x.i);
+// ---------------------------------------------------------------
+// My Team card: the picked manager's team at a glance (record, place in the
+// table, Power Rank, playoff odds, last seven results) and who they play this week.
+// Until a team is picked it holds the prompt to pick one.
+// ---------------------------------------------------------------
+function myTeamModel() {
+  const me = currentMyTeam();
+  if (!me) return { state: "none" };
+  const team = HOME.standings.find((t) => sameManager(t.username, me));
+  if (!team) return { state: "missing", me };
+  return {
+    state: "ok",
+    me,
+    team,
+    rank: HOME.rankByRoster.get(team.rosterId) || HOME.standings.indexOf(team) + 1,
+    power: HOME.powerByRoster.get(team.rosterId) || null,
+    results: HOME.results.get(team.rosterId) || [],
+    matchup: HOME.week && HOME.rawMatchups.length ? findMyMatchup(HOME.rawMatchups, HOME.standings, me) : null,
+  };
 }
 
-function pinMyMatchups(me) {
-  ["matchups-list", "last-week-matchups-list"].forEach((id) => {
-    const list = document.getElementById(id);
-    if (!list) return;
-    const els = Array.from(list.children).filter((c) => c.classList && c.classList.contains("matchup"));
-    els.forEach((c) => {
-      const tag = c.querySelector(".matchup-tag");
-      if (tag) tag.remove();
-    });
-    const meta = els.map((c) => ({ order: Number(c.getAttribute("data-order")) || 0, users: (c.getAttribute("data-users") || "").split("|").filter(Boolean) }));
-    const key = String(me || "").trim().toLowerCase();
-    matchupDisplayOrder(meta, me).forEach((idx) => {
-      const c = els[idx];
-      list.appendChild(c);
-      if (key && meta[idx].users.includes(key)) {
-        const tag = document.createElement("span");
-        tag.className = "matchup-tag";
-        tag.textContent = "Your matchup";
-        c.insertBefore(tag, c.firstChild);
+// "Week 8 vs Big Ole Penix (6-1). You are 3-6 against YuWillLose all-time."
+function myTeamNextLine(m) {
+  const week = HOME.week;
+  if (!week || !m.matchup) return "";
+  const opp = m.matchup.opponent;
+  if (!opp) return m.matchup.mine ? `Week ${week} · bye week.` : "";
+  let line = `Week ${week} vs <b>${escapeHtml(opp.teamName)}</b> (${recordText(opp.wins, opp.losses, opp.ties)}).`;
+  const rec = allTimeRecord(m.team.userId, opp.userId);
+  if (rec) {
+    const who = (HOME.h2h.name && HOME.h2h.name.get(opp.userId)) || opp.username || opp.teamName;
+    line += rec.total ? ` You are ${recordText(rec.wins, rec.losses, rec.ties)} against ${escapeHtml(who)} all-time.` : " First-ever meeting.";
+  }
+  return line;
+}
+
+function myTeamCardHtml(m) {
+  if (m.state === "none") {
+    return `
+      <div class="mt-top"><span class="mt-label">My team</span></div>
+      <p class="mt-name mt-name-empty">Pick your team</p>
+      <p class="mt-next">We’ll pin your matchup and highlight you everywhere.</p>
+      <button class="pulse-cta" type="button" data-myteam-open>Pick your team</button>`;
+  }
+  if (m.state === "missing") {
+    return `
+      <div class="mt-top"><span class="mt-label">My team</span></div>
+      <p class="mt-name mt-name-empty">${escapeHtml(m.me)}</p>
+      <p class="mt-next">${escapeHtml(m.me)} isn’t in this league.</p>
+      <button class="pulse-cta" type="button" data-myteam-open>Change team</button>`;
+  }
+  const t = m.team;
+  const stat = (label, value, cls) => `<div class="mt-stat"><span class="mt-stat-label">${label}</span><b class="mt-stat-value${cls ? " " + cls : ""}">${value}</b></div>`;
+  const stats = [stat("Record", escapeHtml(recordText(t.wins, t.losses, t.ties))), stat("Standing", ordinal(m.rank))];
+  if (m.power && Number.isFinite(m.power.powerRank)) stats.push(stat("Power rank", `#${rankText(m.power.powerRank)}`));
+  if (m.power && Number.isFinite(m.power.playoffPct)) stats.push(stat("Playoffs", `${num1(m.power.playoffPct)}%`, "gold"));
+  const note = formNote(m.results);
+  const form = m.results.length
+    ? `<div class="mt-form">${formDotsHtml(m.results)}<span class="mt-formnote">Last ${Math.min(FORM_GAMES, m.results.length)}${note ? ` · ${note}` : ""}</span></div>`
+    : "";
+  const next = myTeamNextLine(m);
+  const sameName = t.username && String(t.username).trim().toLowerCase() === String(t.teamName).trim().toLowerCase();
+  return `
+      <div class="mt-top"><span class="mt-label">My team</span><span class="mt-you">You</span></div>
+      <p class="mt-name">${escapeHtml(t.teamName)}</p>
+      ${t.username && !sameName ? `<p class="mt-user">${escapeHtml(t.username)}</p>` : ""}
+      <div class="mt-stats">${stats.join("")}</div>
+      ${form}
+      ${next ? `<p class="mt-next">${next}</p>` : ""}`;
+}
+
+function renderMyTeamCard() {
+  const el = document.getElementById("my-team-card");
+  if (!el) return;
+  const m = myTeamModel();
+  if (el.classList && el.classList.toggle) el.classList.toggle("is-mine", m.state === "ok");
+  el.innerHTML = myTeamCardHtml(m);
+}
+
+// ---------------------------------------------------------------
+// Hot & Cold: each team's current run of 2+ wins or losses, longest first, with
+// its last seven results beside it.
+// ---------------------------------------------------------------
+function computeCurrentStreaks(deepWeeks, rosterInfo) {
+  const resultsByRoster = teamResultsByRoster(deepWeeks);
+  const streaks = [];
+  resultsByRoster.forEach((results, rosterId) => {
+    if (!results.length) return;
+    let len = 0;
+    let result = null;
+    for (let i = results.length - 1; i >= 0; i--) {
+      if (result === null) {
+        result = results[i].result;
+        len = 1;
+      } else if (results[i].result === result) {
+        len += 1;
+      } else {
+        break;
       }
-    });
+    }
+    if ((result === "W" || result === "L") && len >= 2) {
+      const info = rosterInfo.get(rosterId);
+      streaks.push({
+        rosterId,
+        teamName: info ? info.teamName || info.username : "Unknown",
+        username: info ? info.username : null,
+        result,
+        length: len,
+      });
+    }
   });
+  return streaks.sort((a, b) => b.length - a.length);
 }
 
+function streakRowHtml(s) {
+  return `
+    <div class="streak-row">
+      <span class="name"${s.username ? ` data-username="${escapeHtml(s.username)}"` : ""}>${escapeHtml(s.teamName)}</span>
+      ${formDotsHtml(HOME.results.get(s.rosterId) || [])}
+      <span class="streak-badge ${s.result === "W" ? "hot" : "cold"}">${s.length}${s.result}</span>
+    </div>`;
+}
+
+function renderStreaksPanel(streaks) {
+  const el = document.getElementById("streaks-panel");
+  const hot = streaks.filter((s) => s.result === "W").slice(0, 3);
+  const cold = streaks.filter((s) => s.result === "L").slice(0, 3);
+  if (!hot.length && !cold.length) {
+    el.innerHTML = `<div class="empty-state">No streaks of 2+ games yet.</div>`;
+    return;
+  }
+  const section = (rows, label, cls) => (rows.length ? `<div class="hc-head ${cls}">${label}</div>${rows.map(streakRowHtml).join("")}` : "");
+  el.innerHTML = section(hot, "Hot", "hot") + section(cold, "Cold", "cold");
+}
+
+// ---------------------------------------------------------------
+// Power Rankings preview: the top of the table, with each team's move since last
+// week, PR Score and playoff odds. The full table is one tap away.
+// ---------------------------------------------------------------
+const PR_PREVIEW_ROWS = 5;
+
+function rankMoveHtml(row, lastWeekRanks) {
+  const flat = `<span class="pr-mini-delta muted-inline">–</span>`;
+  if (!lastWeekRanks || lastWeekRanks[row.teamName] == null) return flat;
+  const diff = lastWeekRanks[row.teamName] - row.powerRank; // positive = moved up (rank number fell)
+  if (diff > 0) return `<span class="pr-mini-delta luck-positive">▲${rankText(diff)}</span>`;
+  if (diff < 0) return `<span class="pr-mini-delta luck-negative">▼${rankText(Math.abs(diff))}</span>`;
+  return flat;
+}
+
+function renderPowerRankingsSnapshot(snapshot, lastWeekRanks) {
+  const el = document.getElementById("power-rankings-snapshot");
+  const link = document.getElementById("pr-all-link");
+  if (!snapshot || !snapshot.rows || !snapshot.rows.length) {
+    el.innerHTML = `<div class="empty-state">No power rankings yet.</div>`;
+    return;
+  }
+  if (link) link.textContent = `All ${snapshot.rows.length} →`;
+
+  // Preseason rows are just {rank, username, teamName}: there's no PR Score or
+  // playoff odds yet, so it is a plain list of who is ranked where.
+  if (snapshot.preseason) {
+    el.innerHTML = snapshot.rows
+      .slice(0, PR_PREVIEW_ROWS)
+      .map(
+        (r) => `
+      <div class="pr-mini-row pre">
+        <span class="pr-mini-rank">${r.rank}</span>
+        <span class="pr-mini-name"${r.username ? ` data-username="${escapeHtml(r.username)}"` : ""}>${escapeHtml(r.teamName || r.username)}</span>
+        <span class="pr-mini-delta muted-inline">PRESEASON</span>
+      </div>`
+      )
+      .join("");
+    return;
+  }
+
+  const teamByRoster = new Map(HOME.standings.map((t) => [t.rosterId, t]));
+  const top = [...snapshot.rows].sort((a, b) => a.powerRank - b.powerRank).slice(0, PR_PREVIEW_ROWS);
+  el.innerHTML = top
+    .map((r) => {
+      const t = teamByRoster.get(r.rosterId);
+      const name = t ? t.teamName : r.teamName;
+      const username = t ? t.username : r.teamName;
+      return `
+      <div class="pr-mini-row">
+        <span class="pr-mini-rank">${rankText(r.powerRank)}</span>
+        ${rankMoveHtml(r, lastWeekRanks)}
+        <span class="pr-mini-name"${username ? ` data-username="${escapeHtml(username)}"` : ""}>${escapeHtml(name)}</span>
+        <span class="pr-mini-score">${Number.isFinite(r.prScore) ? r.prScore.toFixed(2) : "—"}</span>
+        <span class="pr-mini-pct">${Number.isFinite(r.playoffPct) ? num1(r.playoffPct) + "%" : ""}</span>
+      </div>`;
+    })
+    .join("");
+}
+
+// ---------------------------------------------------------------
+// The season's weekly results (phase 2). Streaks are computed live (deterministic
+// from actual results, nothing random). Power Rankings, playoff odds and the bye
+// line come from data/power-rankings-snapshot.json, the same saved-not-live
+// snapshot the Power Rankings page reads, so both places show the same numbers
+// and they change only when the update script runs. (This used to run an
+// unseeded Monte Carlo on every page load: different odds, and a different top
+// three, on every refresh.)
+//
+// When the data lands, everything that uses it is drawn again: Standings (Form,
+// Points Against, Avg/Wk, Luck, odds), the matchup cards and the My Team card.
+// ---------------------------------------------------------------
+async function renderSeasonDetail(league, rosters, users, week, playerDirectory, teamStrength) {
+  try {
+    const seasonEntry = { league, rosters, users, bracket: [] };
+    const [deep, snapshot, powerRankHistory] = await Promise.all([
+      DeepHistory.fetchSeasonDeep(seasonEntry, () => {}),
+      fetchJsonSafe(POWER_RANKINGS_SNAPSHOT_FILE, null),
+      fetchJsonSafe(POWER_RANK_HISTORY_FILE, { seasons: {} }),
+    ]);
+
+    // Only finished weeks, so Overall, Luck, Avg and the form dots cover the same
+    // weeks as the Record and PF beside them. Before any week is final there's nothing to add.
+    const finishedWeeks = onlyCompletedWeeks(deep.weeks, HOME.completed);
+    HOME.results = teamResultsByRoster(finishedWeeks);
+    HOME.summary = null;
+    HOME.avgByRoster = new Map();
+    if (finishedWeeks.length) {
+      try {
+        const summary = DeepHistory.computeSeasonSummary(seasonEntry, { ...deep, weeks: finishedWeeks }, playerDirectory, null, null, null);
+        HOME.summary = summary;
+        (summary.teamAverages || []).forEach((t) => {
+          if (t.rosterId != null) HOME.avgByRoster.set(t.rosterId, t.average);
+        });
+      } catch (err) {
+        // Best-effort: the first-pass table is still correct, just missing a few columns.
+        console.warn("Couldn't build the season summary for Home's standings:", err);
+      }
+    }
+
+    HOME.snapshot = snapshot || null;
+    HOME.powerByRoster = new Map();
+    HOME.lastWeekRanks = null;
+    if (snapshot && !snapshot.preseason && Array.isArray(snapshot.rows)) {
+      snapshot.rows.forEach((r) => HOME.powerByRoster.set(r.rosterId, r));
+      const seasonHistory = (powerRankHistory.seasons && powerRankHistory.seasons[String(snapshot.season)]) || {};
+      HOME.lastWeekRanks = seasonHistory[String(snapshot.week - 1)] || null;
+    }
+
+    if (finishedWeeks.length) {
+      const usersById = new Map(users.map((u) => [u.user_id, u]));
+      const rosterInfo = new Map();
+      rosters.forEach((r) => {
+        const user = usersById.get(r.owner_id);
+        rosterInfo.set(r.roster_id, { teamName: SleeperAPI.teamName(user, r.roster_id), username: user ? user.display_name : null });
+      });
+      renderStreaksPanel(computeCurrentStreaks(finishedWeeks, rosterInfo));
+    } else {
+      document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">No finished games yet — streaks start after Week 1.</div>`;
+    }
+
+    renderPowerRankingsSnapshot(snapshot, HOME.lastWeekRanks);
+    setChip(
+      "pr-fresh",
+      snapshot && !snapshot.preseason
+        ? freshnessChipHtml({ label: "Snapshot", through: snapshot.week, current: week, note: "updates with each ROS refresh" })
+        : snapshot
+        ? freshnessChipHtml({ label: "Preseason", tone: "snap" })
+        : ""
+    );
+
+    renderStandings();
+    renderStandingsNotes();
+    redrawMatchups();
+    renderMyTeamCard();
+    if (typeof MyTeam !== "undefined") MyTeam.decorate(document.body);
+  } catch (err) {
+    console.error(err);
+    document.getElementById("streaks-panel").innerHTML = `<div class="empty-state">Couldn't load streak data.</div>`;
+    document.getElementById("power-rankings-snapshot").innerHTML = `<div class="empty-state">Couldn't load power rankings.</div>`;
+  }
+}
+
+// Draws This Week, the Featured Matchup and Last Week again from what is in HOME.
+function redrawMatchups() {
+  renderMatchupsAndFeatured(HOME.rawMatchups, HOME.standings, HOME.week);
+  renderLastWeekMatchups(HOME.rawMatchupsLast, HOME.standings, HOME.week && HOME.week > 1 ? HOME.week - 1 : null);
+}
+
+// Reads every manager's all-time record against every other (the same
+// fetchSeasonChain -> buildAll -> computeStats pipeline Teams, Records and
+// Rivalries use). It is a real network-and-compute cost, so it runs last, in the
+// background, after everything the person came here to see is on screen; the
+// cards and the My Team card then draw again with the all-time series filled in.
+// The series lines use usernames, not team names.
+async function renderMatchupHeadToHead(playerDirectory) {
+  try {
+    const seasonChain = await SleeperAPI.getSeasonChain(LEAGUE_ID);
+    if (seasonChain.length === 0) return;
+    const deepSeasons = await DeepHistory.buildAll(seasonChain, () => {});
+    const { managers } = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
+    HOME.h2h = {
+      rec: new Map(
+        managers.map((m) => [m.userId, new Map((m.headToHead || []).map((h) => [h.opponentUserId, { wins: h.wins, losses: h.losses, ties: h.ties }]))])
+      ),
+      name: new Map(managers.map((m) => [m.userId, m.username || m.teamName])),
+    };
+    renderMatchupsAndFeatured(HOME.rawMatchups, HOME.standings, HOME.week);
+    renderMyTeamCard();
+    if (typeof MyTeam !== "undefined") MyTeam.decorate(document.body);
+  } catch (err) {
+    // Best-effort enhancement -- everything above already rendered fine without
+    // it, so a failure here (e.g. a season in the chain failing to fetch) just
+    // means the series lines stay empty, not an error banner over working data.
+    console.warn("Couldn't load head-to-head history for this week's matchups:", err);
+  }
+}
+
+// ---------------------------------------------------------------
+// My team on Home: the picked manager's game goes first and the pieces that
+// depend on who it is are drawn again. The row highlight itself is
+// js/my-team.js's job.
+// ---------------------------------------------------------------
 function applyMyTeam() {
-  pinMyMatchups(currentMyTeam());
   renderLeaguePulse();
+  redrawMatchups();
+  renderMyTeamCard();
   if (HOME.feed) renderRecordsInReach(HOME.feed);
   if (typeof MyTeam !== "undefined") MyTeam.decorate(document.body);
 }
 
 if (typeof document !== "undefined" && document.addEventListener) {
   document.addEventListener("myteam:change", applyMyTeam);
+  // On a phone, remember which matchup cards were opened so a redraw keeps them open.
+  document.addEventListener(
+    "toggle",
+    (e) => {
+      const card = e.target;
+      if (!card || !card.classList || !card.classList.contains("mu-card") || !isPhoneWidth()) return;
+      if (card.open) openMatchupCards.add(card.id);
+      else openMatchupCards.delete(card.id);
+    },
+    true
+  );
+}
+if (typeof window !== "undefined" && window.matchMedia) {
+  const phoneQuery = window.matchMedia(MU_PHONE_QUERY);
+  if (phoneQuery && phoneQuery.addEventListener) phoneQuery.addEventListener("change", syncMatchupCards);
 }
 
 document.addEventListener("DOMContentLoaded", renderDashboard);
+

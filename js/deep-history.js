@@ -3091,7 +3091,7 @@ const DeepHistory = {
     ranks, lower is better) that determines each team's Power Rank.
     Works for any number of teams (not hardcoded to any one league size).
   */
-  computePowerRankings(seasonEntry, deep, playerDirectory, teamStrengthTeams, iterations = 1000) {
+  computePowerRankings(seasonEntry, deep, playerDirectory, teamStrengthTeams, iterations = 10000) {
     const { league, rosters, users } = seasonEntry;
     const usersById = new Map(users.map((u) => [u.user_id, u]));
     const rosterInfo = new Map();
@@ -3261,6 +3261,7 @@ const DeepHistory = {
       week: weeksPlayed,
       playoffTeams,
       byeTeams,
+      simRuns: iterations,
       rows,
     };
   },

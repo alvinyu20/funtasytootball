@@ -86,7 +86,10 @@ const HISTORY_PATH = path.join(REPO_ROOT, "data", "power-rank-history.json");
 const CSV_HISTORY_PATH = path.join(REPO_ROOT, "data", "power-rank-csv-history.json");
 const EXTRAS_PATH = path.join(REPO_ROOT, "data", "power-rankings-extras.json");
 const TEAM_STRENGTH_PATH = path.join(REPO_ROOT, "data", "team-strength.json");
-const PLAYOFF_SIM_ITERATIONS = 1000;
+// Random seasons played out for the playoff odds. 10,000 keeps each team's odds steady to within
+// about half a point from one run to the next, and is fine enough to show the rare finishes
+// (a 0.3% shot at the bye) instead of rounding them to nothing.
+const PLAYOFF_SIM_ITERATIONS = 10000;
 
 /*
   js/sleeper-api.js and js/deep-history.js are written as browser
@@ -311,7 +314,7 @@ function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDe
   weeks the ranking was computed from, and DeepHistory's slot table. Kept apart
   from main() so a test can run it against the saved season.
 */
-function buildExtrasForRun(DeepHistory, { season, pr, generatedAt, currentSeasonEntry, deep, playerDirectory }) {
+function buildExtrasForRun(DeepHistory, { season, pr, generatedAt, currentSeasonEntry, deep, playerDirectory, teamStrengthTeams }) {
   return buildPowerRankingsExtras({
     season,
     week: pr.week,
@@ -322,6 +325,7 @@ function buildExtrasForRun(DeepHistory, { season, pr, generatedAt, currentSeason
     scheduleWeeks: deep.scheduleWeeks,
     playerDirectory,
     buildPositionTable: (...args) => DeepHistory.buildPositionTable(...args),
+    teamStrength: teamStrengthTeams,
   });
 }
 
@@ -375,6 +379,7 @@ async function main() {
     preseason: false,
     playoffTeams: pr.playoffTeams,
     byeTeams: pr.byeTeams,
+    simRuns: pr.simRuns,
     rows: pr.rows,
   };
   writeJson(SNAPSHOT_PATH, snapshot);
@@ -417,6 +422,7 @@ async function main() {
     currentSeasonEntry,
     deep,
     playerDirectory,
+    teamStrengthTeams,
   });
   writeJson(EXTRAS_PATH, extras);
   console.log(`Wrote ${path.relative(REPO_ROOT, EXTRAS_PATH)} (Strength of Schedule, Weekly Scores, Lineup Slots through Week ${pr.week})`);

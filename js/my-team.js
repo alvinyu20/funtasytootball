@@ -19,9 +19,13 @@ const MyTeam = (function () {
   const CHANGE_EVENT = "myteam:change";
 
   // The nearest of these around a matched name is what gets the highlight.
-  const ROW_SELECTOR = "tr, .sos-row, .road-row, .strip-row, .pr-mini-row, .streak-row, .lr-item, .rank-list-row, .career-card, .matchup .side, .draft-list-row";
-  // Never decorate the chrome (nav, the picker itself).
-  const SKIP_SELECTOR = ".site-nav, .nav-drawer, .myteam-overlay, script, style, noscript";
+  const ROW_SELECTOR = "tr, .pr-phone-item, .hs-item, .sos-row, .road-row, .strip-row, .pr-mini-row, .streak-row, .lr-item, .rank-list-row, .career-card, .mu-side, .lw-side, .draft-list-row, .trophy-card, .cr-row, .tm-card, .tm-pick, .tm-hero, .tm-h2h-row";
+  // A game's card lights up whole when either of its sides is the picked team's.
+  const CARD_SELECTOR = ".mu-card, .mu-featured, .lw-row";
+  // Never decorate the chrome (nav, the picker itself) or the My Team card, which already says who you are.
+  // data-no-mine marks a name that is only there as context (the team a champion beat), so it
+  // never lights up the card it sits on.
+  const SKIP_SELECTOR = ".site-nav, .nav-drawer, .myteam-overlay, .my-team-card, [data-no-mine], script, style, noscript";
 
   let memory = null; // fallback when the browser blocks localStorage
   let managersPromise = null;
@@ -118,7 +122,7 @@ const MyTeam = (function () {
       return;
     }
     row.classList.add("mine");
-    const card = row.closest(".matchup");
+    const card = row.closest(CARD_SELECTOR);
     if (card) card.classList.add("mine");
   }
 

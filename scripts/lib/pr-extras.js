@@ -9,9 +9,9 @@
              every game a team played, the opponent's average score in all of
              its other games (the game against this team left out), averaged
              over the season. "Road ahead" looks forward: the remaining
-             regular-season schedule, with each opponent's current points per
-             game as the strength proxy, shown as distance from the league
-             average.
+             regular-season schedule, with each opponent rated mostly by its
+             FantasyPros rest-of-season strength (80%) and partly by its points
+             per game so far (20%), shown as distance from the league average.
     scores   Every finished week's score for every team (the strip plot), plus
              each team's low / high / average.
     slots    Per starter slot (QB, RB1, RB2 ... DEF), each team's average points
@@ -71,14 +71,62 @@ function gamesByTeam(teams, weeks) {
 }
 
 const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+const popStdDev = (xs) => {
+  const m = mean(xs);
+  return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
+};
+
+// How much of an opponent's Road Ahead rating comes from the FantasyPros ROS
+// strength (the rest from its points per game so far). Matches the "who is
+// better from here on" question the Road Ahead answers: what a team has done
+// matters less than what its roster looks like going forward.
+const ROAD_AHEAD_ROS_WEIGHT = 0.8;
+
+/*
+  Every team's strength as an opponent, in points-per-game units so the bars
+  keep meaning "points above or below the league average".
+
+    rating = weight x (ROS strength on the PPG scale) + (1 - weight) x PPG
+
+  The ROS power score (data/team-strength.json "pt") is on its own 0-100 scale,
+  so it is put on the PPG scale by matching spreads: how many standard
+  deviations a team's score sits from the league's average ROS score, times
+  the standard deviation of the teams' PPG, around the average team PPG.
+  When any team has no ROS score, or there are too few teams for a spread to
+  mean anything, every team is rated by PPG alone (weight 0) rather than mixing
+  two scales for part of the league.
+  Returns { ratings: Map(rosterId -> rating), weight }.
+*/
+function opponentRatings(ppgNow, rosPtById, weight = ROAD_AHEAD_ROS_WEIGHT) {
+  const ids = [...ppgNow.keys()].filter((id) => ppgNow.get(id) != null);
+  const ppgOnly = () => ({ ratings: new Map(ids.map((id) => [id, ppgNow.get(id)])), weight: 0 });
+  if (ids.length < 3 || !rosPtById || ids.some((id) => rosPtById.get(id) == null)) return ppgOnly();
+
+  const ppgs = ids.map((id) => ppgNow.get(id));
+  const pts = ids.map((id) => rosPtById.get(id));
+  const ptSd = popStdDev(pts);
+  const ppgSd = popStdDev(ppgs);
+  if (!(ptSd > 0) || !(ppgSd > 0)) return ppgOnly();
+
+  const ppgMean = mean(ppgs);
+  const ptMean = mean(pts);
+  const ratings = new Map(
+    ids.map((id) => {
+      const rosOnPpgScale = ppgMean + ((rosPtById.get(id) - ptMean) / ptSd) * ppgSd;
+      return [id, weight * rosOnPpgScale + (1 - weight) * ppgNow.get(id)];
+    })
+  );
+  return { ratings, weight };
+}
 
 /*
   teams: [{ rosterId, teamName, record }]
   weeks: finished regular-season weeks [{ week, matchups }]
   scheduleWeeks: every week Sleeper has a schedule for (finished or not)
+  rosPt: optional { rosterId: FantasyPros ROS power score } for the Road Ahead
   Returns null when there isn't enough to say anything yet (no finished week).
 */
-function buildStrengthOfSchedule({ teams, weeks, scheduleWeeks, playoffStart }) {
+function buildStrengthOfSchedule({ teams, weeks, scheduleWeeks, playoffStart, rosPt }) {
   const games = gamesByTeam(teams, weeks);
   const all = [...games.values()].flat();
   if (!all.length) return null;
@@ -114,15 +162,16 @@ function buildStrengthOfSchedule({ teams, weeks, scheduleWeeks, playoffStart }) 
   const paRanks = rankDescending(rows.map((r) => r.paPerGame));
   const trueRanks = rankDescending(rows.map((r) => r.trueSos));
 
-  // Road ahead: the rest of the regular season, opponents rated by their
-  // current points per game.
+  // Road ahead: the rest of the regular season, opponents rated 80% by their
+  // FantasyPros rest-of-season strength and 20% by their points per game so far.
   const ppgNow = new Map([...games.keys()].map((id) => [id, count.get(id) ? total.get(id) / count.get(id) : null]));
+  const { ratings: opponentRating, weight: rosWeight } = opponentRatings(ppgNow, rosPt);
   const aheadGames = new Map(teams.map((t) => [t.rosterId, []]));
   const remainingWeeks = (scheduleWeeks || []).filter((w) => w.week > lastWeek && (playoffStart == null || w.week < playoffStart));
   remainingWeeks.forEach(({ matchups }) => {
     gamePairs(matchups).forEach(([a, b]) => {
-      if (aheadGames.has(a.roster_id) && ppgNow.get(b.roster_id) != null) aheadGames.get(a.roster_id).push(ppgNow.get(b.roster_id));
-      if (aheadGames.has(b.roster_id) && ppgNow.get(a.roster_id) != null) aheadGames.get(b.roster_id).push(ppgNow.get(a.roster_id));
+      if (aheadGames.has(a.roster_id) && opponentRating.has(b.roster_id)) aheadGames.get(a.roster_id).push(opponentRating.get(b.roster_id));
+      if (aheadGames.has(b.roster_id) && opponentRating.has(a.roster_id)) aheadGames.get(b.roster_id).push(opponentRating.get(a.roster_id));
     });
   });
 
@@ -143,7 +192,7 @@ function buildStrengthOfSchedule({ teams, weeks, scheduleWeeks, playoffStart }) 
   const remainingNumbers = remainingWeeks.filter((w) => gamePairs(w.matchups).length).map((w) => w.week);
   return {
     leagueAvgPpg: round2(leagueAvgPpg),
-    remaining: remainingNumbers.length ? { fromWeek: Math.min(...remainingNumbers), toWeek: Math.max(...remainingNumbers), games: remainingNumbers.length } : null,
+    remaining: remainingNumbers.length ? { fromWeek: Math.min(...remainingNumbers), toWeek: Math.max(...remainingNumbers), games: remainingNumbers.length, rosWeight } : null,
     rows: out,
   };
 }
@@ -240,17 +289,23 @@ function buildSlotGaps({ teams, weeks, league, playerDirectory, buildPositionTab
   against); `teams` are the Power Rankings rows. The three sections are each
   null when their data isn't there yet, and the page simply skips them.
 */
-function buildPowerRankingsExtras({ season, week, generatedAt, teams, league, weeks, scheduleWeeks, playerDirectory, buildPositionTable }) {
+function buildPowerRankingsExtras({ season, week, generatedAt, teams, league, weeks, scheduleWeeks, playerDirectory, buildPositionTable, teamStrength }) {
   const playoffStart = league && league.settings ? league.settings.playoff_week_start : null;
   const finished = regularSeasonWeeks(weeks, playoffStart);
   const roster = teams.map((t) => ({ rosterId: t.rosterId, userId: t.userId, teamName: t.teamName, record: t.record }));
+  // team-strength.json is keyed by Sleeper username, which is the rows' teamName.
+  const rosPt = new Map();
+  roster.forEach((t) => {
+    const entry = teamStrength ? teamStrength[t.teamName] : null;
+    if (entry && entry.pt != null) rosPt.set(t.rosterId, entry.pt);
+  });
   return {
     _instructions:
       "The Power Rankings page's Strength of Schedule, Weekly Scores and Lineup Slot sections read this file. scripts/update-power-rankings.js writes it next to the snapshot (same week); never edit it by hand.",
     generatedAt,
     season: String(season),
     week,
-    sos: buildStrengthOfSchedule({ teams: roster, weeks: finished, scheduleWeeks, playoffStart }),
+    sos: buildStrengthOfSchedule({ teams: roster, weeks: finished, scheduleWeeks, playoffStart, rosPt }),
     scores: buildWeeklyScores({ teams: roster, weeks: finished }),
     slots: buildSlotGaps({ teams: roster, weeks: finished, league, playerDirectory, buildPositionTable }),
   };
@@ -261,6 +316,8 @@ module.exports = {
   gamePairs,
   rankDescending,
   lineupOrder,
+  ROAD_AHEAD_ROS_WEIGHT,
+  opponentRatings,
   buildStrengthOfSchedule,
   buildWeeklyScores,
   buildSlotGaps,
