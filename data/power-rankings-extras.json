@@ -1,6 +1,6 @@
 {
   "_instructions": "The Power Rankings page's Strength of Schedule, Weekly Scores and Lineup Slot sections read this file. scripts/update-power-rankings.js writes it next to the snapshot (same week); never edit it by hand.",
-  "generatedAt": "2026-10-27T16:06:33.084Z",
+  "generatedAt": "2026-10-28T17:28:33.528Z",
   "season": "2026",
   "week": 7,
   "sos": {
@@ -8,7 +8,8 @@
     "remaining": {
       "fromWeek": 8,
       "toWeek": 14,
-      "games": 7
+      "games": 7,
+      "rosWeight": 0.8
     },
     "rows": [
       {
@@ -22,8 +23,8 @@
         "trueRank": 1,
         "ahead": {
           "games": 7,
-          "oppPpg": 119.58,
-          "delta": -5.32
+          "oppPpg": 121.85,
+          "delta": -3.05
         }
       },
       {
@@ -37,8 +38,8 @@
         "trueRank": 2,
         "ahead": {
           "games": 7,
-          "oppPpg": 124.53,
-          "delta": -0.37
+          "oppPpg": 127.54,
+          "delta": 2.65
         }
       },
       {
@@ -52,8 +53,8 @@
         "trueRank": 3,
         "ahead": {
           "games": 7,
-          "oppPpg": 125.39,
-          "delta": 0.49
+          "oppPpg": 126.92,
+          "delta": 2.02
         }
       },
       {
@@ -67,8 +68,8 @@
         "trueRank": 4,
         "ahead": {
           "games": 7,
-          "oppPpg": 122.32,
-          "delta": -2.58
+          "oppPpg": 123.7,
+          "delta": -1.2
         }
       },
       {
@@ -82,8 +83,8 @@
         "trueRank": 5,
         "ahead": {
           "games": 7,
-          "oppPpg": 121.81,
-          "delta": -3.09
+          "oppPpg": 124.8,
+          "delta": -0.1
         }
       },
       {
@@ -97,8 +98,8 @@
         "trueRank": 6,
         "ahead": {
           "games": 7,
-          "oppPpg": 125.14,
-          "delta": 0.24
+          "oppPpg": 126.86,
+          "delta": 1.97
         }
       },
       {
@@ -112,8 +113,8 @@
         "trueRank": 7,
         "ahead": {
           "games": 7,
-          "oppPpg": 126.54,
-          "delta": 1.64
+          "oppPpg": 124.34,
+          "delta": -0.56
         }
       },
       {
@@ -127,8 +128,8 @@
         "trueRank": 8,
         "ahead": {
           "games": 7,
-          "oppPpg": 123.82,
-          "delta": -1.08
+          "oppPpg": 121.6,
+          "delta": -3.3
         }
       },
       {
@@ -142,8 +143,8 @@
         "trueRank": 9,
         "ahead": {
           "games": 7,
-          "oppPpg": 123.02,
-          "delta": -1.88
+          "oppPpg": 120.94,
+          "delta": -3.96
         }
       },
       {
@@ -157,8 +158,8 @@
         "trueRank": 10,
         "ahead": {
           "games": 7,
-          "oppPpg": 125.22,
-          "delta": 0.32
+          "oppPpg": 122.78,
+          "delta": -2.12
         }
       },
       {
@@ -166,14 +167,14 @@
         "teamName": "yulovesyou",
         "record": "3-4",
         "games": 7,
-        "paPerGame": 126.36,
+        "paPerGame": 126.34,
         "trueSos": 120.33,
         "paRank": 5,
         "trueRank": 11,
         "ahead": {
           "games": 7,
-          "oppPpg": 130.89,
-          "delta": 5.99
+          "oppPpg": 127.11,
+          "delta": 2.22
         }
       },
       {
@@ -187,8 +188,8 @@
         "trueRank": 12,
         "ahead": {
           "games": 7,
-          "oppPpg": 130.54,
-          "delta": 5.64
+          "oppPpg": 130.35,
+          "delta": 5.45
         }
       }
     ]
@@ -318,9 +319,9 @@
           168.09,
           126.04,
           90.16,
-          154.33
+          154.23
         ],
-        "avg": 119.02,
+        "avg": 119.01,
         "low": 68.14,
         "high": 168.09
       },
@@ -552,7 +553,7 @@
         "rosterId": 10,
         "teamName": "evangonnerman",
         "cells": {
-          "QB": -1.51,
+          "QB": -1.5,
           "RB1": -0.44,
           "RB2": -1.01,
           "WR1": -1.6,
@@ -569,7 +570,7 @@
         "rosterId": 5,
         "teamName": "artmane",
         "cells": {
-          "QB": 0,
+          "QB": -0.01,
           "RB1": 2.22,
           "RB2": 0.31,
           "WR1": 2.47,
@@ -580,7 +581,7 @@
           "K": 3.96,
           "DEF": -2.5
         },
-        "total": -5.88
+        "total": -5.89
       },
       {
         "rosterId": 4,
@@ -614,7 +615,7 @@
           "K": -0.75,
           "DEF": 4.07
         },
-        "total": -7.94
+        "total": -7.93
       },
       {
         "rosterId": 1,
@@ -631,7 +632,7 @@
           "K": -2.04,
           "DEF": -0.93
         },
-        "total": -13.54
+        "total": -13.53
       },
       {
         "rosterId": 8,
