@@ -59,3 +59,19 @@ test("the current season's three charts have one point per finished week for eve
   // each of the three charts draws a visible dot per team per week
   assert.ok((html.match(/class="lc-dot" /g) || []).length >= teams.length * weeks * 3);
 });
+
+test("two teams tied on PR Score share their places, and the chart says 6.5 rather than rounding it to 7", () => {
+  const c = setup();
+  const tied = { seasons: { 2030: { ranks: { a: { pre: null, weekly: [1] }, b: { pre: null, weekly: [2.5] }, d: { pre: null, weekly: [2.5] }, e: { pre: null, weekly: [4] } }, scores: { a: { pre: null, weekly: [1] }, b: { pre: null, weekly: [2.2] }, d: { pre: null, weekly: [2.2] }, e: { pre: null, weekly: [4] } }, playoffOdds: { a: [80], b: [60], d: [50], e: [40] } } } };
+  const html = section(c, tied, 2030);
+  assert.ok(html.includes("b · W1: 2.5") && html.includes("d · W1: 2.5"), "a tie reads 2.5 on each team's dot");
+  assert.ok(html.includes("a · W1: 1<") && html.includes("e · W1: 4<"), "whole ranks stay whole numbers");
+  assert.ok(!/ · W1: 3</.test(html), "nobody is rounded up into somebody else's place");
+});
+
+test("the real 2026 history has its tied weeks (Week 1: two teams on 6.35, Week 4: two on 10.10) drawn as halves", () => {
+  const c = setup();
+  const html = section(c, REAL, 2026);
+  assert.ok(html.includes("jspar279879 · W1: 6.5") && html.includes("evangonnerman · W1: 6.5"));
+  assert.ok(html.includes("mayshisha · W4: 10.5") && html.includes("tduchow · W4: 10.5"));
+});

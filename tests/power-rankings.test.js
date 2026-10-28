@@ -379,29 +379,37 @@ test("grid: zero is a dash and a faint sliver keeps its number, so 'possible' an
 test("grid: how many runs it came from is printed from the snapshot (1,000 for a snapshot that does not say, 10,000 for a new one)", () => {
   const ctx = setup();
   const old = ctx.renderOddsTable(snap12());
-  assert.ok(old.includes("None in 1,000 runs") && old.includes("from a 1,000-run simulation") && old.includes("never happened in 1,000 runs"));
+  assert.ok(old.includes("None in 1,000 runs") && old.includes("from a 1,000-run simulation"));
   const fresh = ctx.renderOddsTable(snap12({ simRuns: 10000 }));
-  assert.ok(fresh.includes("None in 10,000 runs") && fresh.includes("from a 10,000-run simulation") && fresh.includes("never happened in 10,000 runs"));
+  assert.ok(fresh.includes("None in 10,000 runs") && fresh.includes("from a 10,000-run simulation"));
   assert.ok(!fresh.includes("1,000 runs"));
   assert.strictEqual(ctx.simRunsOf({ simRuns: 0 }), 1000);
   assert.strictEqual(ctx.simRunsOf({ simRuns: "x" }), 1000);
 });
 
-test("grid takeaway: surest bet, widest-open team, and exact counts of never and under-1% cells", () => {
+test("Finish Probability by Rank has no takeaway: just the grid, the legend and the one-line footnote", () => {
   const ctx = setup();
   const rows = [
-    fakeRow({ teamName: "sure", powerRank: 1, finishDistribution: [80, 20, 0] }),
+    fakeRow({ teamName: "sure", powerRank: 1, finishDistribution: [80, 19.5, 0.5] }),
     fakeRow({ teamName: "open", powerRank: 2, finishDistribution: [10, 45, 45] }),
     fakeRow({ teamName: "mid", powerRank: 3, finishDistribution: [10, 35, 55] }),
   ];
-  rows[0].finishDistribution = [80, 19.5, 0.5];
   const html = ctx.renderOddsTable({ playoffTeams: 0, byeTeams: 0, simRuns: 10000, rows });
-  const text = html.match(/<p class="pr-takeaway">([\s\S]*?)<\/p>/)[1];
-  assert.ok(text.includes("sure is the surest bet, finishing 1st in 80% of runs."), text);
-  assert.ok(text.includes("open has the most open range: even its likeliest finish (2nd) only comes up 45% of the time."), text);
-  assert.ok(text.includes("Of the 9 cells, 0 never happened in 10,000 runs and another 1 are under 1% but still possible."), text);
-  // a single team has nothing to compare
-  assert.ok(!ctx.renderOddsTable({ playoffTeams: 0, rows: [fakeRow()] }).includes("pr-takeaway"));
+  assert.ok(!html.includes("pr-takeaway") && !html.includes("Takeaway"), "no takeaway paragraph");
+  assert.ok(!/surest bet|most open range|never happened in|are under 1% but still possible/.test(html), "none of its sentences either");
+  assert.ok(html.includes('<table class="pr-odds">') && html.includes("odds-legend") && html.includes("Each row is a team's chance of finishing in each final spot"), "the grid, legend and footnote are all still there");
+  assert.strictEqual((html.match(/<p /g) || []).length, 2, "the legend and the footnote are the only paragraphs under the grid");
+  assert.ok(!/\b(zeroCells|sliverCells|spreads)\b/.test(fs.readFileSync(path.join(ROOT, "js", "power-rankings.js"), "utf8")), "and the counters that fed it are gone");
+});
+
+test("one line per team: the Record column shows the W-L record and the Ovr record side by side", () => {
+  const css = fs.readFileSync(path.join(ROOT, "css", "styles.css"), "utf8");
+  assert.match(css, /\n\.pr-rec \{ display: inline;/, "W-L record is inline");
+  assert.match(css, /\n\.pr-ovr \{ display: inline; margin-left: 8px;/, "Ovr record is inline beside it");
+  assert.match(css, /\ntd\.pr-record \{ white-space: nowrap; \}/, "the cell never wraps");
+  assert.match(css, /\ntable\.pr-board \.pr-name-text \{ white-space: nowrap; \}|table\.pr-board \.pr-name-text \{ white-space: nowrap; \}/, "names stay on one line");
+  assert.match(css, /table\.pr-board tbody td \{ padding: 7px 6px;/, "rows are 7px padded, not 9px");
+  assert.match(css, /table\.pr-board \.pr-name \{ flex-wrap: nowrap; \}/, "the rank-move arrow and YOU tag stay beside the name instead of dropping under it");
 });
 
 test("nothing from the design mockups leaked into the page: no option labels, headline copy or explainer cards", () => {

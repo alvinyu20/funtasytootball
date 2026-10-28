@@ -287,20 +287,14 @@ function renderOddsTable(snapshot) {
   const rankCols = Array.from({ length: n }, (_, i) => `<th class="rk">${i + 1}</th>`).join("");
   const header = `${zoneRow}<tr><th class="pr-odds-team">Final rank →</th>${rankCols}<th class="pr-odds-exp">Exp.</th><th class="pr-odds-playoffs">Playoffs</th></tr>`;
 
-  let zeroCells = 0;
-  let sliverCells = 0;
-  const spreads = [];
   const body = sorted
     .map(({ r, exp }) => {
       const dist = r.finishDistribution || [];
       const peak = Math.max(0, ...dist.filter(Number.isFinite));
       const bestIdx = peak > 0 ? dist.findIndex((p) => p === peak) : -1;
-      if (peak > 0 && dist.length) spreads.push({ r, peak, bestRank: bestIdx + 1 });
       const cells = Array.from({ length: n }, (_, i) => {
         const pct = Number.isFinite(dist[i]) ? dist[i] : null;
         const shade = oddsShade(pct);
-        if (pct != null && shade === "none") zeroCells += 1;
-        if (shade === "u1") sliverCells += 1;
         const title = pct == null ? "" : ` title="${escapeHtml(r.teamName)} · ${ordinal(i + 1)} place · ${trimPct(pct)}%"`;
         return `<td class="odds-cell ${shade}${i === bestIdx ? " best" : ""}${edgeClass(i + 1)}"${title}>${pct == null ? "—" : oddsLabel(pct)}</td>`;
       }).join("");
@@ -320,17 +314,6 @@ function renderOddsTable(snapshot) {
     <span class="pr-key"><i class="odds-key ring"></i>Most likely finish</span>
   </p>`;
 
-  // Surest bet and widest-open team, then how many cells never happened.
-  let takeaway = "";
-  if (spreads.length >= 2) {
-    const surest = [...spreads].sort((a, b) => b.peak - a.peak || a.r.powerRank - b.r.powerRank)[0];
-    const widest = [...spreads].sort((a, b) => a.peak - b.peak || b.r.powerRank - a.r.powerRank)[0];
-    const parts = [`${escapeHtml(surest.r.teamName)} is the surest bet, finishing ${ordinal(surest.bestRank)} in ${Math.round(surest.peak)}% of runs.`];
-    if (widest !== surest) parts.push(`${escapeHtml(widest.r.teamName)} has the most open range: even its likeliest finish (${ordinal(widest.bestRank)}) only comes up ${Math.round(widest.peak)}% of the time.`);
-    parts.push(`Of the ${n * n} cells, ${zeroCells} never happened in ${runsText} runs and another ${sliverCells} are under 1% but still possible.`);
-    takeaway = `<p class="pr-takeaway"><strong>Takeaway:</strong> ${parts.join(" ")}</p>`;
-  }
-
   return `
     <div class="heatmap-table-wrap stay-scrollable">
       <table class="pr-odds">
@@ -339,7 +322,6 @@ function renderOddsTable(snapshot) {
       </table>
     </div>
     ${legend}
-    ${takeaway}
     <p class="heatmap-note">Each row is a team's chance of finishing in each final spot, from a ${runsText}-run simulation of the rest of the season. Teams are ordered by expected finish (Exp.).</p>`;
 }
 

@@ -2861,6 +2861,7 @@ table.slot-table td.slot-total { text-align: right; font-family: var(--font-mono
 /* Name, with the YOU tag (My Team) and the rank move beside it. */
 .pr-name { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0 8px; min-width: 0; }
 .pr-name-text { overflow-wrap: break-word; }
+table.pr-board .pr-name { flex-wrap: nowrap; }
 table.pr-board .pr-name-text { white-space: nowrap; }
 .pr-move { font-family: var(--font-mono); font-size: 0.78em; font-weight: 600; white-space: nowrap; }
 .pr-move .luck-positive, .pr-move .luck-negative { font-weight: 600; }
@@ -2897,12 +2898,12 @@ tr.mine .pr-name-text::after,
 .pr-phone { display: none; }
 table.pr-board { width: 100%; border-collapse: collapse; table-layout: fixed; font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
 table.pr-board th.pr-rank, table.pr-board td.pr-rank { width: 44px; }
-table.pr-board th.pr-score, table.pr-board td.pr-score { width: 142px; }
-table.pr-board th.pr-record, table.pr-board td.pr-record { width: 124px; }
+table.pr-board th.pr-score, table.pr-board td.pr-score { width: 128px; }
+table.pr-board th.pr-record, table.pr-board td.pr-record { width: 140px; }
 table.pr-board th.pr-luck, table.pr-board td.pr-luck { width: 64px; }
-table.pr-board th.pr-ppg, table.pr-board td.pr-ppg { width: 116px; }
-table.pr-board th.pr-sd, table.pr-board td.pr-sd { width: 76px; }
-table.pr-board th.pr-chance, table.pr-board td.pr-chance { width: 206px; }
+table.pr-board th.pr-ppg, table.pr-board td.pr-ppg { width: 108px; }
+table.pr-board th.pr-sd, table.pr-board td.pr-sd { width: 66px; }
+table.pr-board th.pr-chance, table.pr-board td.pr-chance { width: 192px; }
 table.pr-board th.pr-ros, table.pr-board td.pr-ros { width: 48px; text-align: right; }
 table.pr-board thead th {
   padding: 8px 6px 10px;
@@ -2916,7 +2917,7 @@ table.pr-board thead th {
   border-bottom: 2px solid var(--gold);
 }
 table.pr-board thead th.pr-ros { text-align: right; }
-table.pr-board tbody td { padding: 9px 6px; background: rgba(255, 255, 255, 0.035); border-bottom: 1px solid rgba(255, 255, 255, 0.05); vertical-align: middle; color: var(--chalk); }
+table.pr-board tbody td { padding: 7px 6px; background: rgba(255, 255, 255, 0.035); border-bottom: 1px solid rgba(255, 255, 255, 0.05); vertical-align: middle; color: var(--chalk); }
 table.pr-board tbody tr:last-child td { border-bottom: none; }
 table.pr-board td.pr-rank { color: var(--chalk-dim); font-size: 14px; }
 table.pr-board td.pr-team { font-family: var(--font-body); font-size: 16px; font-weight: 500; }
@@ -2924,9 +2925,10 @@ table.pr-board td.pr-score { white-space: nowrap; }
 .pr-score-num { display: inline-block; width: 38px; font-size: 14px; }
 .pr-line { position: relative; display: inline-block; vertical-align: middle; width: calc(100% - 52px); height: 2px; margin: 0 6px 0 4px; background: var(--turf-line); }
 .pr-dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--gold); }
-td.pr-record { line-height: 1.25; }
-.pr-rec { display: block; font-size: 14px; font-weight: 600; }
-.pr-ovr { display: block; font-size: 11px; color: var(--chalk-dim); white-space: nowrap; }
+/* One line per team: the W-L record and the Ovr record sit side by side. */
+td.pr-record { white-space: nowrap; }
+.pr-rec { display: inline; font-size: 14px; font-weight: 600; }
+.pr-ovr { display: inline; margin-left: 8px; font-size: 11px; color: var(--chalk-dim); white-space: nowrap; }
 td.pr-luck { font-size: 13px; }
 td.pr-ppg { white-space: nowrap; }
 .pr-ppg-num { display: inline-block; width: 42px; font-size: 14px; }

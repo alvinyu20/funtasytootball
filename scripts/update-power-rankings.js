@@ -41,20 +41,27 @@
   scripts/lib/pr-extras.js for what each number means) and carries the
   snapshot's week, so the page can tell if the two ever disagree.
 
-  This also rebuilds the CURRENT season's entry in
-  data/power-rank-csv-history.json — the same file that powers the
-  "Power Rank History" tabbed charts (Rank / Score / Playoff Odds by
-  week) on past seasons' Season pages. It does this by re-running
-  DeepHistory.computePowerRankings once per completed week, each time
-  with `deep.weeks` truncated to "through that week only" (see
-  buildCsvHistoryForCurrentSeason below), so the in-progress season
-  gets the exact same chart as a season already in the history books.
-  One approximation worth knowing: the ROS component of every
-  reconstructed past week uses TODAY's data/team-strength.json, since
-  there's no dated history of that file — so a past week's rank/score
-  here isn't necessarily byte-identical to what the live page showed
-  that week at the time, only to what it would show if recomputed now
-  with this week's ROS inputs applied retroactively.
+  This also keeps the CURRENT season's entry in
+  data/power-rank-csv-history.json up to date — the same file that powers
+  the "Power Rank History" tabbed charts (Rank / Score / Playoff Odds by
+  week) on past seasons' Season pages. EVERY RUN ADDS ONE WEEK AND NEVER
+  TOUCHES THE EARLIER ONES: a week that is already in the file is final,
+  because it is what the Power Rankings page showed when that week was
+  current (that is what the chart should say). Only the newest week is
+  written from this run — it is exactly the snapshot just built, and
+  re-running in the same week simply refreshes it.
+
+  Why it works this way (learned the hard way, 2026-10-28): this script used
+  to rebuild the whole season on every run by re-running the engine for each
+  past week. The ROS (rest-of-season) ranks have no dated history — only the
+  CURRENT data/team-strength.json exists — so every past week was re-scored
+  with this week's ROS (and a fresh random playoff simulation), and running
+  Week 7 silently rewrote Weeks 1-6 (up to 4 ranks and 28 playoff-odds points
+  off). Recomputing the past is only used as a FALLBACK now, for a week that
+  is missing from the file (first run of a season, or a week nobody ran); the
+  script says so loudly, because such a week is an approximation, not what
+  the page really showed. Fix a week by hand in the file if you have the real
+  numbers; it will be kept.
 
   WEEK COMPLETION: this script fetches Sleeper's own /state/nfl,
   which reports the CURRENT week league-wide (Sleeper advances this
@@ -250,36 +257,78 @@ function rostersAsOfWeek(rosters, weeks, throughWeek, playoffStart) {
 }
 
 /*
-  Rebuilds the in-progress season's "Power Rank History" time series --
-  Rank, raw PR Score, and Playoff Odds, one value per team per completed
-  week -- in the exact shape js/season.js's renderPowerRankHistorySection
-  already knows how to chart (see data/power-rank-csv-history.json's own
-  _instructions). Every other season in that file is a static import of
-  data recovered from before this site existed; this is the live
-  equivalent for the current season, since we DO have the real weekly
-  data to reconstruct it from.
+  Builds the in-progress season's "Power Rank History" time series -- Rank,
+  raw PR Score, and Playoff Odds, one value per team per completed week -- in
+  the exact shape js/season.js's renderPowerRankHistorySection already knows
+  how to chart (see data/power-rank-csv-history.json's own _instructions).
+  Every other season in that file is a static import of data recovered from
+  before this site existed; this is the live equivalent for the current season.
 
-  Re-runs computePowerRankings once per completed week (1..lastCompleteWeek),
-  each time with `weeks` truncated to "as of that week" -- scheduleWeeks is
-  passed through in full every time, since the Monte Carlo simulator needs
-  the REAL remaining schedule from that point forward, not a truncated one.
+  PAST WEEKS ARE FROZEN. `options.saved` is the season's entry as it is
+  already on file ({ ranks, scores, playoffOdds }). For each week 1..N-1:
+    - if the file has a complete set of numbers for that week (every team has
+      a rank, a score and playoff odds), they are copied over untouched;
+    - otherwise the week is reconstructed by re-running computePowerRankings
+      with `weeks` cut to "through that week" and each team's record rolled
+      back to that week (scheduleWeeks is passed in full every time, since the
+      Monte Carlo simulator needs the REAL remaining schedule). That uses
+      TODAY's team-strength file for the ROS part, so it is only an
+      approximation of what the page showed -- `options.log` is told.
+  The newest week (N) is always `finalWeekResult` -- exactly what the snapshot
+  was just built from, so the chart's last point equals the Power Rankings
+  page (the playoff-odds simulation is random) -- or is computed when none is
+  given.
+
   Keyed by row.teamName, which (per deep-history.js's own convention) is
   already the Sleeper username, not the custom team name -- matching how
-  every other season in this file is keyed.
+  every other season in this file is keyed. Teams keep the order they have in
+  `saved`, so the chart's line colors do not shuffle from run to run.
 */
-function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDeep, playerDirectory, teamStrengthTeams, iterations, lastCompleteWeek, finalWeekResult) {
+function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDeep, playerDirectory, teamStrengthTeams, iterations, lastCompleteWeek, finalWeekResult, options = {}) {
+  const saved = options.saved && options.saved.ranks && options.saved.scores && options.saved.playoffOdds ? options.saved : null;
+  const log = typeof options.log === "function" ? options.log : () => {};
   const ranks = {};
   const scores = {};
   const playoffOdds = {};
   const playoffStart = currentSeasonEntry.league && currentSeasonEntry.league.settings ? currentSeasonEntry.league.settings.playoff_week_start : null;
+  const finite = (v) => typeof v === "number" && Number.isFinite(v);
 
+  // Keep the saved teams' order (and their "pre" values) so nothing reshuffles.
+  if (saved) {
+    Object.keys(saved.ranks).forEach((key) => {
+      ranks[key] = { pre: finite(saved.ranks[key].pre) ? saved.ranks[key].pre : null, weekly: [] };
+      scores[key] = { pre: finite(saved.scores[key] && saved.scores[key].pre) ? saved.scores[key].pre : null, weekly: [] };
+      playoffOdds[key] = [];
+    });
+  }
+
+  const finalTeams = finalWeekResult ? finalWeekResult.rows.map((row) => row.teamName) : null;
+  // The week as it is on file, or null when anything about it is missing: a team with no value, a
+  // team that is not on file at all, or a file that holds teams this league no longer has.
+  const savedWeek = (week) => {
+    if (!saved) return null;
+    const keys = Object.keys(saved.ranks);
+    if (finalTeams && (keys.length !== finalTeams.length || !finalTeams.every((t) => keys.includes(t)))) return null;
+    const out = [];
+    for (const key of keys) {
+      const r = saved.ranks[key] && saved.ranks[key].weekly ? saved.ranks[key].weekly[week - 1] : undefined;
+      const sc = saved.scores[key] && saved.scores[key].weekly ? saved.scores[key].weekly[week - 1] : undefined;
+      const po = Array.isArray(saved.playoffOdds[key]) ? saved.playoffOdds[key][week - 1] : undefined;
+      if (!finite(r) || !finite(sc) || !finite(po)) return null;
+      out.push({ teamName: key, powerRank: r, prScore: sc, playoffPct: po });
+    }
+    return out;
+  };
+
+  const kept = [];
+  const rebuilt = [];
   for (let week = 1; week <= lastCompleteWeek; week++) {
-    let pr;
+    let rows;
     if (week === lastCompleteWeek && finalWeekResult) {
-      // The newest week is exactly what the snapshot was just built from. Reusing it
-      // (instead of simulating again) keeps the chart's last point identical to the
-      // Power Rankings page, since the playoff-odds simulation is random.
-      pr = finalWeekResult;
+      rows = finalWeekResult.rows;
+    } else if (week < lastCompleteWeek && savedWeek(week)) {
+      rows = savedWeek(week);
+      kept.push(week);
     } else {
       const asOfWeekDeep = {
         weeks: fullDeep.weeks.filter((w) => w.week <= week),
@@ -293,9 +342,10 @@ function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDe
         week === lastCompleteWeek
           ? currentSeasonEntry
           : { ...currentSeasonEntry, rosters: rostersAsOfWeek(currentSeasonEntry.rosters, fullDeep.weeks, week, playoffStart) };
-      pr = DeepHistory.computePowerRankings(asOfEntry, asOfWeekDeep, playerDirectory, teamStrengthTeams, iterations);
+      rows = DeepHistory.computePowerRankings(asOfEntry, asOfWeekDeep, playerDirectory, teamStrengthTeams, iterations).rows;
+      if (week < lastCompleteWeek) rebuilt.push(week);
     }
-    pr.rows.forEach((row) => {
+    rows.forEach((row) => {
       const key = row.teamName;
       if (!ranks[key]) ranks[key] = { pre: null, weekly: [] };
       if (!scores[key]) scores[key] = { pre: null, weekly: [] };
@@ -306,6 +356,13 @@ function buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, fullDe
     });
   }
 
+  if (kept.length) log(`Power Rank History: Week${kept.length > 1 ? "s" : ""} ${kept.join(", ")} already on file — kept exactly as saved (past weeks are never recomputed).`);
+  if (rebuilt.length) {
+    log(
+      `Power Rank History: Week${rebuilt.length > 1 ? "s" : ""} ${rebuilt.join(", ")} ${rebuilt.length > 1 ? "were" : "was"} missing from the file, so ${rebuilt.length > 1 ? "they were" : "it was"} RECONSTRUCTED from the games played, using today's ROS ranks. ` +
+        `That is an approximation of what the page showed back then; if you have the real numbers, edit data/power-rank-csv-history.json and the script will keep them.`
+    );
+  }
   return { ranks, scores, playoffOdds };
 }
 
@@ -400,15 +457,18 @@ async function main() {
   writeJson(HISTORY_PATH, history);
   console.log(`Wrote ${path.relative(REPO_ROOT, HISTORY_PATH)} (Week ${pr.week} ranks)`);
 
-  // Rebuilds the Season page's "Power Rank History" charts (Rank / Score /
-  // Playoff Odds by week) for the current, in-progress season -- re-runs
-  // the simulation once per completed week, so this is the slowest part
-  // of the script, but still a background job, not something on a live
-  // page load.
-  console.log(`Rebuilding ${lastCompleteWeek}-week Power Rank History for ${season} (re-simulating each past week)…`);
-  const csvHistoryData = buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, deep, playerDirectory, teamStrengthTeams, PLAYOFF_SIM_ITERATIONS, lastCompleteWeek, pr);
+  // Adds this week to the Season page's "Power Rank History" charts (Rank /
+  // Score / Playoff Odds by week) for the current, in-progress season. Weeks
+  // already in the file are kept exactly as they are (see
+  // buildCsvHistoryForCurrentSeason); only a week missing from the file is
+  // re-simulated, which is the slow part and happens at most on a first run.
   const csvHistory = readJson(CSV_HISTORY_PATH, { seasons: {} });
   if (!csvHistory.seasons) csvHistory.seasons = {};
+  console.log(`Updating Power Rank History for ${season} (adding Week ${lastCompleteWeek}; earlier weeks stay as saved)…`);
+  const csvHistoryData = buildCsvHistoryForCurrentSeason(DeepHistory, currentSeasonEntry, deep, playerDirectory, teamStrengthTeams, PLAYOFF_SIM_ITERATIONS, lastCompleteWeek, pr, {
+    saved: csvHistory.seasons[season],
+    log: (message) => console.log(message),
+  });
   csvHistory.seasons[season] = csvHistoryData;
   writeJson(CSV_HISTORY_PATH, csvHistory);
   console.log(`Wrote ${path.relative(REPO_ROOT, CSV_HISTORY_PATH)} (${season} Rank/Score/Playoff Odds through Week ${lastCompleteWeek})`);

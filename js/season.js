@@ -1015,6 +1015,8 @@ function renderPowerRankHistorySection(season) {
   }
 
   const hasUnknowns = Object.keys(yearData.ranks).some((k) => k.startsWith("unknown-"));
+  // Two teams on the same PR Score share their places (6th and 7th are both 6.5), the way the Power Rankings page shows it.
+  const rankLabel = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
   // Only seasons with all three datasets get all three tabs — a season
   // missing Power Score or Playoff Odds data just doesn't offer that tab,
@@ -1023,7 +1025,7 @@ function renderPowerRankHistorySection(season) {
     {
       key: "rank",
       label: "Power Rank By Week",
-      chart: Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, rankMode: true, formatter: (v) => v.toFixed(0) }),
+      chart: Charts.multiLineChart(toSeries(yearData.ranks), { invertY: true, rankMode: true, formatter: rankLabel }),
       note: `Rank 1 (best) is plotted at the top.${hasUnknowns ? " Some teams from this season couldn't be matched to a manager and are labeled by their preseason rank." : ""}`,
     },
     yearData.scores && {
