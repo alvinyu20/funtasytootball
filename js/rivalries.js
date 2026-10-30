@@ -1,98 +1,19 @@
-let LEAGUE_STATS = null;
+/*
+  The Rivalries page: pick two managers (or tap an opponent chip, or a square of the league map) and see
+  their whole series, then the league-wide streaks and records. The numbers come from rivalries-data.js;
+  this file turns them into markup and wires up the page.
 
-async function renderRivalriesPage() {
-  const errorBox = document.getElementById("rivalries-error");
-  const progressBox = document.getElementById("progress-status");
-  const pickerBox = document.getElementById("rivalry-picker");
-
-  try {
-    const [seasonChain, playerDirectory] = await Promise.all([
-      SleeperAPI.getSeasonChain(LEAGUE_ID),
-      SleeperAPI.getPlayerDirectory(),
-    ]);
-    if (seasonChain.length === 0) {
-      throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
-    }
-    const latest = seasonChain[seasonChain.length - 1].league;
-    document.title = (SITE_TITLE || latest.name || "League") + " — Rivalries";
-
-    // This week's featured matchup (best combined record on the slate), fetched
-    // while the history loads; the page opens on it when those two have met.
-    const featuredPromise = loadFeaturedPair(seasonChain).catch(() => null);
-
-    progressBox.style.display = "block";
-    const deepSeasons = await DeepHistory.buildAll(seasonChain, (season, status) => {
-      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
-    });
-    progressBox.style.display = "none";
-
-    LEAGUE_STATS = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
-
-    if (LEAGUE_STATS.managers.length < 2) {
-      document.getElementById("rivalry-content").innerHTML = `<div class="wrap"><div class="empty-state">Need at least 2 managers with history to compare.</div></div>`;
-      return;
-    }
-
-    const sortedManagers = [...LEAGUE_STATS.managers].sort((a, b) => (a.username || a.teamName).localeCompare(b.username || b.teamName));
-    const selectA = document.getElementById("rivalry-select-a");
-    const selectB = document.getElementById("rivalry-select-b");
-    const optionsHtml = sortedManagers.map((m) => `<option value="${escapeHtml(m.userId)}">${escapeHtml(m.username || m.teamName)}</option>`).join("");
-    selectA.innerHTML = optionsHtml;
-    selectB.innerHTML = optionsHtml;
-
-    const validIds = new Set(sortedManagers.map((m) => m.userId));
-    const featured = await featuredPromise;
-    const hot = hottestRivalries(LEAGUE_STATS.pairGameLog, LEAGUE_STATS.managers, HOTLIST_SIZE * 2);
-    const opening = pickOpeningPair({
-      hashPair: parseHash(),
-      validIds,
-      me: typeof MyTeam !== "undefined" ? MyTeam.get() : null,
-      managers: LEAGUE_STATS.managers,
-      featured,
-      pairGameLog: LEAGUE_STATS.pairGameLog,
-      hot,
-      fallback: [sortedManagers[0].userId, sortedManagers[1] ? sortedManagers[1].userId : sortedManagers[0].userId],
-    });
-    selectA.value = opening.a;
-    selectB.value = opening.b;
-
-    pickerBox.style.display = "flex";
-    renderHotlist(hot.slice(0, HOTLIST_SIZE));
-    showWhy(opening.reason);
-    renderRivalry(opening.a, opening.b);
-    window.location.hash = `${selectA.value}-vs-${selectB.value}`;
-
-    function show(a, b, reason) {
-      selectA.value = a;
-      selectB.value = b;
-      window.location.hash = `${a}-vs-${b}`;
-      showWhy(reason || "");
-      renderRivalry(a, b);
-    }
-    selectA.addEventListener("change", () => show(selectA.value, selectB.value, ""));
-    selectB.addEventListener("change", () => show(selectA.value, selectB.value, ""));
-    document.getElementById("rivalry-swap").addEventListener("click", () => show(selectB.value, selectA.value, ""));
-    document.getElementById("rivalry-hotlist").addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-rivalry-a]");
-      if (!btn) return;
-      show(btn.getAttribute("data-rivalry-a"), btn.getAttribute("data-rivalry-b"), "From the hotlist");
-      const target = document.getElementById("rivalry-picker");
-      if (target && target.scrollIntoView) target.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  } catch (err) {
-    console.error(err);
-    progressBox.style.display = "none";
-    errorBox.textContent = "Couldn't load rivalry data — " + err.message;
-    errorBox.style.display = "block";
-  }
-}
+  The page keeps all of its state in RIV (built once by buildRivalryState), and every block of markup is
+  a function of that state plus the pair being shown, so a redraw is idempotent: picking a pair, flipping
+  the past-managers switch, or changing "My team" just redraws what depends on it.
+*/
+let RIV = null;
 
 // ---------------------------------------------------------------
 // Which rivalry to open on. A link wins; then your own hottest rivalry
 // (if you picked a team); then this week's featured matchup (if those two
 // have met before); then the league's hottest rivalry. Never a random pair.
 // ---------------------------------------------------------------
-const HOTLIST_SIZE = 6;
 
 // How big a rivalry is: lots of meetings, an even series, playoff games, and
 // games lately. Returns a number, bigger = hotter. `games` is the pair's game
@@ -148,14 +69,6 @@ function hottestRivalries(pairGameLog, managers, limit) {
   return limit ? rows.slice(0, limit) : rows;
 }
 
-// A short reason a pair is on the hotlist.
-function hotTag(r) {
-  if (r.playoffs >= 2) return "Playoff history";
-  if (r.meetings >= 4 && Math.abs(r.winsA - r.winsB) <= 1) return "Dead even";
-  if (r.meetings >= 6) return "Most played";
-  return "Heating up";
-}
-
 function pickOpeningPair({ hashPair, validIds, me, managers, featured, pairGameLog, hot, fallback }) {
   const [hashA, hashB] = hashPair || [];
   if (validIds.has(hashA) && validIds.has(hashB) && hashA !== hashB) return { a: hashA, b: hashB, reason: "" };
@@ -188,187 +101,550 @@ async function loadFeaturedPair(seasonChain) {
   return { a: pair.sa.userId, b: pair.sb.userId };
 }
 
-function showWhy(reason) {
-  const el = document.getElementById("rivalry-why");
-  if (!el) return;
-  el.textContent = reason ? `Opening on: ${reason}` : "";
-  el.style.display = reason ? "" : "none";
-}
-
-function hotlistItemsHtml(rows) {
-  return rows
-    .map(
-      (r) => `
-      <button type="button" class="hot-rivalry" data-rivalry-a="${escapeHtml(r.a)}" data-rivalry-b="${escapeHtml(r.b)}">
-        <span class="hot-rivalry-names"><span data-username="${escapeHtml(r.nameA)}">${escapeHtml(r.nameA)}</span> <span class="hot-rivalry-vs">vs</span> <span data-username="${escapeHtml(r.nameB)}">${escapeHtml(r.nameB)}</span></span>
-        <span class="hot-rivalry-record">${r.winsA}-${r.winsB}${r.ties ? "-" + r.ties : ""}</span>
-        <span class="hot-rivalry-meta">${r.meetings} meeting${r.meetings === 1 ? "" : "s"}${r.playoffs ? ` \u00b7 ${r.playoffs} playoff` : ""} \u00b7 ${escapeHtml(hotTag(r))}</span>
-      </button>`
-    )
-    .join("");
-}
-
-function renderHotlist(rows) {
-  const box = document.getElementById("rivalry-hotlist");
-  if (!box) return;
-  const wrap = document.getElementById("rivalry-hotlist-panel");
-  if (!rows.length) {
-    if (wrap) wrap.style.display = "none";
-    return;
-  }
-  box.innerHTML = hotlistItemsHtml(rows);
-  if (wrap) wrap.style.display = "";
-  // Open on a wide screen, folded on a phone (the rivalry itself should be what you see first).
-  const details = document.getElementById("rivalry-hotlist-details");
-  if (details && typeof window !== "undefined" && window.matchMedia && window.matchMedia("(min-width: 721px)").matches) details.setAttribute("open", "");
-}
-
 function parseHash() {
   const hash = window.location.hash.replace(/^#/, "");
   const parts = hash.split("-vs-");
   return [parts[0], parts[1]];
 }
 
-function pairKey(a, b) {
-  return [a, b].sort().join("|");
+// ---------------------------------------------------------------
+// State
+// ---------------------------------------------------------------
+
+/*
+  Everything the page draws from. `stats` is DeepHistory.computeStats() (managers + pairGameLog),
+  `currentIds` the Set of user ids in this year's league (null = treat everyone as current), `careers`
+  { userId: RivalriesData.careerFacts(...) }, `me` the username picked as My Team (or null).
+*/
+function buildRivalryState({ stats, currentIds, careers, me }) {
+  const managers = stats.managers || [];
+  const nameOf = (m) => m.username || m.teamName || "";
+  const key = String(me || "").trim().toLowerCase();
+  const mine = key ? managers.find((m) => String(m.username || "").trim().toLowerCase() === key) : null;
+  const meId = mine ? mine.userId : null;
+  const opts = { currentIds: currentIds || null };
+  return {
+    managers,
+    byId: new Map(managers.map((m) => [m.userId, m])),
+    pairGameLog: stats.pairGameLog || {},
+    currentIds: currentIds || null,
+    careers: careers || {},
+    abbr: RivalriesData.abbreviations(managers.map(nameOf)),
+    meId,
+    includePast: false,
+    a: null,
+    b: null,
+    streaks: RivalriesData.currentStreaks(stats.pairGameLog || {}, managers, opts),
+    records: RivalriesData.pairRecords(stats.pairGameLog || {}, managers, opts),
+    summary: RivalriesData.leagueSummary(stats.pairGameLog || {}),
+    pastCount: currentIds ? managers.filter((m) => !currentIds.has(m.userId)).length : 0,
+  };
 }
 
-function recordCardHtml(label, value, detail) {
+const rivName = (id) => {
+  const m = RIV && RIV.byId.get(id);
+  return m ? m.username || m.teamName || "" : "";
+};
+// "YOU" for the manager picked as My Team, otherwise their four letters.
+const rivLabel = (id) => (RIV && id === RIV.meId ? "YOU" : (RIV && RIV.abbr[rivName(id)]) || rivName(id));
+const esc = (s) => escapeHtml(String(s == null ? "" : s));
+
+// Everything one pair's blocks are drawn from.
+function rivalryModel(a, b) {
+  const games = RivalriesData.gamesBetween(RIV.pairGameLog, a, b);
+  const summary = RivalriesData.summarize(games);
+  const nameA = rivName(a);
+  const nameB = rivName(b);
+  const labelA = rivLabel(a);
+  const labelB = rivLabel(b);
+  return {
+    a,
+    b,
+    nameA,
+    nameB,
+    labelA,
+    labelB,
+    games,
+    summary,
+    lines: RivalriesData.seriesLines(summary, nameA, nameB),
+    log: RivalriesData.gameLog(games),
+    career: RivalriesData.careerRows(RIV.careers[a], RIV.careers[b], labelA, labelB),
+  };
+}
+
+// ---------------------------------------------------------------
+// Markup: the picker
+// ---------------------------------------------------------------
+
+function selectFaceHtml(id) {
+  const name = rivName(id);
+  return `<span class="riv-select-name">${esc(name)}</span>${id === RIV.meId ? ` <span class="you-tag">You</span>` : ""}`;
+}
+
+function chipsHtml(a, b) {
+  const chips = RivalriesData.opponentChips(RIV.pairGameLog, RIV.managers, a, { currentIds: RIV.currentIds, selectedB: b });
+  if (!chips.length) return `<span class="riv-chips-none">${esc(rivName(a))} hasn't played anyone yet.</span>`;
+  return chips
+    .map((c) => {
+      const label = c.id === RIV.meId ? "YOU" : c.abbr;
+      const on = c.id === b;
+      return `<button type="button" class="riv-chip ${c.tone}${on ? " sel" : ""}" data-riv-a="${esc(a)}" data-riv-b="${esc(c.id)}" data-riv-src="chip" aria-pressed="${on}" title="${esc(rivName(a))} vs ${esc(c.name)}: ${esc(c.record)}"><span class="rc-n">${esc(label)}</span><span class="rc-r">${esc(c.record)}</span></button>`;
+    })
+    .join("");
+}
+
+// ---------------------------------------------------------------
+// Markup: the top card (and the same card in the phone's bottom sheet)
+// ---------------------------------------------------------------
+
+function stripHtml(summary) {
+  const letters = summary.strip.map((s) => s.result).join(" ");
+  const squares = summary.strip
+    .map((s) => `<i class="riv-sq ${s.result === "W" ? "w" : s.result === "L" ? "l" : "t"}${s.isPlayoff ? " po" : ""}" title="${s.season} wk ${s.week}${s.isPlayoff ? " (playoffs)" : ""}">${s.result}</i>`)
+    .join("");
+  return `<div class="riv-strip" role="img" aria-label="Every meeting, oldest to newest: ${letters}">${squares}</div>`;
+}
+
+function tilesHtml(model) {
+  const s = model.summary;
+  const po = s.playoffs;
+  const poRecord = `${po.w}-${po.l}${po.t ? "-" + po.t : ""}`;
+  const poSub = po.n ? `${po.n} game${po.n === 1 ? "" : "s"} since ${s.firstSeason}` : "none yet";
+  const margin = s.avgMargin == null ? 0 : s.avgMargin;
+  const marginClass = Math.round(margin * 10) > 0 ? " good" : Math.round(margin * 10) < 0 ? " bad" : "";
+  const c = s.closest;
   return `
-    <div class="record-card">
-      <p class="record-label">${escapeHtml(label)}</p>
-      <p class="record-value">${value}</p>
-      ${detail ? `<p class="record-detail">${detail}</p>` : ""}
-    </div>`;
+    <div class="riv-tile"><span class="rt-l">Playoffs</span><span class="rt-v">${poRecord}</span><span class="rt-s">${poSub}</span></div>
+    <div class="riv-tile"><span class="rt-l">Avg score</span><span class="rt-v good">${RivalriesData.fmt1(s.avgA)}</span><span class="rt-s">${esc(model.nameB)} ${RivalriesData.fmt1(s.avgB)}</span></div>
+    <div class="riv-tile"><span class="rt-l">Avg margin</span><span class="rt-v${marginClass}">${RivalriesData.signed1(margin)}</span><span class="rt-s">per game, ${esc(model.labelA)} view</span></div>
+    <div class="riv-tile"><span class="rt-l">Closest</span><span class="rt-v">${RivalriesData.fmt1(c.margin)}</span><span class="rt-s">${c.season} wk ${c.week}${c.isPlayoff ? " · playoffs" : ""}</span></div>`;
 }
 
-// Closest Meeting and Biggest Blowout. With only one meeting (or every game the same
-// margin) they are the same game, so say that once instead of two identical cards.
-function marginCardsHtml(closest, blowout, meetings) {
-  if (!closest || !blowout) return "";
-  const detail = (g) => `${g.season} Wk ${g.week}${g.isPlayoff ? " \u00b7 Playoffs" : ""}`;
-  const sameGame = closest.season === blowout.season && closest.week === blowout.week;
-  if (sameGame || closest.margin === blowout.margin) {
-    return recordCardHtml(meetings === 1 ? "Their Only Meeting" : "Every Game Was This Close", `${closest.margin.toFixed(1)} pts`, detail(closest));
+function heroHtml(model, { sheet } = {}) {
+  const s = model.summary;
+  const idAttr = sheet ? "" : ` id="riv-this"`;
+  if (!s.n) {
+    return `<section class="panel riv-hero riv-hero-empty"${idAttr}><p class="riv-empty">${esc(model.nameA)} and ${esc(model.nameB)} haven't played each other yet.</p></section>`;
   }
-  return (
-    recordCardHtml("Closest Meeting", `${closest.margin.toFixed(1)} pts`, detail(closest)) +
-    recordCardHtml("Biggest Blowout", `${blowout.margin.toFixed(1)} pts`, detail(blowout))
-  );
+  const range = RivalriesData.rangeText(s.firstSeason, s.lastSeason);
+  const first = s.firstSeason;
+  const last = s.lastSeason;
+  return `
+    <section class="panel riv-hero"${idAttr} aria-label="This rivalry">
+      <div class="riv-hero-main">
+        <p class="riv-eyebrow">This rivalry · ${esc(range)}</p>
+        <p class="riv-matchup"><span>${esc(model.labelA)}</span> <span class="riv-vs">vs</span> <span>${esc(model.labelB)}</span></p>
+        <div class="riv-record-row">
+          <span class="riv-record">${esc(s.record)}</span>
+          <p class="riv-lines"><span>${esc(model.lines.lead)}</span><span>${esc(model.lines.detail)}</span></p>
+        </div>
+      </div>
+      <div class="riv-hero-side">
+        ${stripHtml(s)}
+        <div class="riv-strip-key"><span>${first}</span><span class="riv-strip-note"><span class="riv-key-long">every meeting, oldest to newest · </span>outlined = playoff</span><span>${last}</span></div>
+        <div class="riv-tiles">${tilesHtml(model)}</div>
+      </div>
+    </section>`;
+}
+
+// ---------------------------------------------------------------
+// Markup: game log and career compare
+// ---------------------------------------------------------------
+
+const LOG_PREVIEW_ROWS = 6; // on a phone: this many meetings, then a button for the rest
+
+function logHtml(model) {
+  const rows = model.log;
+  if (!rows.length) return "";
+  const body = rows
+    .map((r, i) => {
+      const aWon = r.result === "W";
+      const bWon = r.result === "L";
+      const mgClass = r.diff > 0 ? " good" : r.diff < 0 ? " bad" : "";
+      const note = r.notes.join(", ");
+      return `
+        <tr class="${r.isPlayoff ? "riv-po" : ""}${r.firstOfSeason ? "" : " riv-cont"}${i >= LOG_PREVIEW_ROWS ? " riv-extra" : ""}">
+          <td class="riv-yr"><span class="riv-yr-y">${r.season}</span>${r.firstOfSeason ? `<span class="riv-yr-rec">${esc(r.seasonRecord)}</span>` : ""}</td>
+          <td class="riv-wk">wk ${r.week}</td>
+          <td class="riv-sc"><span class="riv-s${aWon ? " won" : ""}">${RivalriesData.fmt1(r.a)}</span><span class="riv-to"> to </span><span class="riv-s${bWon ? " won" : ""}">${RivalriesData.fmt1(r.b)}</span></td>
+          <td class="riv-mg${mgClass}">${RivalriesData.signed1(r.diff)}</td>
+          <td class="riv-sr">${esc(r.seriesAfter)}</td>
+          <td class="riv-nt${note ? " has-note" : ""}"><span class="riv-nt-text">${esc(note)}</span><span class="riv-nt-series">series ${esc(r.seriesAfter)}</span></td>
+        </tr>`;
+    })
+    .join("");
+  const more = rows.length > LOG_PREVIEW_ROWS ? `<button type="button" class="riv-more" data-riv-more data-count="${rows.length}">Show all ${rows.length} meetings ▾</button>` : "";
+  return `
+    <div class="panel-head"><h2>Game log</h2><span class="riv-note">newest first · gold score won</span></div>
+    <table class="riv-log">
+      <thead><tr><th class="riv-yr">Season</th><th class="riv-wk">Week</th><th class="riv-sc"><span class="riv-th-a">${esc(model.labelA)}</span> <span>${esc(model.labelB)}</span></th><th class="riv-mg">Margin</th><th class="riv-sr">Series</th><th class="riv-nt">Notes</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+    ${more}`;
+}
+
+function careerHtml(model) {
+  const c = model.career;
+  if (!c.rows.length) return "";
+  const rows = c.rows
+    .map(
+      (r) => `
+      <div class="riv-cc-row">
+        <div class="cc-a"><span class="cc-pill${r.winner === "a" ? " win-a" : ""}">${esc(r.aText)}</span></div>
+        <div class="cc-mid"><span class="cc-lab">${esc(r.label)}</span><span class="cc-gap${r.winner === "a" ? " for-a" : ""}">${esc(r.gap)}</span></div>
+        <div class="cc-b"><span class="cc-pill${r.winner === "b" ? " win-b" : ""}">${esc(r.bText)}</span></div>
+      </div>`
+    )
+    .join("");
+  return `
+    <div class="panel-head"><h2>Career compare</h2><span class="riv-note">${esc(c.summary)}</span></div>
+    <div class="riv-cc">${rows}</div>
+    <p class="riv-foot">Whole careers, ESPN years included. The game log and the map start in 2020.</p>`;
+}
+
+// ---------------------------------------------------------------
+// Markup: the league map
+// ---------------------------------------------------------------
+
+function mapHtml() {
+  const map = RivalriesData.leagueMap(RIV.pairGameLog, RIV.managers, { currentIds: RIV.currentIds, meId: RIV.meId, includePast: RIV.includePast });
+  const head = map.cols
+    .map((c) => `<th class="rm-col${c.id === RIV.b ? " sel" : ""}${c.isMe ? " me" : ""}${c.past ? " past" : ""}" scope="col"><span class="rm-ab">${esc(c.isMe ? "YOU" : c.abbr)}</span>${c.past ? `<em class="rm-past">past</em>` : ""}</th>`)
+    .join("");
+  const body = map.rows
+    .map((row) => {
+      const cells = row.cells
+        .map((cell) => {
+          if (cell.self) return `<td class="rm-self"></td>`;
+          if (!cell.n) return `<td><span class="rm-cell none" aria-label="${esc(row.name)} and ${esc(map.cols.find((c) => c.id === cell.id).name)} have not met">-</span></td>`;
+          const colName = map.cols.find((c) => c.id === cell.id).name;
+          const sel = row.id === RIV.a && cell.id === RIV.b;
+          return `<td><button type="button" class="rm-cell ${cell.band}${cell.small ? " small" : ""}${sel ? " sel" : ""}" data-riv-a="${esc(row.id)}" data-riv-b="${esc(cell.id)}" data-riv-src="map" aria-label="${esc(row.name)} vs ${esc(colName)}: ${esc(cell.record)}, ${esc(cell.pctText)}${cell.small ? ", few meetings" : ""}"><span class="rm-rec">${esc(cell.record)}</span><span class="rm-pct">${esc(cell.pctText)}</span></button></td>`;
+        })
+        .join("");
+      return `<tr class="${row.id === RIV.a ? "rm-on" : ""}"><th class="rm-name" scope="row"><span class="rm-nm">${esc(row.name)}</span>${row.isMe ? ` <span class="you-tag">You</span>` : ""}${row.past ? ` <em class="rm-past">past</em>` : ""}</th>${cells}<td class="rm-all">${esc(row.all.record)}</td></tr>`;
+    })
+    .join("");
+  return `
+    <table class="riv-map">
+      <thead><tr><th class="rm-corner" scope="col">Row owner vs</th>${head}<th class="rm-allh" scope="col">${esc(map.allLabel)}</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
+const MAP_LEGEND = [
+  ["b5", "70%+"],
+  ["b4", "55 to 69"],
+  ["b3", "45 to 54"],
+  ["b2", "30 to 44"],
+  ["b1", "Under 30"],
+];
+
+function mapLegendHtml() {
+  const bands = MAP_LEGEND.map(([band, text]) => `<span class="rl-key"><i class="rm-sw ${band}"></i>${text}</span>`).join("");
+  return `<span class="riv-legend-label">Win rate</span>${bands}<span class="rl-key"><i class="rm-sw few"></i>Fewer than ${RivalriesData.MIN_MAP_MEETINGS} meetings</span>`;
+}
+
+// ---------------------------------------------------------------
+// Markup: streaks and records
+// ---------------------------------------------------------------
+
+// Who goes first when a row opens a rivalry: you, if you are one of the two; otherwise the first name shown.
+function openPair(a, b) {
+  return b === RIV.meId ? [b, a] : [a, b];
+}
+
+function pairAttrs(a, b, src) {
+  const [x, y] = openPair(a, b);
+  return `data-riv-a="${esc(x)}" data-riv-b="${esc(y)}" data-riv-src="${src}"`;
+}
+
+function streaksHtml() {
+  if (!RIV.streaks.length) return `<p class="riv-none">No one is on a run of ${RivalriesData.MIN_STREAK} or more right now.</p>`;
+  return RIV.streaks
+    .map((s) => {
+      const mine = s.holderId === RIV.meId || s.otherId === RIV.meId;
+      return `<button type="button" class="riv-streak${mine ? " mine" : ""}" ${pairAttrs(s.holderId, s.otherId, "streak")}>
+        <span class="rs-top"><span class="rs-n">${s.length}</span><span class="rs-w">straight</span></span>
+        <span class="rs-who">${esc(s.holder)} over ${esc(s.other)}</span>
+        <span class="rs-since">began ${s.startSeason} wk ${s.startWeek}</span>
+      </button>`;
+    })
+    .join("");
+}
+
+function recordRowsHtml(rows, kind) {
+  if (!rows.length) return `<p class="riv-none">Nothing yet.</p>`;
+  return rows
+    .map((r) => {
+      const mine = r.aId === RIV.meId || r.bId === RIV.meId;
+      const a = rivLabel(r.aId);
+      const b = rivLabel(r.bId);
+      let text;
+      let right;
+      if (kind === "lopsided") {
+        text = `${esc(a)} over ${esc(b)}`;
+        right = `<span class="rr-v">${esc(r.record)}</span><span class="rr-s">${r.pct}%</span>`;
+      } else if (kind === "even") {
+        text = `${esc(a)} vs ${esc(b)}`;
+        right = `<span class="rr-v">${esc(r.record)}</span><span class="rr-s">${r.meetings} games</span>`;
+      } else {
+        text = `${esc(a)} over ${esc(b)}`;
+        right = `<span class="rr-v">${RivalriesData.fmt1(r.margin)}</span><span class="rr-s">${r.season} wk ${r.week}</span>`;
+      }
+      return `<button type="button" class="riv-rr${mine ? " mine" : ""}" ${pairAttrs(r.aId, r.bId, "record")}><span class="rr-t">${text}</span>${right}</button>`;
+    })
+    .join("");
+}
+
+// ---------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------
+
+function setHtml(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+
+function drawLeagueSections() {
+  setHtml("riv-summary", esc(RIV.summary.text));
+  setHtml("riv-streaks", streaksHtml());
+  setHtml("riv-rec-lopsided", recordRowsHtml(RIV.records.lopsided, "lopsided"));
+  setHtml("riv-rec-even", recordRowsHtml(RIV.records.even, "even"));
+  setHtml("riv-rec-blowouts", recordRowsHtml(RIV.records.blowouts, "blowouts"));
+  setHtml("riv-map-legend", mapLegendHtml());
+}
+
+function drawMap() {
+  setHtml("riv-map", mapHtml());
+  const toggle = document.getElementById("riv-past-wrap");
+  if (toggle) toggle.style.display = RIV.pastCount ? "" : "none";
 }
 
 function renderRivalry(userIdA, userIdB) {
-  const content = document.getElementById("rivalry-content");
+  RIV.a = userIdA;
+  RIV.b = userIdB;
+  const selA = document.getElementById("rivalry-select-a");
+  const selB = document.getElementById("rivalry-select-b");
+  if (selA) selA.value = userIdA;
+  if (selB) selB.value = userIdB;
+  setHtml("riv-face-a", selectFaceHtml(userIdA));
+  setHtml("riv-face-b", selectFaceHtml(userIdB));
+  setHtml("riv-chips", chipsHtml(userIdA, userIdB));
+  drawMap();
+
   if (userIdA === userIdB) {
-    content.innerHTML = `<div class="wrap"><div class="empty-state">Pick two different managers.</div></div>`;
+    setHtml("riv-hero", `<section class="panel riv-hero riv-hero-empty" id="riv-this"><p class="riv-empty">Pick two different managers.</p></section>`);
+    setHtml("riv-log-panel", "");
+    setHtml("riv-compare-panel", "");
     return;
   }
-  const mgrA = LEAGUE_STATS.managers.find((m) => m.userId === userIdA);
-  const mgrB = LEAGUE_STATS.managers.find((m) => m.userId === userIdB);
-  const nameA = escapeHtml(mgrA.username || mgrA.teamName);
-  const nameB = escapeHtml(mgrB.username || mgrB.teamName);
-  const games = (LEAGUE_STATS.pairGameLog[pairKey(userIdA, userIdB)] || [])
-    .slice()
-    .sort((x, y) => Number(y.season) - Number(x.season) || y.week - x.week);
+  const model = rivalryModel(userIdA, userIdB);
+  setHtml("riv-hero", heroHtml(model));
+  setHtml("riv-log-panel", logHtml(model));
+  setHtml("riv-compare-panel", careerHtml(model));
+  const cols = document.getElementById("riv-cols");
+  if (cols) cols.className = `wrap riv-cols${model.log.length && model.career.rows.length ? "" : " riv-cols-one"}`;
+  const logPanel = document.getElementById("riv-log-panel");
+  if (logPanel) logPanel.style.display = model.log.length ? "" : "none";
+  const ccPanel = document.getElementById("riv-compare-panel");
+  if (ccPanel) ccPanel.style.display = model.career.rows.length ? "" : "none";
+}
 
-  if (!games.length) {
-    content.innerHTML = `<div class="wrap"><div class="empty-state">${nameA} and ${nameB} haven't played each other yet.</div></div>`;
-    return;
+// ---------------------------------------------------------------
+// The phone's bottom sheet: a tap on the map shows the rivalry here instead of scrolling you off the grid
+// ---------------------------------------------------------------
+
+let RIV_SHEET_OPENER = null;
+
+function openSheet(a, b, opener) {
+  const sheet = document.getElementById("riv-sheet");
+  if (!sheet) return;
+  const model = rivalryModel(a, b);
+  setHtml("riv-sheet-body", heroHtml(model, { sheet: true }));
+  const load = document.getElementById("riv-sheet-load");
+  if (load) {
+    load.setAttribute("data-riv-a", a);
+    load.setAttribute("data-riv-b", b);
   }
+  sheet.hidden = false;
+  RIV_SHEET_OPENER = opener || null;
+  document.body.classList.add("riv-sheet-open");
+  if (load && load.focus) load.focus();
+}
 
-  let winsA = 0,
-    winsB = 0,
-    ties = 0,
-    playoffWinsA = 0,
-    playoffWinsB = 0,
-    playoffTies = 0;
-  let closest = null;
-  let blowout = null;
+function closeSheet() {
+  const sheet = document.getElementById("riv-sheet");
+  if (!sheet || sheet.hidden) return;
+  sheet.hidden = true;
+  document.body.classList.remove("riv-sheet-open");
+  if (RIV_SHEET_OPENER && RIV_SHEET_OPENER.focus) RIV_SHEET_OPENER.focus();
+  RIV_SHEET_OPENER = null;
+}
 
-  games.forEach((g) => {
-    const aIsA = g.aUserId === userIdA;
-    const scoreA = aIsA ? g.aScore : g.bScore;
-    const scoreB = aIsA ? g.bScore : g.aScore;
-    if (scoreA > scoreB) {
-      winsA += 1;
-      if (g.isPlayoff) playoffWinsA += 1;
-    } else if (scoreB > scoreA) {
-      winsB += 1;
-      if (g.isPlayoff) playoffWinsB += 1;
-    } else {
-      ties += 1;
-      if (g.isPlayoff) playoffTies += 1;
+// ---------------------------------------------------------------
+// Loading and wiring
+// ---------------------------------------------------------------
+
+function scrollToId(id) {
+  const el = document.getElementById(id);
+  if (!el || !el.scrollIntoView) return;
+  const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "start" });
+}
+
+const isPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
+async function renderRivalriesPage() {
+  const errorBox = document.getElementById("rivalries-error");
+  const progressBox = document.getElementById("progress-status");
+  const pickerBox = document.getElementById("rivalry-picker");
+
+  try {
+    const [seasonChain, playerDirectory, rawManual] = await Promise.all([
+      SleeperAPI.getSeasonChain(LEAGUE_ID),
+      SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(MANUAL_HISTORY_FILE, { seasons: [] }),
+    ]);
+    if (seasonChain.length === 0) {
+      throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
     }
-    const margin = Math.abs(scoreA - scoreB);
-    const marginEntry = { margin, season: g.season, week: g.week, isPlayoff: g.isPlayoff };
-    if (!closest || margin < closest.margin) closest = marginEntry;
-    if (!blowout || margin > blowout.margin) blowout = marginEntry;
-  });
+    // An un-replaced template entry (champion still says "REPLACE_WITH...") never shows up on the live site.
+    const manual = { ...rawManual, seasons: (rawManual.seasons || []).filter((s) => s.champion && !String(s.champion).startsWith("REPLACE_WITH")) };
+    const latest = seasonChain[seasonChain.length - 1].league;
+    document.title = (SITE_TITLE || latest.name || "League") + " — Rivalries";
 
-  const gameRows = games
-    .map((g) => {
-      const aIsA = g.aUserId === userIdA;
-      const scoreA = aIsA ? g.aScore : g.bScore;
-      const scoreB = aIsA ? g.bScore : g.aScore;
-      const margin = Math.abs(scoreA - scoreB);
-      const isTie = scoreA === scoreB;
-      // The winning side's score is bolded gold (same convention the
-      // playoff bracket already uses for a winning team), with its
-      // margin of victory right alongside it -- enough on its own to
-      // read "who won, and by how much" at a glance without needing a
-      // separate column repeating the winner's name in text, or having
-      // to subtract the two numbers yourself.
-      const cellA = isTie
-        ? `<td data-label="${nameA}">${scoreA.toFixed(1)}</td>`
-        : scoreA > scoreB
-        ? `<td data-label="${nameA}" class="rivalry-score-win">${scoreA.toFixed(1)} <span class="rivalry-score-margin">+${margin.toFixed(1)}</span></td>`
-        : `<td data-label="${nameA}" class="rivalry-score-loss">${scoreA.toFixed(1)}</td>`;
-      const cellB = isTie
-        ? `<td data-label="${nameB}">${scoreB.toFixed(1)}</td>`
-        : scoreB > scoreA
-        ? `<td data-label="${nameB}" class="rivalry-score-win">${scoreB.toFixed(1)} <span class="rivalry-score-margin">+${margin.toFixed(1)}</span></td>`
-        : `<td data-label="${nameB}" class="rivalry-score-loss">${scoreB.toFixed(1)}</td>`;
-      return `
-    <tr>
-      <td data-label="Season">${escapeHtml(String(g.season))}</td>
-      <td data-label="Week">Wk ${g.week}${g.isPlayoff ? ` <span class="rivalry-playoff-badge">Playoffs</span>` : ""}</td>
-      ${cellA}
-      ${cellB}
-    </tr>`;
-    })
-    .join("");
+    // This week's featured matchup (best combined record on the slate), fetched
+    // while the history loads; the page opens on it when those two have met.
+    const featuredPromise = loadFeaturedPair(seasonChain).catch(() => null);
 
-  const playoffNote = playoffWinsA + playoffWinsB + playoffTies ? ` · Playoffs: ${playoffWinsA}-${playoffWinsB}${playoffTies ? "-" + playoffTies : ""}` : "";
+    progressBox.style.display = "block";
+    const deepSeasons = await DeepHistory.buildAll(seasonChain, (season, status) => {
+      progressBox.textContent = status === "cached" ? `${season} loaded from cache…` : status === "archived" ? `${season} loaded from backup…` : `Fetching ${season}…`;
+    });
+    progressBox.style.display = "none";
 
-  content.innerHTML = `
-    <div class="wrap"><div class="panel">
-      <div class="rivalry-series-score">
-        <div class="rivalry-series-name">${nameA}</div>
-        <div class="rivalry-series-record">${winsA}-${winsB}${ties ? "-" + ties : ""}</div>
-        <div class="rivalry-series-name">${nameB}</div>
-      </div>
-      <p class="rivalry-series-vs" style="text-align:center;">${games.length} meeting${games.length === 1 ? "" : "s"} all-time${playoffNote}</p>
-    </div></div>
+    const stats = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
+    if (stats.managers.length < 2) {
+      document.getElementById("riv-hero").innerHTML = `<div class="empty-state">Need at least 2 managers with history to compare.</div>`;
+      return;
+    }
 
-    <div class="wrap"><div class="records-grid">
-      ${marginCardsHtml(closest, blowout, games.length)}
-    </div></div>
+    // Careers: the same owners the Teams page uses (ESPN years folded in), and the first-round byes
+    // from the managers once the ESPN years are added to them.
+    const ledger = HistoryData.buildLedger(seasonChain, manual);
+    const ownerData = HistoryData.buildOwners(stats.managers, manual, ledger);
+    const manualStatsByTeam = ManualHistory.computeManagerStats(manual);
+    const careers = {};
+    stats.managers.forEach((m) => {
+      const name = m.username || m.teamName;
+      const mm = m.username ? manualStatsByTeam.get(m.username) : null;
+      if (mm) ManualHistory.mergeIntoManager(m, mm.totals);
+      const owner = name ? ownerData.owners.find((o) => o.key === HistoryData.keyOf(name)) : null;
+      if (owner) careers[m.userId] = RivalriesData.careerFacts(owner, m.byes);
+    });
+    const currentIds = new Set(ownerData.owners.filter((o) => o.active && o.userId).map((o) => o.userId));
 
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Full Game Log</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap"><div class="panel">
-      <div class="heatmap-table-wrap">
-        <table class="stat-table responsive-stack">
-          <thead><tr><th>Season</th><th>Week</th><th>${nameA}</th><th>${nameB}</th></tr></thead>
-          <tbody>${gameRows}</tbody>
-        </table>
-      </div>
-      <p class="heatmap-note">Gold is the winning score each week, with the margin of victory alongside it.</p>
-    </div></div>
-  `;
+    RIV = buildRivalryState({ stats, currentIds: currentIds.size ? currentIds : null, careers, me: typeof MyTeam !== "undefined" ? MyTeam.get() : null });
+
+    const sortedManagers = [...RIV.managers].sort((a, b) => (a.username || a.teamName).localeCompare(b.username || b.teamName));
+    const optionsHtml = () => sortedManagers.map((m) => `<option value="${esc(m.userId)}">${esc(m.username || m.teamName)}${m.userId === RIV.meId ? " (you)" : ""}</option>`).join("");
+    const selectA = document.getElementById("rivalry-select-a");
+    const selectB = document.getElementById("rivalry-select-b");
+    selectA.innerHTML = optionsHtml();
+    selectB.innerHTML = optionsHtml();
+
+    const validIds = new Set(sortedManagers.map((m) => m.userId));
+    const featured = await featuredPromise;
+    const hot = hottestRivalries(RIV.pairGameLog, RIV.managers);
+    const opening = pickOpeningPair({
+      hashPair: parseHash(),
+      validIds,
+      me: typeof MyTeam !== "undefined" ? MyTeam.get() : null,
+      managers: RIV.managers,
+      featured,
+      pairGameLog: RIV.pairGameLog,
+      hot,
+      fallback: [sortedManagers[0].userId, sortedManagers[1] ? sortedManagers[1].userId : sortedManagers[0].userId],
+    });
+
+    pickerBox.style.display = "";
+    drawLeagueSections();
+    renderRivalry(opening.a, opening.b);
+    window.location.hash = `${opening.a}-vs-${opening.b}`;
+
+    function show(a, b) {
+      window.location.hash = `${a}-vs-${b}`;
+      renderRivalry(a, b);
+    }
+    selectA.addEventListener("change", () => show(selectA.value, selectB.value));
+    selectB.addEventListener("change", () => show(selectA.value, selectB.value));
+    document.getElementById("rivalry-swap").addEventListener("click", () => show(RIV.b, RIV.a));
+
+    const past = document.getElementById("riv-past");
+    if (past) {
+      past.addEventListener("change", () => {
+        RIV.includePast = !!past.checked;
+        drawMap();
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest) return;
+      const jump = e.target.closest("[data-jump]");
+      if (jump) {
+        e.preventDefault();
+        scrollToId(jump.getAttribute("data-jump"));
+        return;
+      }
+      const more = e.target.closest("[data-riv-more]");
+      if (more) {
+        const panel = document.getElementById("riv-log-panel");
+        const open = panel.classList.toggle("is-open");
+        more.textContent = open ? "Show fewer ▴" : `Show all ${more.getAttribute("data-count")} meetings ▾`;
+        return;
+      }
+      if (e.target.closest("[data-sheet-close]")) {
+        closeSheet();
+        return;
+      }
+      const pick = e.target.closest("[data-riv-a]");
+      if (!pick) return;
+      const a = pick.getAttribute("data-riv-a");
+      const b = pick.getAttribute("data-riv-b");
+      const src = pick.getAttribute("data-riv-src") || "";
+      if (src === "map" && isPhone()) {
+        openSheet(a, b, pick);
+        return;
+      }
+      if (pick.id === "riv-sheet-load") closeSheet();
+      show(a, b);
+      if (src !== "chip") scrollToId("riv-this");
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeSheet();
+    });
+    // Changing My Team (the nav picker) changes who is YOU.
+    document.addEventListener("myteam:change", () => {
+      const me = typeof MyTeam !== "undefined" ? MyTeam.get() : null;
+      const key = String(me || "").trim().toLowerCase();
+      const mine = key ? RIV.managers.find((m) => String(m.username || "").trim().toLowerCase() === key) : null;
+      RIV.meId = mine ? mine.userId : null;
+      const a = RIV.a;
+      const b = RIV.b;
+      const opts = { currentIds: RIV.currentIds };
+      RIV.streaks = RivalriesData.currentStreaks(RIV.pairGameLog, RIV.managers, opts);
+      selectA.innerHTML = optionsHtml();
+      selectB.innerHTML = optionsHtml();
+      drawLeagueSections();
+      renderRivalry(a, b);
+    });
+  } catch (err) {
+    console.error(err);
+    progressBox.style.display = "none";
+    errorBox.textContent = "Couldn't load rivalry data — " + err.message;
+    errorBox.style.display = "block";
+  }
 }
 
 document.addEventListener("DOMContentLoaded", renderRivalriesPage);

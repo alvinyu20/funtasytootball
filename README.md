@@ -248,8 +248,9 @@ Power Rank, Power Score (2024+), and Playoff Odds (2024+) week by week,
 recovered from your old tracking spreadsheets and put in
 `data/power-rank-csv-history.json`. Only shows up for years that have
 data in that file (2019–2025 are the recovered years, with scores and
-odds from 2021; the **current season is rebuilt by the Power Rankings
-Update workflow whenever you push a new `data/team-strength.json`**, see
+odds from 2021; the **current season gets one new week added by the Power
+Rankings Update workflow whenever you push a new `data/team-strength.json`
+(earlier weeks are never rewritten)**, see
 "Current-season Power Rank History" and "Power Rankings Run Only When You
 Say So" below). Note: `Pathieu` (2021–2022) and `paty23`
 (2023+) are two different people, both named Patrick — Pathieu left the
@@ -2319,7 +2320,10 @@ the Standings tables; `pr-odds-team` on the grid); the grid draws a gold line
 after the last playoff spot and shows through the 6th-place column at 390px. Home's Standings keeps Team pinned and tucks PA, Avg/Wk and
 Overall behind a "Show all columns" button on phones so Luck, ROS and SOS are on screen.
 
-**Rivalries and Players.** Rivalries opens on, in order: a link, your own
+**Rivalries and Players.** (The Rivalries half was redesigned on 2026-10-30; see
+"Rivalries Page Redesign". The opening order below still holds, but the
+"Opening on:" line, Common Rivalries list and the Closest / Biggest cards are gone.)
+Rivalries opens on, in order: a link, your own
 hottest rivalry (if you picked a team), this week's featured matchup (if
 those two have met), then the league's hottest rivalry, and says which in an
 "Opening on:" line. There is a swap button and a Common Rivalries list (a
@@ -2361,10 +2365,10 @@ result the snapshot was just built from, so the chart ends exactly on the
 Power Rankings page (the odds simulation is random, so a second run would
 differ slightly).
 
-2026 was seeded now from the committed archive (Weeks 1–5, matching the
-Oct 13 snapshot), so the charts show immediately. The next Power Rankings
-run (a pushed `team-strength.json` or Run workflow) rebuilds the whole entry
-through the latest finished week. Because 2026
+2026 was seeded from the committed archive so the charts showed
+immediately. **That seed, and the "rebuild the whole season every run" idea
+behind it, turned out to be wrong; see "Power Rank History Fixed, One-Line
+Power Rankings" below (2026-10-28).** Because 2026
 data now exists, the Records feed also picks up this season's Power
 Ranking records (Highest / Lowest Power Ranking Score) on its next build.
 
@@ -2737,6 +2741,182 @@ and the absence of CSS for everything removed. Updated: `home-panels` (avatar an
 no-tiles tests), `fresh-home`, `history-data`, `history-page`, `teams-data`,
 `teams-page`, `power-rankings`, `power-rankings-extras`, `home-standings` (the dividers'
 text now lives in the Legend; a new test covers the Legend's line keys).
+
+## Power Rank History Fixed, One-Line Power Rankings — 2026-10-28
+
+User: after the Week 7 update, the 2026 Power Rank History for Weeks 1-6 was
+wrong, "all of it seemed to change". Six screenshots of the Power Rankings page
+from Weeks 1-6 were sent as the true history, and the Power Rankings table
+should be one line per team with the Finish Probability takeaway removed.
+
+**What went wrong.** Every run of `scripts/update-power-rankings.js` threw away
+the 2026 entry in `data/power-rank-csv-history.json` and rebuilt Weeks 1 to N
+from scratch, by re-running the ranking engine for each past week. The engine
+needs the rest-of-season (ROS) ranks, and those have no dated history: only the
+*current* `data/team-strength.json` exists. So every past week was re-scored
+with *this* week's ROS ranks and a fresh random playoff simulation. Running
+Week 7 therefore silently rewrote Weeks 1-6. Measured against your
+screenshots, the rewritten history was off by up to 4 ranks, 2.5 PR Score
+points and 28 playoff-odds points (Weeks 1-5; Week 6 happened to match because
+it had been written by a real run). The script's own comments admitted the
+approximation, but nobody should have been relying on a reconstruction when the
+real numbers were being shown on the page every week. That was a design
+mistake, not a one-off glitch: it would have happened again every week.
+
+**The fix.** Past weeks are frozen. Each run now adds the newest week (exactly
+the snapshot it just built, so the chart still ends on the Power Rankings page)
+and copies every earlier week over untouched. Re-running in the same week
+refreshes only that week. Reconstruction is kept only as a fallback for a week
+that is *missing* from the file (the first run of a season, or a week nobody
+ran), and the script then says so in its log ("Week 3 was missing ... RECONSTRUCTED
+... an approximation"). If a team no longer matches the league, or a value is
+missing or not a number, that week counts as missing rather than being published
+with a hole. Teams keep their order in the file, so the chart's line colors do
+not shuffle between runs. `power-rank-history.json` (the up/down arrows) was
+never affected: it only ever wrote the current week, and it already matches
+your screenshots.
+
+**The data.** `data/power-rank-csv-history.json`, 2026 entry: Weeks 1-6 are now
+exactly what your screenshots show (rank, PR Score and Playoff %), Week 7 is what
+the live page showed on Oct 28 (see "Week 7 follow-up" below), and every other
+season is untouched. The transcription was
+checked before use: each week's Playoff % adds to exactly 600.0 and Bye % to
+200.0, each rank is the average position of its PR Score (ties share places:
+Week 1 has two teams on 6.35, Week 4 two on 10.10), each arrow equals last
+week's rank minus this week's, records and Ovr records are consistent, and the
+ranks equal `power-rank-history.json`. The full transcribed tables (all columns,
+for reference) are in `tests/helpers/power-rankings-weeks-1-6.json`, and a test
+fails if the saved Weeks 1-6 ever stop matching them.
+
+**Week 7 follow-up (same day, 11:22 PT).** The first version of this fix left Week 7
+as it was in the working copy. That copy was an offline re-run from Oct 27, made with
+an older rest-of-season file and its own random playoff simulation, so it did not
+match the real Week 7 run on the live site (YuWillLose 1.00 here vs 1.43 on the page;
+the ROS column and the playoff odds differed for most teams; records, Ovr records,
+PPG, SD and Luck were identical because they come from Sleeper). A Week 7 screenshot
+settled it: Week 7 in `data/power-rank-csv-history.json`, the Week 7 ranks in
+`data/power-rank-history.json` and the PR Score / rank / playoff % / ROS rank in
+`data/power-rankings-snapshot.json` now equal the screenshot, with the table
+transcribed in `tests/helpers/power-rankings-week-7.json` (odds add to 600.0, scores
+rise down the table, each arrow equals Week 6 rank minus Week 7 rank). A test fails
+if any of the three files drifts from it. The working copy's bye odds, finish-position
+grid, `team-strength.json` and extras are still from the Oct 27 offline run (the
+screenshot does not carry them); the live repo has the real ones, so only
+`power-rank-csv-history.json` should be copied over. With the corrected history the
+2026 Lowest Power Ranking Score record is YuWillLose 1.14 (Week 6) and the Highest
+is artmane 11.70 (Week 3).
+
+**Tied ranks.** A tie now shows as 6.5 in the Season page's Power Rank By Week
+chart (tooltips used to round it to 7).
+
+**Power Rankings page.** The Record column shows the W-L record and the Ovr
+record side by side, the rank-move arrow and YOU tag stay beside the name, and
+rows are 7px padded, so every team is one line (rows went from up to 58px to
+39px; the table is about 150px shorter at 1200px; no clipping or sideways
+scrolling at 1100, 1200 and 1440px). The numeric columns were trimmed a little
+to give the Team column room. **The phone list is unchanged**: a team there is
+two short lines (name and score, then record, odds bar and odds). One line
+would not fit the odds bar at 390px wide. The Finish Probability takeaway
+(surest bet, most open range, cell counts) is gone with the code that fed it.
+
+**What to do in your repo.** Copy in `scripts/update-power-rankings.js`,
+`js/season.js`, `js/power-rankings.js`, `css/styles.css` (and the rest of the
+zip) and `data/power-rank-csv-history.json`. Then press **Run workflow** on
+"Build Records Feed": the Records page and Home's Latest Records read this
+file, and they were built from the rewritten history (for example this season's
+Highest / Lowest Power Ranking Score records come from these numbers).
+
+**Tests.** 893 passing. New in `tests/update-power-rankings.test.js`: weeks on
+file are kept exactly, the Week 7 incident (different ROS, same earlier weeks),
+a same-week re-run, missing and malformed weeks, an extra or missing team,
+ordering and preseason values, the script's wiring, a run of the real engine on
+the saved season that must not re-simulate anything, and the screenshot
+comparison. `tests/power-rankings.test.js` covers the one-line row and the
+removed takeaway; `tests/season-power-rank-history.test.js` the half ranks.
+
+## Rivalries Page Redesign (from the mockup PDF) — 2026-10-30
+
+User: "Please implement page 7 and 8. I don't like how the individual panels look
+in the other pages, but those two display everything well and doesn't go into
+too much detail." Page 7 is the desktop layout, page 8 the phone layout. The
+mockup's numbers are this league's real data, and the real data reproduces them
+(523 games from 2020 to 2026, nine opponent chips, You vs JoeSifBoreDough 5-8).
+
+**What the page is now, top to bottom.**
+
+- **Header and picker.** Two selects and a Swap button, then a row of opponent
+  chips for the first manager (record against each, tinted by who leads: yellow
+  ahead, blue behind, neutral level; the open one has a ring). Your own team
+  reads **YOU** everywhere; everyone else is four letters (`RivalriesData.abbreviations`).
+- **Jump to** bar (desktop only): This rivalry, Compare, League map, Streaks and
+  records. It scrolls with `data-jump` and `scrollIntoView` rather than hash
+  links because the hash is the open pair (`#idA-vs-idB`, still shareable).
+- **This rivalry** card: the series record big, who leads and by how much, win
+  rate, a strip of every meeting oldest to newest (outlined = playoff), and four
+  tiles: Playoffs, Avg score, Avg margin, Closest.
+- **Game log** (left) and **Career compare** (right). The log is newest first
+  with the season's record on each season's first row, a signed margin, the
+  series after that game, and notes (Playoff, Closest, Biggest blowout; the last
+  two only when they are different games). Gold score = the winner. On a phone
+  the log shows six meetings and a "Show all N meetings" button. Career compare
+  is nine rows (Titles, Champ games, Playoff win rate, Playoff appearances,
+  First-round byes, Reg. season win rate, Overall win rate, Top-3 finishes,
+  Average finish where lower wins); the leader's pill is highlighted and the gap
+  is written out ("YOU +4", "YOU never lost one"). Career numbers are whole
+  careers, ESPN years included, the same source as Teams; the game log and map
+  only reach back to 2020 (Sleeper years) and the panel says so.
+- **League map:** every current manager against every other, from the row
+  manager's side, colored by win rate (70+ yellow, 55-69 gold-brown, 45-54
+  neutral, 30-44 blue-grey, under 30 blue) on the *rounded* printed percent, with
+  a dashed edge under 5 meetings. The last column is each manager's record against
+  everyone they have ever played, past managers included, whether or not the
+  "Include past managers" switch is on. Order: you first, then longest tenure,
+  then name. Tap a square to load that rivalry above.
+- **Streaks and records:** up to five "on a run right now" cards (the straight
+  wins the newest meeting is part of, 3 or more; a tie ends a run), then Most
+  Lopsided (pairs with 8+ meetings, by win rate), Most Even (8+ meetings, by the
+  gap in wins) and Biggest Blowouts (single games). Current managers only. A row
+  opens that rivalry, with you first if you are in it.
+- **Phone:** the map is a sideways scroll, and tapping a square opens a bottom
+  sheet (a real dialog: Escape, the backdrop or the x closes it, focus returns to
+  the square) with the same card, plus a "Load this rivalry above" button. On
+  desktop a tap loads the rivalry and scrolls to the card.
+
+**Files.** `rivalries.html` and `js/rivalries.js` are rewritten. New:
+`js/rivalries-data.js` (all the numbers: series, game log, chips, map, streaks,
+records, career compare; no DOM) and `css/rivalries.css` (loads after
+`styles.css`, only on this page, so no other page's stamp changes). Data comes
+from `DeepHistory.computeStats().pairGameLog`; career compare from
+`HistoryData.buildOwners` and `ManualHistory`.
+
+**Small things worth knowing.**
+
+- Margins are rounded half-up with a tiny nudge (`round1`) so a margin that is
+  really 90.05 prints 90.1 instead of floating point's 90.0.
+- Chips are sorted by meetings, then name.
+- Most Even names are alphabetical (so it can read "ARTM vs MAYS" where the
+  mockup says "MAYS vs ARTM"); the record is told from the first name's side.
+  (A test caught this reading from the wrong side when ids and names sorted
+  differently.)
+- Left out on purpose: the Jump-to chips have no "active section" fill (no
+  scroll-spy), and the old "Opening on:" line, Common Rivalries hotlist and
+  Closest / Biggest cards are gone. The page still opens on a link, then your
+  hottest rivalry, then this week's featured matchup, then the league's hottest
+  (`pickOpeningPair`, `rivalryHeat` and `hottestRivalries` are unchanged).
+- About 29 old `.rivalry-*` / `.hot-rivalry*` rules are now dead in
+  `css/styles.css`. They are harmless and were left alone so that file (and every
+  page's stamp) did not change; delete them whenever you next touch it.
+
+**Tests.** 943 passing. New: `tests/rivalries-data.test.js` (the numbers: bands
+on the rounded percent, the 90.05 rounding, series and log, chips, map order and
+ALL column, streaks, records, career compare), `tests/rivalries-game-log.test.js`
+rewritten against the new markup (winner styling both ways round, ties,
+playoff rows, preview rows, YOU labels, escaping, map selection, past managers,
+sheet open/close), and `tests/rivalries-page.test.js` (every id the script
+needs exists, script order, the stylesheet is loaded only here, the sheet's
+dialog semantics, phone-only rules). `tests/color-scheme.test.js` now also scans
+`css/rivalries.css`. The old hotlist and margin-card tests went with the
+features.
 
 ## Known limitations / ideas for later
 

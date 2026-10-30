@@ -7,9 +7,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=027a9b1040" />
+  <link rel="stylesheet" href="css/styles.css?v=74e49bd450" />
+  <link rel="stylesheet" href="css/rivalries.css?v=2abb91c61b" />
 </head>
-<body>
+<body class="page-rivalries">
   <nav class="site-nav">
     <a class="brand" href="index.html">FUNTASY TOOTBALL<span>.</span></a>
     <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-drawer">
@@ -34,53 +35,104 @@
     </ul>
   </nav>
 
-  <section class="scoreboard">
-    <p class="scoreboard-eyebrow">RIVALRIES</p>
-    <h1 class="scoreboard-title">Head-To-Head</h1>
-    <p class="scoreboard-sub">Pick two managers to see their full history</p>
-  </section>
+  <main class="rivalries">
+    <div class="wrap riv-head">
+      <p class="riv-eyebrow">RIVALRIES</p>
+      <div class="riv-head-row">
+        <h1 class="riv-title">Pick a rivalry, or tap the map</h1>
+        <p class="riv-summary" id="riv-summary"></p>
+      </div>
+    </div>
 
-  <div class="wrap">
-    <div id="rivalries-error" class="error-state" style="display:none;"></div>
-    <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
-    <div class="panel rivalry-picker" id="rivalry-picker" style="display:none;">
-      <div class="rivalry-select-group">
-        <label for="rivalry-select-a">Manager A</label>
-        <select id="rivalry-select-a"></select>
+    <div class="wrap">
+      <div id="rivalries-error" class="error-state" style="display:none;"></div>
+      <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
+    </div>
+
+    <div class="wrap">
+      <div class="panel riv-picker" id="rivalry-picker" style="display:none;">
+        <div class="riv-pick-row">
+          <label class="riv-select">
+            <span class="riv-select-face" id="riv-face-a"></span><span class="riv-caret" aria-hidden="true">&#9662;</span>
+            <select id="rivalry-select-a" aria-label="First manager"></select>
+          </label>
+          <button type="button" id="rivalry-swap" class="riv-swap" aria-label="Swap the two managers" title="Swap">Swap</button>
+          <label class="riv-select">
+            <span class="riv-select-face" id="riv-face-b"></span><span class="riv-caret" aria-hidden="true">&#9662;</span>
+            <select id="rivalry-select-b" aria-label="Second manager"></select>
+          </label>
+        </div>
+        <div class="riv-chips-row">
+          <span class="riv-chips-label">Tap an opponent</span>
+          <div class="riv-chips" id="riv-chips" role="group" aria-label="Opponents"></div>
+        </div>
       </div>
-      <div class="rivalry-vs">
-        <button type="button" id="rivalry-swap" class="rivalry-swap" aria-label="Swap the two managers" title="Swap">&#8646;</button>
-        <span>VS</span>
+    </div>
+
+    <div class="wrap">
+      <nav class="hist-jump riv-jump" aria-label="Jump to a section">
+        <span class="hist-jump-label">Jump to</span>
+        <a href="#riv-this" data-jump="riv-this">This rivalry</a>
+        <a href="#riv-cols" data-jump="riv-cols">Compare</a>
+        <a href="#riv-map-panel" data-jump="riv-map-panel">League map</a>
+        <a href="#riv-streaks-head" data-jump="riv-streaks-head">Streaks and records</a>
+      </nav>
+    </div>
+
+    <div class="wrap" id="riv-hero"></div>
+
+    <div class="wrap riv-cols" id="riv-cols">
+      <section class="panel riv-log-panel" id="riv-log-panel" aria-label="Game log"></section>
+      <section class="panel riv-compare-panel" id="riv-compare-panel" aria-label="Career compare"></section>
+    </div>
+
+    <div class="wrap">
+      <section class="panel riv-map-panel" id="riv-map-panel" aria-label="League map">
+        <div class="panel-head">
+          <h2>League map</h2>
+          <span class="riv-note riv-note-wide">tap a square to load that rivalry above</span>
+          <span class="riv-note riv-note-phone">swipe sideways &middot; tap a square</span>
+          <label class="riv-toggle" id="riv-past-wrap" style="display:none;"><span>Include past managers</span><input type="checkbox" id="riv-past" /><i class="riv-switch" aria-hidden="true"></i></label>
+        </div>
+        <div class="riv-map-scroll" id="riv-map"></div>
+        <div class="riv-legend" id="riv-map-legend"></div>
+        <p class="riv-foot riv-foot-phone">Tapping a square opens a sheet from the bottom with the same details as the rivalry card above, so you never lose your place in the grid.</p>
+      </section>
+    </div>
+
+    <div class="wrap riv-streaks-wrap">
+      <div class="riv-sec-head" id="riv-streaks-head">
+        <h2>Streaks and records</h2>
+        <span class="riv-note riv-note-wide">on a run right now, then the all-time lists</span>
+        <h2 class="riv-phone-h">On a run right now</h2>
       </div>
-      <div class="rivalry-select-group">
-        <label for="rivalry-select-b">Manager B</label>
-        <select id="rivalry-select-b"></select>
+      <div class="riv-streaks" id="riv-streaks"></div>
+      <div class="riv-records">
+        <section class="panel riv-rec riv-rec-l" aria-label="Most lopsided"><h2>Most lopsided</h2><div id="riv-rec-lopsided"></div><a class="riv-all" href="records.html">All records &rarr;</a></section>
+        <section class="panel riv-rec riv-rec-e" aria-label="Most even"><h2>Most even</h2><div id="riv-rec-even"></div></section>
+        <section class="panel riv-rec riv-rec-b" aria-label="Biggest blowouts"><h2>Biggest blowouts</h2><div id="riv-rec-blowouts"></div></section>
       </div>
+    </div>
+  </main>
+
+  <div class="riv-sheet" id="riv-sheet" role="dialog" aria-modal="true" aria-label="This rivalry" hidden>
+    <div class="riv-sheet-backdrop" data-sheet-close></div>
+    <div class="riv-sheet-card">
+      <div class="riv-sheet-bar"><span class="riv-sheet-grip" aria-hidden="true"></span><button type="button" class="riv-sheet-x" data-sheet-close aria-label="Close">&times;</button></div>
+      <div id="riv-sheet-body"></div>
+      <button type="button" class="riv-load" id="riv-sheet-load" data-riv-src="sheet">Load this rivalry above</button>
     </div>
   </div>
 
-  <div class="wrap">
-    <p class="rivalry-why" id="rivalry-why" style="display:none;"></p>
-  </div>
-
-  <div class="wrap" id="rivalry-hotlist-panel" style="display:none;">
-    <details class="panel hotlist-panel" id="rivalry-hotlist-details">
-      <summary><h2>Common Rivalries</h2></summary>
-      <p class="heatmap-note" style="margin: 12px 0;">The league's biggest series: lots of meetings, an even record, playoff games, games lately. Tap one to open it.</p>
-      <div class="hot-rivalries" id="rivalry-hotlist"></div>
-    </details>
-  </div>
-
-  <main>
-    <div id="rivalry-content"></div>
-  </main>
-
   <script src="js/nav.js?v=60775b6708"></script>
   <script src="js/config.js?v=23b96b72b3"></script>
-  <script src="js/utils.js?v=9675cdcc48"></script>
+  <script src="js/utils.js?v=942f490d82"></script>
   <script src="js/my-team.js?v=0262ad1aeb"></script>
   <script src="js/sleeper-api.js?v=370896b8cf"></script>
-  <script src="js/deep-history.js?v=e6e6d08ddc"></script>
-  <script src="js/rivalries.js?v=fc986edd6e"></script>
+  <script src="js/deep-history.js?v=9b33c4b106"></script>
+  <script src="js/manual-history.js?v=29879548f3"></script>
+  <script src="js/history-data.js?v=ee7c738ac5"></script>
+  <script src="js/rivalries-data.js?v=2a6d820ce1"></script>
+  <script src="js/rivalries.js?v=6ad7ff54c3"></script>
 </body>
 </html>

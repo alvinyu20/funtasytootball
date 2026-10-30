@@ -1,13 +1,13 @@
 /*
   Rivalries opens on something meaningful instead of a random pair: a link,
   then your own hottest rivalry, then this week's featured matchup, then the
-  league's hottest. Also: the hotlist ranking and the Closest/Blowout cards.
+  league's hottest. Also: how "hot" a rivalry is and the ranking of the league's pairs.
 */
 const test = require("node:test");
 const assert = require("node:assert");
 const { loadSiteModules, runInLoadedContext } = require("./helpers/site-env.js");
 
-const setup = () => loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "rivalries.js"]);
+const setup = () => loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "rivalries-data.js", "rivalries.js"]);
 const json = (c, code) => JSON.parse(runInLoadedContext(c, `JSON.stringify(${code})`));
 
 const managers = [
@@ -82,26 +82,6 @@ test("hottestRivalries: when two pairs are equally hot, the one with more meetin
   assert.deepStrictEqual(rows.slice(0, 2).map((r) => r.a + "|" + r.b), ["u3|u4", "u1|u2"]);
 });
 
-test("hotTag: a short reason for each kind of rivalry", () => {
-  const c = setup();
-  assert.strictEqual(c.hotTag({ playoffs: 2, meetings: 3, winsA: 3, winsB: 0 }), "Playoff history");
-  assert.strictEqual(c.hotTag({ playoffs: 0, meetings: 8, winsA: 4, winsB: 4 }), "Dead even");
-  assert.strictEqual(c.hotTag({ playoffs: 0, meetings: 8, winsA: 7, winsB: 1 }), "Most played");
-  assert.strictEqual(c.hotTag({ playoffs: 0, meetings: 2, winsA: 2, winsB: 0 }), "Heating up");
-});
-
-test("hotlistItemsHtml: names escaped, record and meetings shown, ties only when there are some", () => {
-  const c = setup();
-  const html = c.hotlistItemsHtml([
-    { a: "u1", b: "u2", nameA: "<b>x</b>", nameB: "beth", meetings: 1, winsA: 1, winsB: 0, ties: 0, playoffs: 0 },
-    { a: "u3", b: "u4", nameA: "carl", nameB: "dana", meetings: 5, winsA: 2, winsB: 2, ties: 1, playoffs: 1 },
-  ]);
-  assert.ok(!html.includes("<b>x</b>") && html.includes("&lt;b&gt;x&lt;/b&gt;"));
-  assert.ok(html.includes(">1-0<") && html.includes("1 meeting ·") && !html.includes("1 meetings"));
-  assert.ok(html.includes(">2-2-1<") && html.includes("1 playoff"));
-  assert.strictEqual((html.match(/data-rivalry-a=/g) || []).length, 2);
-});
-
 // Two pairs have met (alvin/beth and carl/dana); carl/dana is the hotter one.
 function pickOpening(overrides) {
   const c = setup();
@@ -139,24 +119,4 @@ test("pickOpeningPair: then the league's hottest; with nothing on record it uses
   assert.deepStrictEqual(pickOpening({}), { a: "u3", b: "u4", reason: "The league's hottest rivalry" });
   assert.deepStrictEqual(pickOpening({ hot: [], pairGameLog: {} }), { a: "u1", b: "u2", reason: "" });
   assert.deepStrictEqual(pickOpening({ me: "someone-not-in-league", hot: [] }), { a: "u1", b: "u2", reason: "" });
-});
-
-test("marginCardsHtml: Closest and Biggest Blowout when they differ", () => {
-  const c = setup();
-  const html = c.marginCardsHtml({ margin: 3.04, season: "2022", week: 8, isPlayoff: false }, { margin: 40.5, season: "2020", week: 2, isPlayoff: true }, 6);
-  assert.ok(html.includes("Closest Meeting") && html.includes("Biggest Blowout"));
-  assert.ok(html.includes("3.0 pts") && html.includes("40.5 pts"));
-  assert.ok(html.includes("2020 Wk 2 · Playoffs") && !html.includes("2022 Wk 8 · Playoffs"));
-});
-
-test("marginCardsHtml: one meeting (or every game the same margin) is said once, not as two identical cards", () => {
-  const c = setup();
-  const g = { margin: 10.3, season: "2023", week: 4, isPlayoff: false };
-  const only = c.marginCardsHtml(g, g, 1);
-  assert.strictEqual((only.match(/class="record-card"/g) || []).length, 1);
-  assert.ok(only.includes("Their Only Meeting"));
-  const same = c.marginCardsHtml(g, { ...g, season: "2024", week: 9 }, 4);
-  assert.strictEqual((same.match(/class="record-card"/g) || []).length, 1);
-  assert.ok(same.includes("Every Game Was This Close"));
-  assert.strictEqual(c.marginCardsHtml(null, null, 0), "");
 });

@@ -59,6 +59,10 @@ test("no green or red left in the stylesheet", () => {
   assert.deepStrictEqual(judgmentColors(read("css/styles.css")), []);
 });
 
+test("no green or red left in the Rivalries stylesheet", () => {
+  assert.deepStrictEqual(judgmentColors(read("css/rivalries.css")), []);
+});
+
 test("no green or red left in the page scripts (the team line palette in charts.js is the one exception)", () => {
   for (const f of jsFiles) {
     if (CATEGORICAL_PALETTE_FILES.has(f)) continue;
