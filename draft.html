@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Draft Board</title>
+  <title>Draft</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=027a9b1040" />
+  <link rel="stylesheet" href="css/styles.css?v=74e49bd450" />
+  <link rel="stylesheet" href="css/draft.css?v=a04e6f03cf" />
 </head>
-<body>
+<body class="page-draft">
   <nav class="site-nav">
     <a class="brand" href="index.html">FUNTASY TOOTBALL<span>.</span></a>
     <button class="nav-toggle" type="button" aria-label="Toggle menu" aria-expanded="false" aria-controls="nav-drawer">
@@ -34,34 +35,42 @@
     </ul>
   </nav>
 
-  <section class="scoreboard">
-    <p class="scoreboard-eyebrow">DRAFT BOARD</p>
-    <h1 class="scoreboard-title" id="sb-title">Loading…</h1>
-    <p class="scoreboard-sub" id="sb-sub"></p>
-    <div class="season-pills" id="draft-season-picker"></div>
-  </section>
+  <main class="draft">
+    <div class="wrap-wide dr-head">
+      <div class="dr-head-row">
+        <div>
+          <p class="dr-eyebrow" id="dr-eyebrow">Loading…</p>
+          <h1 class="dr-title">Draft</h1>
+        </div>
+        <div class="dr-years" id="dr-years" role="group" aria-label="Season"></div>
+      </div>
+      <div class="dr-tabs" id="dr-tabs" role="tablist" aria-label="Draft views"></div>
+    </div>
 
-  <div class="wrap">
-    <div id="draft-error" class="error-state" style="display:none;"></div>
-    <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
-  </div>
+    <div class="wrap-wide">
+      <div id="draft-error" class="error-state" style="display:none;"></div>
+      <div id="progress-status" class="loading" style="display:none; margin-top:16px;"></div>
+    </div>
 
-  <main>
-    <div id="draft-content" style="display:none;"></div>
+    <div class="wrap-wide dr-body" id="dr-body" role="tabpanel" aria-live="polite"></div>
   </main>
 
-  <footer class="site-footer">
-    Grades reflect each pick's value against a curve fit from this league's own draft history — see the Records page for how that curve works.
-  </footer>
+  <div class="dr-sheet" id="dr-sheet" role="dialog" aria-modal="true" aria-label="Pick details" hidden>
+    <div class="dr-sheet-backdrop" data-sheet-close></div>
+    <div class="dr-sheet-card">
+      <div class="dr-sheet-bar"><span class="dr-sheet-grip" aria-hidden="true"></span><button type="button" class="dr-sheet-x" data-sheet-close aria-label="Close">&times;</button></div>
+      <div id="dr-sheet-body"></div>
+    </div>
+  </div>
 
   <script src="js/nav.js?v=60775b6708"></script>
   <script src="js/config.js?v=23b96b72b3"></script>
-  <script src="js/utils.js?v=9675cdcc48"></script>
+  <script src="js/utils.js?v=942f490d82"></script>
   <script src="js/my-team.js?v=0262ad1aeb"></script>
   <script src="js/sleeper-api.js?v=370896b8cf"></script>
-  <script src="js/deep-history.js?v=e6e6d08ddc"></script>
-  <script src="js/metrics.js?v=84c06ed831"></script>
-  <script src="js/animations.js?v=c316d7e5d6"></script>
-  <script src="js/draft.js?v=3b1e5f0cd1"></script>
+  <script src="js/deep-history.js?v=7d49b967e4"></script>
+  <script src="js/rivalries-data.js?v=2a6d820ce1"></script>
+  <script src="js/draft-data.js?v=8680313556"></script>
+  <script src="js/draft.js?v=3d1ca3b88e"></script>
 </body>
 </html>

@@ -50,6 +50,7 @@ const KNOWN_EXPORTS = {
   "teams-data.js": ["TeamsData"],
   "record-book.js": ["RecordBook"],
   "rivalries-data.js": ["RivalriesData"],
+  "draft-data.js": ["DraftData"],
 };
 
 /*

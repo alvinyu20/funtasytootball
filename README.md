@@ -91,6 +91,10 @@ They'll merge into the History page's champions ledger and, if you included
   Front Office), each a list of records you can click open for its top 10,
   filterable by All seasons, Last 3 seasons, or any single season (see
   "Record Book" below)
+- `draft.html` / `js/draft.js` — the Draft page: one season's draft in six views
+  (Overview, By Round, By Team, Table, Report Card, Steals & Busts) with a tap-
+  for-details pick card. The numbers live in `js/draft-data.js`, the look in
+  `css/draft.css` (see "Draft Page Redesign" below)
 - `js/sleeper-api.js` — every call to Sleeper's API lives here
 - `js/deep-history.js` — the heavier engine behind Teams, Season, and
   Records: pulls every season's weekly scores, starting lineups,
@@ -2917,6 +2921,112 @@ needs exists, script order, the stylesheet is loaded only here, the sheet's
 dialog semantics, phone-only rules). `tests/color-scheme.test.js` now also scans
 `css/rivalries.css`. The old hotlist and margin-card tests went with the
 features.
+
+## Draft Page Redesign (from the mockup PDF) — 2026-10-30
+
+User: "Implement the default Draft like it shows in Page 1, and default to Overview and
+All Picks. (don't have Board setting)" ... "Remember these are mockups so don't include
+all unnecessary text." Page 1 is the desktop default and the table, 3 is By Round, 4 is
+By Team (with expandable cards), 5 is the layout while the season is still being played,
+6 became the Report Card tab, 7 became the Steals & Busts tab, 9 is the Overview and 10 is
+the phone starting point. Page 8 (Position Strategy), "does the round 1 slot matter" and
+"what each round has been worth" were left out on purpose.
+
+**What the page is now.** One season at a time (year pills at the top), six tabs:
+
+- **Overview** (opens here): four tiles (best draft, biggest steal, costliest pick, your
+  draft, or the worst draft when no My Team is picked), the shaded draft board (a column per
+  team in draft-slot order, a row per round, each square a last name plus grade and vs slot,
+  shaded in five bands), who drafted best (each row opens to that team's picks), and the
+  steals / costliest short lists.
+- **By Round**: a jump chip per round, then a panel per round with its picks in order and
+  its total against what those slots usually return.
+- **By Team**: a card per team, best draft first: rank, the draft's total vs slot, a row of
+  grade squares in pick order, the position mix, best and costliest pick. Tap a card to open
+  its pick list. A link like `#2025/team/<user id>` opens that card.
+- **Table**: every pick, on **All** picks to start. Filter pills (My picks, Steals, Busts,
+  Keepers, then a pill per position), sortable columns (Pick, Points, Value, Typical, Vs
+  slot, GP, ST) and tiles that describe whichever picks are showing. On a phone the table
+  becomes two-line rows with a Sort by menu.
+- **Report Card** (page 6): every manager across every graded year: a cell per year (vs slot
+  total, finish, a row of mini grade squares), a total and a per-year average, the best and
+  worst drafts ever, and "Your drafts". Past managers are hidden behind an "Include past
+  managers" switch (shown only when there are some) and sit last when included. Cells link
+  to that team's card.
+- **Steals & Busts** (page 7): the eight best and eight costliest picks ever.
+
+Report Card and Steals & Busts cover every season, so the year pills hide on them, and both
+only exist once a draft has been graded.
+
+**While the season is being played** (page 5, "through week N"): there are no grades yet, so
+Overview becomes the draft so far: round 1 with points and per game, points from the whole
+draft per team (with injury weeks lost), hot starts after round 3 (4 or more games, best
+points per game) and early picks who are hurt (rounds 1 to 8, 3 or more injury weeks). By
+Round / By Team / Table switch to points, per game, games out of weeks played and injury
+weeks. 20 or more points a game is marked as hot.
+
+**The numbers (`js/draft-data.js`, no DOM).** Three words: *value* is the season's points
+above a replacement player at that position (the same VBD the grades use), *typical* is
+what that draft slot usually returns (the league's own curve), *vs slot* is value minus
+typical. Value is the **prorated** number the grade itself is worked out from (a player's
+healthy-week average over the full season), so a pick's grade and its vs slot always agree.
+Value and typical are rounded first and vs slot is the difference of the rounded numbers, so
+a row always adds up. Bands: a pick is shaded by vs slot (+60 or more, +20, within 20, -20,
+-60 or less); a whole draft is shaded by its total (+150, +50, -50, -150).
+
+- **No S+.** The mockup showed one; the site's grades are S, A, B, C, D, F (the earlier
+  "no pluses" decision).
+- **Capped picks are never a "steal".** DeepHistory holds a kicker or defense, or a player who
+  missed over half the season, at a B. Their vs slot can still be huge (small sample, or a
+  position scale thing), so they are flagged `capped`, left out of every steal / best list,
+  and their grade square says why ("Held at B"). They still count in team totals and in the
+  costliest lists.
+- **Keepers** get a small tag. The Keepers pill only appears when a draft has keepers.
+- **A team that holds two picks in a round** shows the earlier one on the board with a
+  "+1" and both in the lists.
+- **Injury weeks** are added by a separate pass, `DeepHistory.attachInjuryWeeks`, from
+  `data/injuries.json`: regular-season weeks the player was Out, Doubtful or on IR. It never
+  touches a grade, and a season with no injury data stays `null` ("unknown"), not 0.
+- **`computeStats` now also keeps, per pick:** games played, weeks started for the team that
+  drafted him, where he finished at his position, where he was taken at it, and how many
+  regular-season weeks there were. `stats.draftSeasons` says per season how many teams and
+  rounds, weeks played and whether it is complete.
+
+**The phone** (720px and under). Tabs become a grid (three across, "Steals & Busts" shrinks to
+fit at 360px). Rows are two lines: round.pick, name, then position / team / rank / games, and the
+grade square and vs slot on the right. The board scrolls sideways (with a "swipe sideways"
+hint). Who drafted best opens the viewer's own row. The Report Card shows one year at a
+time with chips (Total, then newest year first). By Team cards put the name across the
+whole top line, then "from slot N" and the total below. A tap on any pick opens a bottom
+sheet (a real dialog: Escape, the backdrop or the x closes it, Tab stays inside, focus returns).
+
+**Things worth knowing.**
+
+- **The league's grades lean negative.** The grade curve is fit on raw VBD but each pick
+  is graded on prorated VBD, so the league's vs slot numbers sum to below zero: about -11 a
+  pick on average (about -1,700 a year over 160 picks; 2022 and 2025 are the closest to 0).
+  Rankings and grades are unaffected, but a negative total does not mean a bad draft. Easy
+  to re-center so each year sums to zero if you would rather.
+- **Numbers differ from the mockup.** The mockup's figures were samples; the page shows what the
+  grading model really produces.
+- **Dead CSS.** The old `.draft-*` rules in `css/styles.css` (about lines 2082 to 2146, and
+  one near 2614) are unused now. They were left alone so that file's stamp does not change;
+  delete them whenever you next touch it.
+
+**Files.** New: `draft.html` (rewritten), `js/draft.js` (rewritten), `js/draft-data.js`,
+`css/draft.css` (loads after `styles.css`, only on this page). Changed: `js/deep-history.js`
+(per-pick facts, `draftSeasons`, `attachInjuryWeeks`), `tests/helpers/site-env.js`
+(`DraftData` export). The old helpers in `js/draft.js` (`buildDraftBoard`, `topPicksForBoard`,
+the board / list toggle) are gone along with the tests that covered them.
+
+**Tests.** 1,020 passing. New: `tests/draft-data.test.js` (rounding, bands to the edge, value /
+typical / vs slot, capped picks, teams, board, rounds, filters and sorts, tiles, the in-season
+model, report card, hall of fame), `tests/draft-page.test.js` (routes, default season,
+every view's markup, escaping, the report card on a phone, the page's structure: ids, script
+order, the dialog, the 720px switch), `tests/draft-facts.test.js` (games, starts, position
+ranks, `draftSeasons`, `attachInjuryWeeks`) and `tests/helpers/draft-fixture.js` (a small
+hand-made league they share). `tests/color-scheme.test.js` also scans `css/draft.css`. Gone:
+`draft-views`, `draft-top-picks` and `draft-default-season`, which tested the removed helpers.
 
 ## Known limitations / ideas for later
 

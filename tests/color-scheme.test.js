@@ -63,6 +63,20 @@ test("no green or red left in the Rivalries stylesheet", () => {
   assert.deepStrictEqual(judgmentColors(read("css/rivalries.css")), []);
 });
 
+test("no green or red left in the Draft stylesheet", () => {
+  assert.deepStrictEqual(judgmentColors(read("css/draft.css")), []);
+});
+
+test("Draft: a steal is yellow and a costly pick is blue, from the shared tokens, and the best grade is the yellow", () => {
+  const css = read("css/draft.css");
+  assert.match(css, /\.dr-tone-good:not\(\.dr-tile\) \{ color: var\(--good\); \}/);
+  assert.match(css, /\.dr-tone-bad:not\(\.dr-tile\) \{ color: var\(--bad\); \}/);
+  assert.match(css, /\.dr-tile\.dr-tone-good \.dr-tile-main \{ color: var\(--good\); \}/);
+  assert.match(css, /\.dr-tile\.dr-tone-bad \.dr-tile-main \{ color: var\(--bad\); \}/);
+  assert.match(css, /\.page-draft \.gr-S \{ background: #F0A340;/, "an S is the good yellow");
+  assert.match(css, /\.page-draft \.gr-F \{ background: #2E6794;/, "an F is a blue, never red");
+});
+
 test("no green or red left in the page scripts (the team line palette in charts.js is the one exception)", () => {
   for (const f of jsFiles) {
     if (CATEGORICAL_PALETTE_FILES.has(f)) continue;
