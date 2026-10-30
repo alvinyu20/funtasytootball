@@ -338,6 +338,121 @@ function snapshotChip(snapshot, nflWeek) {
   });
 }
 
+// Chance to win the title. Every nonzero chance is shown, so "possible" and
+// "impossible" stay apart: one decimal, "<0.1%" under a twentieth of a percent.
+function titleLabel(pct) {
+  if (!Number.isFinite(pct) || pct <= 0) return "\u2014";
+  if (pct < 0.05) return "<0.1%";
+  return `${num1(pct)}%`;
+}
+
+function hasTitleOdds(snapshot) {
+  return snapshot.rows.length > 0 && snapshot.rows.every((r) => Number.isFinite(r.titlePct));
+}
+
+// Championship Odds: the same simulation as the playoff odds, played on through
+// the real playoff bracket. Needs a snapshot that carries titlePct.
+function renderTitleOdds(snapshot, chip) {
+  if (!hasTitleOdds(snapshot)) return "";
+  const byeTeams = snapshot.byeTeams || 0;
+  const runs = (snapshot.titleSimRuns || simRunsOf(snapshot)).toLocaleString("en-US");
+  const sorted = [...snapshot.rows].sort((a, b) => b.titlePct - a.titlePct || a.powerRank - b.powerRank);
+  const top = Math.max(0.0001, sorted[0].titlePct);
+  const body = sorted
+    .map(
+      (r, i) => `
+      <tr class="pr-title-row" data-username="${escapeHtml(r.username || r.teamName)}">
+        <td class="rank" data-label="#">${i + 1}</td>
+        <td class="team-cell" data-label="Team"><span class="pr-name-text" data-username="${escapeHtml(r.username || r.teamName)}">${escapeHtml(r.teamName)}</span></td>
+        <td class="pr-title-cell" data-label="Title"><span class="pr-title-pct">${titleLabel(r.titlePct)}</span><span class="pr-title-bar" aria-hidden="true"><i style="width:${Math.max(r.titlePct > 0 ? 2 : 0, (100 * r.titlePct) / top).toFixed(1)}%"></i></span></td>
+        <td data-label="Playoffs">${num1(r.playoffPct)}%</td>
+        ${byeTeams ? `<td data-label="Bye">${r.byePct == null ? "\u2014" : num1(r.byePct) + "%"}</td>` : ""}
+        <td data-label="Record">${escapeHtml(r.record)}</td>
+        <td data-label="Avg PPG">${num1(r.avgPpg)}</td>
+      </tr>`
+    )
+    .join("");
+  return `
+    <div class="wrap"><div class="panel">
+      <div class="panel-head"><h2>Championship Odds</h2>${chip}</div>
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile pr-title-table">
+          <thead><tr><th>#</th><th>Team</th><th>Title</th><th>Playoffs</th>${byeTeams ? "<th>Bye</th>" : ""}<th>Record</th><th>Avg PPG</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="heatmap-note">Chance to win the championship, from a ${runs}-run simulation: the rest of the regular season is played on the real schedule, then the real playoff bracket (${snapshot.playoffTeams} teams${byeTeams ? `, the top ${byeTeams} get a bye` : ""}). Team strength comes from the FantasyPros ROS power scores, the same as the playoff odds above.</p>
+    </div></div>`;
+}
+
+// MVP Race: the five players most likely to win the league MVP (most points
+// above a replacement-level player at the position over the regular season),
+// from data/power-rankings-extras.json. Ranked by where the race is projected
+// to end; the percentage is the simulated chance of finishing first.
+function mvpSparkHtml(weekly) {
+  const max = Math.max(1, ...weekly, 40);
+  return `<span class="mvp-spark" aria-hidden="true">${weekly.map((w) => `<i style="height:${Math.max(3, Math.round((52 * Math.min(w, max)) / max))}px"${w > 0 ? "" : ' class="zero"'}></i>`).join("")}</span>`;
+}
+
+function mvpChanceLabel(pct) {
+  if (!Number.isFinite(pct) || pct <= 0) return "\u2014";
+  if (pct < 0.05) return "<0.1%";
+  return pct >= 1 ? `${Math.round(pct)}%` : `${pct.toFixed(1)}%`;
+}
+
+function renderMvpRace(extras, snapshot, chip) {
+  const race = extras && extras.mvpRace;
+  if (!race || !race.rows || !race.rows.length || !extrasMatchSnapshot(extras, snapshot)) return "";
+  const cards = race.rows
+    .slice(0, 5)
+    .map(
+      (r, i) => `
+      <div class="mvp-card${i === 0 ? " lead" : ""}">
+        <div class="mvp-card-top"><span class="mvp-rank">${i + 1}</span><span class="mvp-pos">${escapeHtml(r.position)}</span></div>
+        ${playerLinkHtml(r.playerId, playerPhotoHtml(r.playerId, r.player, "player-photo-sm"))}
+        <div class="mvp-name">${playerLinkHtml(r.playerId, escapeHtml(r.player))}</div>
+        <div class="mvp-owner">${escapeHtml(r.owner || "free agent")}</div>
+        <div class="mvp-par"><b>${Math.round(r.par)}</b><span> pts</span><small>above repl. · ${r.wins.toFixed(1)} W</small></div>
+        ${mvpSparkHtml(r.weekly)}
+        <div class="mvp-foot"><span>Projected final</span><b>${Math.round(r.projectedPar)}</b></div>
+        <div class="mvp-foot"><span>Chance of #1</span><b class="mvp-chance">${mvpChanceLabel(r.chance)}</b></div>
+      </div>`
+    )
+    .join("");
+  const more = race.rows.slice(5);
+  const moreRows = more
+    .map(
+      (r, i) => `
+      <tr>
+        <td class="rank" data-label="#">${i + 6}</td>
+        <td class="team-cell" data-label="Player">${playerLinkHtml(r.playerId, escapeHtml(r.player))} <span class="muted-inline">(${escapeHtml(r.position)})</span></td>
+        <td data-label="Rostered by">${escapeHtml(r.owner || "free agent")}</td>
+        <td data-label="Pts above repl.">${Math.round(r.par)}</td>
+        <td data-label="Projected">${Math.round(r.projectedPar)}</td>
+        <td data-label="Chance of #1">${mvpChanceLabel(r.chance)}</td>
+      </tr>`
+    )
+    .join("");
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">MVP Race</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap"><div class="panel">
+      <div class="panel-head"><h2>League MVP Candidates</h2>${chip}</div>
+      <div class="mvp-grid">${cards}</div>
+      ${
+        more.length
+          ? `<div class="heatmap-table-wrap stay-scrollable mvp-more"><table class="stat-table compact-mobile">
+        <thead><tr><th>#</th><th>Also in the race</th><th>Rostered by</th><th>Pts above repl.</th><th>Projected</th><th>Chance of #1</th></tr></thead>
+        <tbody>${moreRows}</tbody></table></div>`
+          : ""
+      }
+      <p class="heatmap-note">Points above a replacement-level player at his position, in games he played, over the regular season (Weeks 1\u2013${race.throughWeek + race.remainingWeeks}). W is wins: about ${Math.round(race.pointsPerWin || 85.8)} season points make one win in this league. Projected final adds the remaining ${race.remainingWeeks} weeks at his pace, pulled toward what the position's top players average, and the percentage is how often he finished first in ${Number(race.sims).toLocaleString("en-US")} simulated finishes (which include byes and season-ending injuries). Early in the season these chances are wide open.</p>
+    </div></div>`;
+}
+
 function renderContent(snapshot, lastWeekRanks, nflWeek, extras) {
   const chip = snapshotChip(snapshot, nflWeek);
   const season = snapshot.season != null && snapshot.week != null ? `<span class="pr-season-tag">${escapeHtml(snapshot.season)} · After Week ${escapeHtml(snapshot.week)}</span>` : "";
@@ -353,10 +468,12 @@ function renderContent(snapshot, lastWeekRanks, nflWeek, extras) {
       <span class="label">Playoff Odds</span>
       <div class="line"></div>
     </div>
+    ${renderTitleOdds(snapshot, chip)}
     <div class="wrap"><div class="panel">
       <div class="panel-head"><h2>Finish Probability By Rank</h2>${chip}</div>
       ${renderOddsTable(snapshot)}
     </div></div>
+    ${renderMvpRace(extras, snapshot, chip)}
     ${renderExtrasSections(snapshot, extras, chip)}
   `;
 }

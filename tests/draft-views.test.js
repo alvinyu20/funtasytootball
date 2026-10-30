@@ -34,16 +34,16 @@ test("defaultDraftView: phones open on the list, wide screens on the board, unkn
   assert.strictEqual(c.defaultDraftView(null), "grid");
 });
 
-test("draftViewToggleHtml: three modes, exactly one active, and it says which", () => {
+test("draftViewToggleHtml: four modes, exactly one active, and it says which", () => {
   const c = setup();
-  for (const active of ["grid", "round", "team"]) {
+  for (const active of ["grid", "round", "team", "table"]) {
     const html = c.draftViewToggleHtml(active);
-    assert.strictEqual((html.match(/data-draft-view="/g) || []).length, 3);
+    assert.strictEqual((html.match(/data-draft-view="/g) || []).length, 4);
     assert.strictEqual((html.match(/ active"/g) || []).length, 1);
     assert.ok(new RegExp(`class="view-toggle-btn active" data-draft-view="${active}" aria-selected="true"`).test(html), `${active} should be the active tab`);
   }
   const html = c.draftViewToggleHtml("grid");
-  assert.ok(html.includes(">Board<") && html.includes(">By round<") && html.includes(">By team<"));
+  assert.ok(html.includes(">Board<") && html.includes(">By round<") && html.includes(">By team<") && html.includes(">Table<"));
 });
 
 test("renderDraftByRound: one heading per round, rounds in order, picks in pick order inside each round", () => {

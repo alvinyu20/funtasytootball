@@ -420,20 +420,20 @@ test("reportCards: a pick with no grade stays in its place as an ungraded square
   assert.strictEqual(row.sa, 1);
 });
 
-test("draftTable: a finished year shows grade and value over replacement for every pick", () => {
+test("draftTable: a finished year shows grade and points versus the slot for every pick", () => {
   const ctx = setup();
   const t = ev(ctx, `${DATA} return TeamsData.draftTable(manager("alice").seasons.find((s) => Number(s.season) === 2021))`);
   assert.deepStrictEqual([t.year, t.graded, t.title, t.picks.length], [2021, true, true, 4]);
-  assert.deepStrictEqual(t.picks.map((p) => [p.label, p.grade, p.vbd]), [["1.1", "S", 80], ["1.2", "A", 40], ["2.1", "C", -2], ["2.2", "F", -40]]);
-  assert.strictEqual(t.maxVbd, 80);
+  assert.deepStrictEqual(t.picks.map((p) => [p.label, p.grade, p.vsSlot]), [["1.1", "S", 80], ["1.2", "A", 40], ["2.1", "C", -2], ["2.2", "F", -40]]);
+  assert.strictEqual(t.maxVsSlot, 80);
 });
 
-test("draftTable: the season in progress shows the picks and points so far but NO grade and NO value over replacement", () => {
+test("draftTable: the season in progress shows the picks and points so far but NO grade and NO value versus the slot", () => {
   const ctx = setup();
   const t = ev(ctx, `${DATA} return TeamsData.draftTable(manager("alice").seasons.find((s) => Number(s.season) === 2022))`);
   assert.strictEqual(t.graded, false);
-  assert.deepStrictEqual(t.picks.map((p) => [p.label, p.grade, p.vbd, p.points]), [["1.1", null, null, 55], ["1.2", null, null, 70]]);
-  assert.strictEqual(t.maxVbd, 0);
+  assert.deepStrictEqual(t.picks.map((p) => [p.label, p.grade, p.vsSlot, p.points]), [["1.1", null, null, 55], ["1.2", null, null, 70]]);
+  assert.strictEqual(t.maxVsSlot, 0);
 });
 
 test("draftTable: an unknown grade is dropped, and no season is null", () => {

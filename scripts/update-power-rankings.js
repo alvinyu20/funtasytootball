@@ -35,8 +35,14 @@
        "copy this JSON snippet into power-rank-history.json by hand" step
        that used to live on the Power Rankings page).
 
+  The snapshot rows also carry titlePct, each team's chance to win the
+  championship: the playoff-odds simulation played on through the real
+  playoff bracket (ROS-based team strength, like the playoff odds).
+
   data/power-rankings-extras.json feeds the Strength of Schedule, Weekly
-  Scores and Lineup Slot sections under the Power Rankings table. It is
+  Scores and Lineup Slot sections under the Power Rankings table, and the
+  MVP Race (the five players most likely to win the league MVP, from
+  js/metrics.js). It is
   built from the same finished weeks as the snapshot (see
   scripts/lib/pr-extras.js for what each number means) and carries the
   snapshot's week, so the page can tell if the two ever disagree.
@@ -93,6 +99,8 @@ const HISTORY_PATH = path.join(REPO_ROOT, "data", "power-rank-history.json");
 const CSV_HISTORY_PATH = path.join(REPO_ROOT, "data", "power-rank-csv-history.json");
 const EXTRAS_PATH = path.join(REPO_ROOT, "data", "power-rankings-extras.json");
 const TEAM_STRENGTH_PATH = path.join(REPO_ROOT, "data", "team-strength.json");
+const INJURIES_PATH = path.join(REPO_ROOT, "data", "injuries.json");
+const ARCHIVE_DIR = path.join(REPO_ROOT, "data", "sleeper-archive");
 // Random seasons played out for the playoff odds. 10,000 keeps each team's odds steady to within
 // about half a point from one run to the next, and is fine enough to show the rare finishes
 // (a 0.3% shot at the bye) instead of rounding them to nothing.
@@ -124,6 +132,7 @@ const EXPORTS_TO_PROMOTE = {
   "config.js": ["LEAGUE_ID", "LAST_FANTASY_WEEK"],
   "sleeper-api.js": ["SleeperAPI"],
   "deep-history.js": ["DeepHistory"],
+  "metrics.js": ["Metrics"],
 };
 
 function loadBrowserModules(filenames) {
@@ -386,9 +395,36 @@ function buildExtrasForRun(DeepHistory, { season, pr, generatedAt, currentSeason
   });
 }
 
+// Season points per win in this league, measured from the finished seasons saved in
+// data/sleeper-archive (it turns "points above replacement" into wins).
+function pointsPerWinFromArchive(Metrics) {
+  let files = [];
+  try {
+    files = fs.readdirSync(ARCHIVE_DIR).filter((f) => /^\d{4}\.json$/.test(f));
+  } catch (err) {
+    return 85.8;
+  }
+  const seasons = [];
+  files.forEach((f) => {
+    const a = readJson(path.join(ARCHIVE_DIR, f), null);
+    if (a && a.league && a.league.status === "complete") seasons.push({ complete: true, rosters: a.rosters || [] });
+  });
+  return seasons.length ? Metrics.pointsPerWin(seasons) : 85.8;
+}
+
+// The league MVP race for the current season: the players with the most points above
+// replacement so far, projected to the end of the regular season (see Metrics.mvpRace).
+function buildMvpRaceForRun(Metrics, { currentSeasonEntry, deep, playerDirectory, injuriesData, pointsPerWin, sims = 40000 }) {
+  const ctx = Metrics.prepareSeason(currentSeasonEntry, deep, playerDirectory, injuriesData);
+  const playoffStart = currentSeasonEntry.league.settings && currentSeasonEntry.league.settings.playoff_week_start;
+  const regularWeeks = playoffStart ? playoffStart - 1 : 14;
+  const race = Metrics.mvpRace(ctx, regularWeeks, { pointsPerWin, sims });
+  return { ...race, pointsPerWin };
+}
+
 async function main() {
-  const ctx = loadBrowserModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js"]);
-  const { SleeperAPI, DeepHistory, LEAGUE_ID, LAST_FANTASY_WEEK } = ctx;
+  const ctx = loadBrowserModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "metrics.js"]);
+  const { SleeperAPI, DeepHistory, Metrics, LEAGUE_ID, LAST_FANTASY_WEEK } = ctx;
 
   console.log("Fetching current season from Sleeper…");
   const seasonChain = await SleeperAPI.getSeasonChain(LEAGUE_ID);
@@ -484,8 +520,16 @@ async function main() {
     playerDirectory,
     teamStrengthTeams,
   });
+  console.log("Simulating the league MVP race…");
+  extras.mvpRace = buildMvpRaceForRun(Metrics, {
+    currentSeasonEntry,
+    deep,
+    playerDirectory,
+    injuriesData: readJson(INJURIES_PATH, { players: {} }),
+    pointsPerWin: pointsPerWinFromArchive(Metrics),
+  });
   writeJson(EXTRAS_PATH, extras);
-  console.log(`Wrote ${path.relative(REPO_ROOT, EXTRAS_PATH)} (Strength of Schedule, Weekly Scores, Lineup Slots through Week ${pr.week})`);
+  console.log(`Wrote ${path.relative(REPO_ROOT, EXTRAS_PATH)} (Strength of Schedule, Weekly Scores, Lineup Slots, MVP Race through Week ${pr.week})`);
 
   console.log("\nTop 3:");
   pr.rows.slice(0, 3).forEach((row) => {
@@ -500,4 +544,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildSafeDeep, buildCsvHistoryForCurrentSeason, rostersAsOfWeek, buildExtrasForRun };
+module.exports = { buildSafeDeep, buildCsvHistoryForCurrentSeason, rostersAsOfWeek, buildExtrasForRun, buildMvpRaceForRun, pointsPerWinFromArchive };

@@ -1,13 +1,18 @@
 let SEASON_CHAIN = null;
 let PLAYER_DIRECTORY = null;
 let LEAGUE_STATS = null;
+let METRICS = null; // Metrics.analyze(): the draft grades and values behind the Table view
 
 async function renderDraftPage() {
   const errorBox = document.getElementById("draft-error");
   const progressBox = document.getElementById("progress-status");
 
   try {
-    const [seasonChain, playerDirectory] = await Promise.all([SleeperAPI.getSeasonChain(LEAGUE_ID), SleeperAPI.getPlayerDirectory()]);
+    const [seasonChain, playerDirectory, injuriesData] = await Promise.all([
+      SleeperAPI.getSeasonChain(LEAGUE_ID),
+      SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(INJURIES_FILE, { players: {} }),
+    ]);
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
     }
@@ -27,10 +32,13 @@ async function renderDraftPage() {
     });
     progressBox.style.display = "none";
 
-    // Grades need the league-wide draft-value curve, which only comes from
-    // computeStats — same reason the Records/Teams pages do this same
-    // full-history fetch rather than a lighter per-season one.
+    // Grades compare each pick with every comparable pick in league history,
+    // so they need every season's draft and weekly data (same full-history
+    // fetch the Records and Teams pages do). A season still being played is
+    // not graded: its players have not finished their year.
     LEAGUE_STATS = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
+    METRICS = Metrics.analyze(seasonChain, deepSeasons, playerDirectory, injuriesData);
+    Metrics.applyDraftGrades(LEAGUE_STATS.managers, METRICS);
 
     if (!location.hash) {
       const defaultSeason = pickDefaultSeason(seasonChain);
@@ -120,9 +128,9 @@ function posClassFor(position) {
   return `pos-${(known.includes(position) ? position : "other").toLowerCase()}`;
 }
 
-// Best 5 picks of the draft board, ranked by letter grade first (S
-// before A before B, ...) and then by VBD as a tiebreaker within the
-// same grade, since a whole handful of picks commonly share a grade.
+// Best 5 picks of the draft board, ranked by letter grade first (S+ before S
+// before A, ...) and then by points over what that slot normally returns,
+// since a whole handful of picks commonly share a grade.
 // Ungraded picks (no player points on record, or graded on too few
 // picks league-wide to mean anything) are excluded rather than sorting
 // to the bottom, since an ungraded pick isn't a "worse" pick, just an
@@ -130,7 +138,7 @@ function posClassFor(position) {
 function topPicksForBoard(board) {
   return [...board.allPicks]
     .filter((p) => p.grade)
-    .sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || (b.vbd || 0) - (a.vbd || 0))
+    .sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade) || (b.valueOverSlot || 0) - (a.valueOverSlot || 0))
     .slice(0, 5);
 }
 
@@ -146,7 +154,7 @@ function renderTopPicks(picks) {
       }</span></td>
       <td data-label="Drafted By">${escapeHtml(p.ownerUsername)}</td>
       <td data-label="Grade">${gradeBadgeHtml(p.grade)}</td>
-      <td data-label="Points">${p.points.toFixed(1)} pts${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</td>
+      <td data-label="Points">${p.points.toFixed(1)} pts${p.valueOverSlot != null ? ` <span class="muted-inline">· ${p.valueOverSlot >= 0 ? "+" : ""}${p.valueOverSlot.toFixed(0)} vs slot</span>` : ""}</td>
     </tr>`
     )
     .join("");
@@ -164,9 +172,17 @@ function renderTopPicks(picks) {
     </div>`;
 }
 
+// The board highlights the top grades: S+ the loudest, then S, then A.
+function gradeHighlightClass(grade) {
+  if (grade === "S+") return " draft-cell-s-grade draft-cell-splus-grade";
+  if (grade === "S") return " draft-cell-s-grade";
+  if (grade === "A") return " draft-cell-a-grade";
+  return "";
+}
+
 function renderDraftCell(pick) {
   if (!pick) return `<td class="draft-cell draft-cell-empty"></td>`;
-  const gradeClass = pick.grade === "S" ? " draft-cell-s-grade" : pick.grade === "A" ? " draft-cell-a-grade" : "";
+  const gradeClass = gradeHighlightClass(pick.grade);
   return `
     <td class="draft-cell ${posClassFor(pick.position)}${gradeClass}" data-player-id="${escapeHtml(pick.playerId || "")}">
       <div class="draft-cell-pick">${pick.round}.${pick.pickInRound}</div>
@@ -191,15 +207,15 @@ function renderDraftBoardTable(board) {
 }
 
 // ---------------------------------------------------------------
-// Three ways to read the same board. The grid is the real draft board (one
+// Four ways to read the same board. The grid is the real draft board (one
 // column per team) and is the right view on a wide screen; on a phone it
 // shows about two teams at a time, so the page opens on a list instead:
 // "By round" (the pick order, round by round) or "By team" (each team's
 // whole draft, top to bottom).
 // ---------------------------------------------------------------
-const DRAFT_VIEWS = ["grid", "round", "team"];
+const DRAFT_VIEWS = ["grid", "round", "team", "table"];
 const DRAFT_VIEW_KEY = "funtasy.draftView";
-const DRAFT_VIEW_LABELS = { grid: "Board", round: "By round", team: "By team" };
+const DRAFT_VIEW_LABELS = { grid: "Board", round: "By round", team: "By team", table: "Table" };
 
 function defaultDraftView(viewportWidth) {
   return viewportWidth != null && viewportWidth <= 720 ? "round" : "grid";
@@ -234,7 +250,7 @@ function draftViewToggleHtml(active) {
 }
 
 function draftListRowHtml(p, owner) {
-  const gradeClass = p.grade === "S" ? " draft-cell-s-grade" : p.grade === "A" ? " draft-cell-a-grade" : "";
+  const gradeClass = gradeHighlightClass(p.grade);
   return `
       <div class="draft-list-row${gradeClass}"${owner ? ` data-username="${escapeHtml(owner)}"` : ""}>
         <span class="draft-list-pick">${p.round}.${p.pickInRound}</span>
@@ -282,7 +298,78 @@ function renderDraftByTeam(board) {
     .join("");
 }
 
+// Table: every pick in order with what it returned. Graded seasons show the
+// value (points above a replacement-level player, injured weeks credited at
+// half), what picks at that slot typically return, the grade, health, how
+// often the drafting team started him, and where he was drafted versus where
+// he finished at his position. A season still being played has no grades yet.
+function draftHealthHtml(p) {
+  const games = `<span class="muted-inline">${p.gamesPlayed} gp</span>`;
+  return p.injuredWeeks > 0 ? `<span class="dt-tag">${p.injuredWeeks} wk injured</span> ${games}` : games;
+}
+
+function draftPositionPathHtml(p) {
+  if (!p.position || p.positionDraftRank == null) return "";
+  const finish = p.positionFinishRank != null ? `${p.position}${p.positionFinishRank}` : "n/a";
+  return `<span class="muted-inline">${escapeHtml(p.position)}${p.positionDraftRank} → ${escapeHtml(finish)}</span>`;
+}
+
+function renderDraftTable(board) {
+  const graded = board.allPicks.some((p) => p.grade || (p.ungraded === false && p.value != null));
+  if (!graded) {
+    const rows = board.allPicks
+      .map(
+        (p) => `
+      <tr${p.ownerUsername ? ` data-username="${escapeHtml(p.ownerUsername)}"` : ""}>
+        <td data-label="Pick">${p.round}.${p.pickInRound}</td>
+        <td class="team-cell player-cell" data-label="Player">${playerLinkHtml(p.playerId, escapeHtml(p.player))} <span class="muted-inline">(${escapeHtml(p.position || "")})</span></td>
+        <td data-label="Drafted By">${escapeHtml(p.ownerUsername)}</td>
+        <td data-label="Points">${p.points != null ? p.points.toFixed(1) : "—"}</td>
+      </tr>`
+      )
+      .join("");
+    return `
+      <p class="heatmap-note draft-table-note">This season is still being played, so picks are not graded yet. Grades and values appear when it ends.</p>
+      <div class="heatmap-table-wrap stay-scrollable">
+        <table class="stat-table compact-mobile draft-table">
+          <thead><tr><th>Pick</th><th>Player</th><th>Drafted By</th><th>Points</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+  const maxValue = Math.max(1, ...board.allPicks.map((p) => p.value || 0));
+  const rows = board.allPicks
+    .map((p) => {
+      const has = p.value != null;
+      const bar = has ? `<span class="dt-bar"><span class="dt-bar-fill" style="width:${Math.min(100, (100 * p.value) / maxValue).toFixed(0)}%"></span></span>` : "";
+      return `
+      <tr${p.ownerUsername ? ` data-username="${escapeHtml(p.ownerUsername)}"` : ""}>
+        <td data-label="Pick">${p.round}.${p.pickInRound}</td>
+        <td class="dt-player-cell" data-label="Player"><span class="dt-player">${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.player))}${
+          p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
+        }</span></span></td>
+        <td data-label="Drafted By">${escapeHtml(p.ownerUsername)}</td>
+        <td data-label="Value" class="dt-num">${has ? `${p.value.toFixed(0)} ${bar}` : "—"}</td>
+        <td data-label="Typical" class="dt-num muted-inline">${p.typical != null ? p.typical.toFixed(0) : "—"}</td>
+        <td data-label="Grade">${gradeBadgeHtml(p.grade)}</td>
+        <td data-label="Health">${has ? draftHealthHtml(p) : ""}</td>
+        <td data-label="Started" class="dt-num">${p.startedWeeks != null ? `${p.startedWeeks}<span class="muted-inline"> / ${p.heldWeeks} wk</span>` : "—"}</td>
+        <td data-label="Position rank">${draftPositionPathHtml(p)}</td>
+      </tr>`;
+    })
+    .join("");
+  return `
+    <div class="heatmap-table-wrap stay-scrollable">
+      <table class="stat-table compact-mobile sticky-cols-2 draft-table">
+        <thead><tr><th>Pick</th><th>Player</th><th>Drafted By</th><th>Value</th><th>Typical</th><th>Grade</th><th>Health</th><th>Started</th><th>Position rank</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="heatmap-note draft-table-note"><b>Value</b> is season points above a replacement-level player at the position, counted over the regular season. Weeks a player is on the injury report earn half of his healthy per-game surplus. <b>Typical</b> is what picks at the same stage of the draft normally return. <b>Started</b> is weeks in the drafting team's starting lineup out of weeks he was on that roster. <b>Position rank</b> is where he was drafted among his position, then where he finished.</p>`;
+}
+
 function draftViewBodyHtml(board, view) {
+  if (view === "table") return renderDraftTable(board);
   if (view === "round") return `<div class="draft-list">${renderDraftByRound(board)}</div>`;
   if (view === "team") return `<div class="draft-list">${renderDraftByTeam(board)}</div>`;
   return renderDraftBoardTable(board);
@@ -311,6 +398,7 @@ function renderSelectedDraft() {
     <div class="wrap">
       <div class="draft-legend">
         ${["QB", "RB", "WR", "TE", "K", "DEF"].map((pos) => `<span class="draft-legend-item"><span class="draft-legend-swatch ${posClassFor(pos)}"></span>${pos}</span>`).join("")}
+        <span class="draft-legend-item"><span class="draft-cell-splus-grade-sample"></span>S+ grade (best picks in league history)</span>
         <span class="draft-legend-item"><span class="draft-cell-s-grade-sample"></span>S grade</span>
         <span class="draft-legend-item"><span class="draft-cell-a-grade-sample"></span>A grade</span>
       </div>

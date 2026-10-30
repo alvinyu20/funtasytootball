@@ -178,22 +178,25 @@ function findPlayerIdByName(rawName, nameIndex) {
   return nameIndex.get(key) || null;
 }
 
-// Small colored pill for a draft pick grade (S through F). Grades come
-// from DeepHistory.gradeDraftPick — a null/missing grade renders nothing,
+// Small colored pill for a draft pick grade (S+ through F). Grades come
+// from Metrics.gradeDrafts — a null/missing grade renders nothing,
 // since not every pick can be graded (e.g. a player who never scored).
 // Color is a smooth yellow -> pale neutral -> blue gradient across the 6
 // possible grades (computed, not discrete bands), so a B and a C genuinely
 // look different rather than sharing one color. Brighter than the heatmap
 // fills because the pill carries dark text instead of sitting behind light text.
-const GRADE_ORDER = ["S", "A", "B", "C", "D", "F"];
+const GRADE_ORDER = ["S+", "S", "A", "B", "C", "D", "F"];
 const GRADE_BEST = "#F0A340";
 const GRADE_MID = "#BCC9C6";
 const GRADE_WORST = "#4EA8DD";
+const GRADE_SPLUS = "#FFD58A"; // S+ is its own, brighter gold: the outstanding picks in league history
 function gradeBadgeHtml(grade) {
   if (!grade) return "";
   const idx = GRADE_ORDER.indexOf(grade);
   if (idx === -1) return "";
-  const t = idx / (GRADE_ORDER.length - 1); // 0 = best grade, 1 = worst
+  if (grade === "S+") return `<span class="grade-badge grade-badge-splus" style="background:${GRADE_SPLUS};">S+</span>`;
+  // S through F spread across the yellow -> neutral -> blue gradient
+  const t = (idx - 1) / (GRADE_ORDER.length - 2); // 0 = S, 1 = F
   const bg = t <= 0.5 ? interpolateColor(GRADE_BEST, GRADE_MID, t / 0.5) : interpolateColor(GRADE_MID, GRADE_WORST, (t - 0.5) / 0.5);
   return `<span class="grade-badge" style="background:${bg};">${escapeHtml(grade)}</span>`;
 }

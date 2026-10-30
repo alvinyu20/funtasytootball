@@ -48,7 +48,7 @@ function espnSeason(year, rank, w, l, o = {}) {
   };
 }
 
-const pick = (round, inRound, player, grade, vbd, points) => ({ round, pickInRound: inRound, player, playerId: "p-" + player.toLowerCase().replace(/\W+/g, ""), position: "RB", points, vbd, grade });
+const pick = (round, inRound, player, grade, vbd, points) => ({ round, pickInRound: inRound, player, playerId: "p-" + player.toLowerCase().replace(/\W+/g, ""), position: "RB", points, vbd, valueOverSlot: vbd, grade });
 
 const lineup = {
   weeksCounted: 14,

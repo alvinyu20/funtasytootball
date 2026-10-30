@@ -27,6 +27,16 @@ test("gradeBadgeHtml: every grade in the standard S-F scale renders without thro
   }
 });
 
+test("gradeBadgeHtml: S+ is its own gold badge, brighter than S, and an unknown grade renders nothing", () => {
+  const html = gradeBadgeHtml("S+");
+  assert.ok(html.includes("grade-badge-splus"));
+  assert.ok(html.includes(">S+<"));
+  // the plain S badge does not get the S+ treatment
+  assert.ok(!gradeBadgeHtml("S").includes("grade-badge-splus"));
+  assert.strictEqual(gradeBadgeHtml("Z"), "");
+  assert.strictEqual(gradeBadgeHtml(null), "");
+});
+
 const channels = (color) => color.match(/[\d.]+/g).map(Number); // [r, g, b, alpha]
 
 test("heatColor: returns an rgba color, opaque by default because the scale's own colors are already the muted shades that sit on the panels", () => {

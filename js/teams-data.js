@@ -14,7 +14,7 @@
 const TeamsData = (function () {
   const MIN_H2H_GAMES = 5; // fewer games than this is "too small to rank"
   const MIN_GAMES_TO_RANK = 20; // a newcomer with fewer games sorts after everyone else
-  const GRADES = ["S", "A", "B", "C", "D", "F"];
+  const GRADES = ["S+", "S", "A", "B", "C", "D", "F"];
 
   const keyOf = (name) => HistoryData.keyOf(name);
   const ord = (n) => HistoryData.ord(n);
@@ -427,7 +427,7 @@ const TeamsData = (function () {
 
   /*
     The report-card rows: every pick's grade in pick order, plus how many were
-    S or A and how many D or F. A season that is not over has no row.
+    S+, S or A and how many D or F. A season that is not over has no row.
   */
   function reportCards(manager) {
     return [...((manager && manager.seasons) || [])]
@@ -439,16 +439,17 @@ const TeamsData = (function () {
           year: Number(s.season),
           title: !!s.isChampion,
           grades,
-          sa: grades.filter((g) => g === "S" || g === "A").length,
+          sa: grades.filter((g) => g === "S+" || g === "S" || g === "A").length,
           df: grades.filter((g) => g === "D" || g === "F").length,
         };
       });
   }
 
   /*
-    One year's picks. For a season in progress the grade and the value over
-    replacement are left out entirely (both would read as a verdict on a pick
-    that has barely played), leaving the pick, the player and the points so far.
+    One year's picks. For a season in progress the grade and the value are left
+    out entirely (both would read as a verdict on a pick that has barely
+    played), leaving the pick, the player and the points so far. "vsSlot" is
+    the points a pick returned above what picks at that slot typically return.
   */
   function draftTable(season) {
     if (!season) return null;
@@ -459,11 +460,11 @@ const TeamsData = (function () {
       playerId: p.playerId || null,
       position: p.position || "",
       points: p.points,
-      vbd: graded && p.vbd != null ? p.vbd : null,
+      vsSlot: graded && p.valueOverSlot != null ? p.valueOverSlot : null,
       grade: graded && GRADES.includes(p.grade) ? p.grade : null,
     }));
-    const maxVbd = picks.reduce((m, p) => (p.vbd == null ? m : Math.max(m, Math.abs(p.vbd))), 0);
-    return { year: Number(season.season), graded, title: !!season.isChampion, picks, maxVbd };
+    const maxVsSlot = picks.reduce((m, p) => (p.vsSlot == null ? m : Math.max(m, Math.abs(p.vsSlot))), 0);
+    return { year: Number(season.season), graded, title: !!season.isChampion, picks, maxVsSlot };
   }
 
   // ---- Most Common Lineup ---------------------------------------------------

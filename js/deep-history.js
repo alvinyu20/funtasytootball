@@ -3020,12 +3020,82 @@ const DeepHistory = {
     rank — works for any number of teams.
   */
   simulatePlayoffOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations) {
+    return DeepHistory.simulateSeasonOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations).finish;
+  },
+
+  /*
+    The bracket Sleeper plays for a 4-, 6- or 8-team playoff, from seeds
+    (index 0 = seed 1), as the list of rounds; each match names where its two
+    teams come from. A 6-team field gives seeds 1-2 a bye: seed 4 plays seed 5
+    and the winner meets seed 1, seed 3 plays seed 6 and the winner meets seed
+    2 (no reseeding; read off the league's own past brackets). Returns null
+    for any other size.
+  */
+  playoffBracket(playoffTeams) {
+    const seed = (n) => ({ seed: n });
+    const win = (round, match) => ({ winnerOf: [round, match] });
+    if (playoffTeams === 6) {
+      return [
+        [[seed(4), seed(5)], [seed(3), seed(6)]],
+        [[seed(1), win(0, 0)], [seed(2), win(0, 1)]],
+        [[win(1, 0), win(1, 1)]],
+      ];
+    }
+    if (playoffTeams === 4) {
+      return [
+        [[seed(1), seed(4)], [seed(2), seed(3)]],
+        [[win(0, 0), win(0, 1)]],
+      ];
+    }
+    if (playoffTeams === 8) {
+      return [
+        [[seed(1), seed(8)], [seed(4), seed(5)], [seed(2), seed(7)], [seed(3), seed(6)]],
+        [[win(0, 0), win(0, 1)], [win(0, 2), win(0, 3)]],
+        [[win(1, 0), win(1, 1)]],
+      ];
+    }
+    return null;
+  },
+
+  /*
+    Plays one simulated bracket. seedTeams: rosterIds in seed order;
+    meanOf(rosterId): that team's simulated scoring level this run;
+    playGame(meanA, meanB): true if A wins. Returns the champion's rosterId.
+  */
+  playBracket(bracket, seedTeams, meanOf, playGame) {
+    const winners = [];
+    bracket.forEach((round, r) => {
+      winners[r] = round.map(([x, y]) => {
+        const team = (side) => (side.seed != null ? seedTeams[side.seed - 1] : winners[side.winnerOf[0]][side.winnerOf[1]]);
+        const a = team(x);
+        const b = team(y);
+        return playGame(meanOf(a), meanOf(b)) ? a : b;
+      });
+    });
+    return winners[winners.length - 1][0];
+  },
+
+  /*
+    Monte Carlo: finish positions (as before) and, played on through the
+    real playoff bracket, each team's chance to win the title. Same strength
+    model as always: every team's scoring level comes from its FantasyPros
+    ROS power score with some random spread, weekly scores are normal around
+    it (SD 20), and the regular season finishes on the real remaining
+    schedule. `bracketTeams` is the number of playoff teams (default 6).
+    Returns { finish: Map(rosterId -> [% per finishing rank]), title: Map(rosterId -> %) }.
+  */
+  simulateSeasonOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations, bracketTeams = 6) {
     const n = rosterIds.length;
     const knownPts = rosterIds.map((id) => rosPtByRoster.get(id)).filter((v) => v != null);
     const fallbackPt = knownPts.length ? knownPts.reduce((a, b) => a + b, 0) / knownPts.length : 70;
+    const bracket = DeepHistory.playoffBracket(bracketTeams);
 
     const finishCounts = new Map();
-    rosterIds.forEach((id) => finishCounts.set(id, new Array(n).fill(0)));
+    const titleCounts = new Map();
+    rosterIds.forEach((id) => {
+      finishCounts.set(id, new Array(n).fill(0));
+      titleCounts.set(id, 0);
+    });
 
     for (let iter = 0; iter < iterations; iter++) {
       const teamMean = new Map();
@@ -3076,11 +3146,25 @@ const DeepHistory = {
       ranked.forEach((id, idx) => {
         finishCounts.get(id)[idx] += 1;
       });
+
+      if (bracket && n >= bracketTeams) {
+        const champion = DeepHistory.playBracket(
+          bracket,
+          ranked.slice(0, bracketTeams),
+          (id) => teamMean.get(id),
+          (meanA, meanB) => gaussianRandom(meanA, 20) >= gaussianRandom(meanB, 20)
+        );
+        titleCounts.set(champion, titleCounts.get(champion) + 1);
+      }
     }
 
-    const result = new Map();
-    rosterIds.forEach((id) => result.set(id, finishCounts.get(id).map((c) => (c / iterations) * 100)));
-    return result;
+    const finish = new Map();
+    const title = new Map();
+    rosterIds.forEach((id) => {
+      finish.set(id, finishCounts.get(id).map((c) => (c / iterations) * 100));
+      title.set(id, bracket ? (titleCounts.get(id) / iterations) * 100 : null);
+    });
+    return { finish, title };
   },
 
   /*
@@ -3144,13 +3228,16 @@ const DeepHistory = {
       currentRecordByRoster.set(s.rosterId, { wins: s.wins, losses: s.losses, ties: s.ties, pf: s.fpts });
     });
 
-    const playoffOddsByRoster = DeepHistory.simulatePlayoffOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations);
 
     // How many teams make the playoffs / get a first-round bye, read
     // straight from the league's own settings — not hardcoded to any one
     // league size. Sleeper's bracket only comes in 4/6/8-team sizes.
     const playoffTeams = (league.settings && league.settings.playoff_teams) || Math.min(6, rosterIds.length);
     const byeTeams = playoffTeams === 6 ? 2 : 0;
+
+    // Finishing positions, and the title chance from playing the real bracket on.
+    const simulated = DeepHistory.simulateSeasonOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations, playoffTeams);
+    const playoffOddsByRoster = simulated.finish;
 
     const rows = standings.map((s) => {
       const overall = overallByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
@@ -3173,6 +3260,7 @@ const DeepHistory = {
         avgPpg,
         playoffPct,
         byePct,
+        titlePct: simulated.title.get(s.rosterId),
         rosRank: rosRankByRoster.has(s.rosterId) ? rosRankByRoster.get(s.rosterId) : null,
         boom: bb.boom,
         bust: bb.bust,

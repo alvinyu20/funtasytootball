@@ -473,12 +473,17 @@ function teamsH2hHtml(manager) {
 
 const TEAMS_ACQ_CLASS = { Draft: "draft", Waivers: "waivers", Trade: "trade", "Free Agency": "fa", Roster: "roster" };
 
+// "S+" cannot be part of a CSS class name, so it is spelled out.
+function tmGradeClass(g) {
+  return g === "S+" ? "gr-Splus" : `gr-${g}`;
+}
+
 function teamsGradeSquareHtml(g, i) {
-  return g ? `<i class="gr gr-${g}" title="Pick ${i + 1}: ${g}">${g}</i>` : `<i class="gr gr-none" title="Pick ${i + 1}: not graded">·</i>`;
+  return g ? `<i class="gr ${tmGradeClass(g)}" title="Pick ${i + 1}: ${g}">${g}</i>` : `<i class="gr gr-none" title="Pick ${i + 1}: not graded">·</i>`;
 }
 
 function teamsGradeKeyHtml() {
-  return `<span class="tm-gr-key">${TeamsData.GRADES.map((g) => `<i class="gr gr-${g}">${g}</i>`).join("")}</span>`;
+  return `<span class="tm-gr-key">${TeamsData.GRADES.map((g) => `<i class="gr ${tmGradeClass(g)}">${g}</i>`).join("")}</span>`;
 }
 
 function teamsReportCardsHtml(manager, selectedYear) {
@@ -507,9 +512,9 @@ function teamsPicksHtml(table, expanded) {
     .map((p) => {
       const pos = p.position ? escapeHtml(p.position) : "";
       const vbd =
-        p.vbd == null
+        p.vsSlot == null
           ? ""
-          : `${tmCenterBar((Math.abs(p.vbd) / (table.maxVbd || 1)) * 50, p.vbd >= 0)}<span class="tm-pk-vbd ${p.vbd >= 0 ? "up" : "down"}">${p.vbd >= 0 ? "+" : "-"}${Math.abs(p.vbd).toFixed(1)}</span><span class="tm-pk-gr">${p.grade ? `<i class="gr gr-${p.grade}">${p.grade}</i>` : ""}</span>`;
+          : `${tmCenterBar((Math.abs(p.vsSlot) / (table.maxVsSlot || 1)) * 50, p.vsSlot >= 0)}<span class="tm-pk-vbd ${p.vsSlot >= 0 ? "up" : "down"}">${p.vsSlot >= 0 ? "+" : "-"}${Math.abs(p.vsSlot).toFixed(1)}</span><span class="tm-pk-gr">${p.grade ? `<i class="gr ${tmGradeClass(p.grade)}">${p.grade}</i>` : ""}</span>`;
       return `
       <li class="tm-pk-row">
         <span class="tm-pk-n">${escapeHtml(p.label)}</span>
@@ -523,7 +528,7 @@ function teamsPicksHtml(table, expanded) {
   const more = table.picks.length > TEAMS_PICKS_SHOWN ? `<button type="button" class="tm-more" data-more="picks">${expanded ? "Show fewer picks" : `Show all ${table.picks.length} picks`}</button>` : "";
   const mod = table.graded ? "" : " ungraded";
   const head = table.graded
-    ? `<span>Pick</span><span>Player</span><span>Pos</span><span>Points</span><span class="tm-vbd-head">Value over replacement (VBD)</span><span>VBD</span><span>Gr</span>`
+    ? `<span>Pick</span><span>Player</span><span>Pos</span><span>Points</span><span class="tm-vbd-head">Points vs. a typical pick at that slot</span><span>vs slot</span><span>Gr</span>`
     : `<span>Pick</span><span>Player</span><span>Pos</span><span>Points</span>`;
   return `
     <div class="tm-pk-head${mod}" aria-hidden="true">${head}</div>
@@ -827,6 +832,9 @@ async function renderTeams() {
     progressBox.style.display = "none";
 
     const stats = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
+    // Draft grades come from Metrics (comparison with similar picks in league history, injured weeks credited).
+    const injuriesData = await fetchJsonSafe(INJURIES_FILE, { players: {} });
+    Metrics.applyDraftGrades(stats.managers, Metrics.analyze(seasonChain, deepSeasons, playerDirectory, injuriesData));
 
     // The owners (finishes, titles, playoff trips) are built from the Sleeper seasons alone and folded
     // together with the ESPN rows by name, exactly as the History page does. That has to happen before

@@ -13,7 +13,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const JS_DIR = path.join(__dirname, "..", "..", "js");
-const PROMOTE = { "deep-history.js": ["DeepHistory"], "sleeper-api.js": ["SleeperAPI"], "record-book.js": ["RecordBook"] };
+const PROMOTE = { "deep-history.js": ["DeepHistory"], "sleeper-api.js": ["SleeperAPI"], "record-book.js": ["RecordBook"], "metrics.js": ["Metrics"] };
 
 function loadSiteModules(filenames) {
   const context = {

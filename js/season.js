@@ -5,6 +5,9 @@ let POWER_RANK_CSV_HISTORY = null;
 let INJURIES_DATA = null;
 let MANUAL_HISTORY = null;
 let ALL_TIME_STATS_CACHE = null; // computed lazily, once per page load — see getAllTimeStats()
+let ALL_DEEP_SEASONS = null; // every season's weekly data, fetched once per page load
+let METRICS_CACHE = null; // Metrics.analyze() over every season, built once per page load
+let CURRENT_METRICS = null; // the metrics behind the season currently on screen (the filter pills redraw from it)
 
 /*
   Powers the Season Summary's "records set this season" callouts, the
@@ -16,11 +19,26 @@ let ALL_TIME_STATS_CACHE = null; // computed lazily, once per page load — see 
   of this page visit so switching between completed seasons doesn't redo
   the work each time.
 */
+async function getAllDeepSeasons() {
+  if (!ALL_DEEP_SEASONS) ALL_DEEP_SEASONS = await DeepHistory.buildAll(SEASON_CHAIN, () => {});
+  return ALL_DEEP_SEASONS;
+}
+
 async function getAllTimeStats() {
   if (ALL_TIME_STATS_CACHE) return ALL_TIME_STATS_CACHE;
-  const deepSeasons = await DeepHistory.buildAll(SEASON_CHAIN, () => {});
+  const deepSeasons = await getAllDeepSeasons();
   ALL_TIME_STATS_CACHE = DeepHistory.computeStats(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA);
   return ALL_TIME_STATS_CACHE;
+}
+
+// The MVP, draft awards, pickups, trades and injury luck all come from
+// Metrics, which looks across every season (draft grades compare a pick with
+// similar picks in league history), so it is built once from all of them.
+async function getMetricsAnalysis() {
+  if (METRICS_CACHE) return METRICS_CACHE;
+  const deepSeasons = await getAllDeepSeasons();
+  METRICS_CACHE = Metrics.analyze(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA);
+  return METRICS_CACHE;
 }
 
 async function renderSeasonPage() {
@@ -101,13 +119,14 @@ async function renderSelectedSeason() {
       });
 
       const summary = DeepHistory.computeTotalSummary(SEASON_CHAIN, deepSeasons, PLAYER_DIRECTORY, INJURIES_DATA, ManualHistory.computeAllSeasonLuck(MANUAL_HISTORY));
-      const allTimeStats = await getAllTimeStats();
-      summary.allTimeTopInjuries = allTimeStats.allTimeTopInjuries;
-      summary.allTimeTeamSeasonInjuryLuck = allTimeStats.allTimeTeamSeasonInjuryLuck;
+      progressBox.textContent = "Scoring the awards…";
+      summary.metrics = buildTotalMetrics(await getMetricsAnalysis());
 
       progressBox.style.display = "none";
       content.style.display = "";
+      CURRENT_METRICS = summary.metrics;
       content.innerHTML = renderSummary(summary);
+      initMetricFilters(content);
       stopReplay();
       initAnimatedDropdowns();
       initScrollAnimations();
@@ -179,9 +198,16 @@ async function renderSelectedSeason() {
     );
     if (allTimeStats) summary.allTimeRecords = allTimeStats.records;
 
+    progressBox.style.display = "block";
+    progressBox.textContent = "Scoring the awards…";
+    summary.metrics = buildSeasonMetrics(await getMetricsAnalysis(), seasonEntry.league.season);
+    applyMetricsToRecap(summary);
+
     progressBox.style.display = "none";
     content.style.display = "";
+    CURRENT_METRICS = summary.metrics;
     content.innerHTML = renderSummary(summary);
+    initMetricFilters(content);
     initStandingsReplay(summary.standingsHistory, summary.playoffTeams);
     initChartTabs();
     initAnimatedDropdowns();
@@ -750,7 +776,7 @@ function seasonStatCard(label, stat, subFormatter) {
 function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
   const c = recap && recap.champion;
   const stats = seasonStats || {};
-  const hasSeasonStats = stats.bestValuePick || stats.worstValuePick || stats.pointsLeader;
+  const hasSeasonStats = stats.bestValuePick || stats.worstValuePick || stats.pointsLeader || stats.leagueMvp;
   if (!c && !hasSeasonStats) return "";
 
   const highlights = c ? buildSeasonRecordHighlights(allTimeRecords, recap.season) : [];
@@ -761,22 +787,23 @@ function renderChampionshipRecap(recap, allTimeRecords, seasonStats) {
       ? `
     <div class="recap-player-card">
       ${playerLinkHtml(c.seasonMVP.playerId, playerPhotoHtml(c.seasonMVP.playerId, c.seasonMVP.player, "player-photo-lg"))}
-      <div class="recap-player-label">Season MVP</div>
+      <div class="recap-player-label">Champion's Ace</div>
       <div class="recap-player-name">${playerLinkHtml(c.seasonMVP.playerId, escapeHtml(c.seasonMVP.player))}</div>
     </div>`
       : "";
 
   const statCardsHtml = [
+    seasonStatCard("League MVP", stats.leagueMvp, (s) => `${s.wins.toFixed(1)} wins above replacement`),
     seasonStatCard("Season Points Leader", stats.pointsLeader, (s) => `${s.points.toFixed(1)} total points`),
     seasonStatCard(
       "Best Draft Steal",
       stats.bestValuePick,
-      (s) => `${s.round}.${s.pickInRound} by ${s.username || s.teamName}${s.vbd != null ? ` · +${s.vbd.toFixed(1)} VBD` : ""}`
+      (s) => `${s.round}.${s.pickInRound} by ${s.username || s.teamName} · ${s.points.toFixed(1)} pts`
     ),
     seasonStatCard(
       "Biggest Draft Bust",
       stats.worstValuePick,
-      (s) => `${s.round}.${s.pickInRound} by ${s.username || s.teamName}${s.vbd != null ? ` · ${s.vbd.toFixed(1)} VBD` : ""}`
+      (s) => `${s.round}.${s.pickInRound} by ${s.username || s.teamName} · ${s.points.toFixed(1)} pts`
     ),
   ].join("");
 
@@ -1125,6 +1152,337 @@ function standingsLabel(s) {
   return s.weeksPlayed ? `Standings \u00b7 Through Week ${s.weeksPlayed}` : "Standings";
 }
 
+// ---------------------------------------------------------------
+// MVP, draft awards, pickups and injury luck (all from Metrics)
+// ---------------------------------------------------------------
+const METRIC_POSITIONS = ["All", "QB", "RB", "WR", "TE", "K", "DEF"];
+const WIRE_LIST_SIZE = 5;
+
+function buildSeasonMetrics(analysis, season) {
+  return {
+    kind: "season",
+    season: String(season),
+    awards: analysis.awards(season),
+    wire: analysis.wire(season),
+    injury: analysis.injury(season),
+    constants: analysis.constants(),
+  };
+}
+
+function buildTotalMetrics(analysis) {
+  const seasons = analysis.contexts.map((c) => c.season);
+  const awards = seasons.map((s) => analysis.awards(s)).filter(Boolean);
+  const done = awards.filter((a) => a.complete);
+  const byValue = (field, dir) => done.flatMap((a) => a[field]).sort((a, b) => dir * (a.valueOverSlot - b.valueOverSlot)).slice(0, 5);
+  const injuries = seasons.map((s) => analysis.injury(s));
+  return {
+    kind: "total",
+    awards,
+    steals: byValue("steals", -1),
+    busts: byValue("busts", 1),
+    cursed: byValue("cursed", 1),
+    wire: { pickups: seasons.flatMap((s) => analysis.wire(s).pickups).sort((a, b) => b.value - a.value) },
+    injury: {
+      topPlayers: injuries.flatMap((i) => i.playerInjuries).sort((a, b) => b.pointsLost - a.pointsLost).slice(0, 5),
+      topTeamSeasons: injuries.flatMap((i) => i.teams).sort((a, b) => b.pointsLost - a.pointsLost).slice(0, 5),
+    },
+    constants: analysis.constants(),
+  };
+}
+
+// The recap card up top and the old "Draft Standouts" read the new steal / bust
+// and the new League MVP, so the page never shows two different answers.
+function applyMetricsToRecap(summary) {
+  const awards = summary.metrics && summary.metrics.awards;
+  if (!awards) return;
+  const asPick = (r) =>
+    r && {
+      player: r.player,
+      playerId: r.playerId,
+      round: r.round,
+      pickInRound: r.pickInRound,
+      teamName: r.username,
+      username: r.username,
+      points: r.totalPoints,
+      vbd: null,
+      season: r.season,
+    };
+  summary.bestValuePick = awards.complete ? asPick(awards.steals[0]) || null : null;
+  summary.worstValuePick = awards.complete ? asPick(awards.busts[0]) || null : null;
+  summary.leagueMvp = awards.mvp.All[0] || null;
+}
+
+function metricPillsHtml(group, active) {
+  return `<div class="season-pills metric-pills" role="group" aria-label="Filter by position">${METRIC_POSITIONS.map(
+    (pos) => `<button type="button" class="season-pill${pos === active ? " active" : ""}" data-metric-group="${group}" data-metric-value="${pos}" aria-pressed="${pos === active}">${pos}</button>`
+  ).join("")}</div>`;
+}
+
+function mvpRowsHtml(list, withSeason) {
+  if (!list || !list.length) return `<div class="empty-state">Not enough games played yet.</div>`;
+  return `<div class="rank-list">${list
+    .map(
+      (r, i) => `
+    <div class="rank-list-row faab-row">
+      <span class="rank-num">${i + 1}</span>
+      ${playerLinkHtml(r.playerId, playerPhotoHtml(r.playerId, r.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(r.playerId, escapeHtml(r.player))} <span class="muted-inline">(${escapeHtml(r.position)})</span><span class="sub">${
+        r.owner ? `${escapeHtml(r.owner)} · ` : ""
+      }${withSeason && r.season ? `${escapeHtml(String(r.season))}${r.inProgress ? " (in progress)" : ""} · ` : ""}${r.ppg.toFixed(1)} PPG over ${r.gamesPlayed} games${r.swung ? ` · swung ${r.swung} result${r.swung === 1 ? "" : "s"}` : ""}</span></span>
+      <span class="val">${r.wins.toFixed(1)} W <span class="muted-inline">· ${r.par.toFixed(0)} pts</span></span>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
+function draftValueRowsHtml(list, withSeason) {
+  if (!list || !list.length) return `<div class="empty-state">Nothing to show.</div>`;
+  return `<div class="rank-list">${list
+    .map(
+      (r, i) => `
+    <div class="rank-list-row faab-row">
+      <span class="rank-num">${i + 1}</span>
+      ${playerLinkHtml(r.playerId, playerPhotoHtml(r.playerId, r.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(r.playerId, escapeHtml(r.player))} <span class="muted-inline">(${escapeHtml(r.position || "")})</span><span class="sub">${r.round}.${r.pickInRound} (#${r.pickNo}) by ${escapeHtml(
+        r.username || "Unknown"
+      )}${withSeason ? ` · ${escapeHtml(String(r.season))}` : ""} · ${r.value.toFixed(0)} vs ${r.typical.toFixed(0)} typical${r.injuredWeeks >= 3 ? ` · ${r.injuredWeeks} wks injured` : ""}</span></span>
+      <span class="val">${r.valueOverSlot >= 0 ? "+" : ""}${r.valueOverSlot.toFixed(0)} ${gradeBadgeHtml(r.grade)}</span>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
+function wireCostLabel(r) {
+  if (r.type === "free_agent") return "Free agent";
+  return r.bid > 0 ? `$${r.bid}` : "$0 waiver";
+}
+
+function wireRowsHtml(list, withSeason) {
+  if (!list || !list.length) return `<div class="empty-state">No pickups at this position.</div>`;
+  return `<div class="rank-list">${list
+    .map(
+      (r, i) => `
+    <div class="rank-list-row faab-row">
+      <span class="rank-num">${i + 1}</span>
+      ${playerLinkHtml(r.playerId, playerPhotoHtml(r.playerId, r.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(r.playerId, escapeHtml(r.player))} <span class="muted-inline">(${escapeHtml(r.position)})</span><span class="sub">${escapeHtml(r.username)} · Week ${r.week}${
+        withSeason ? ` · ${escapeHtml(String(r.season))}` : ""
+      } · ${wireCostLabel(r)} · started ${r.startedWeeks} of ${r.heldWeeks} games${r.finishRank ? ` · finished ${escapeHtml(r.position)}${r.finishRank}` : ""}${
+        r.swung ? ` · swung ${r.swung} result${r.swung === 1 ? "" : "s"}` : ""
+      }</span></span>
+      <span class="val">+${r.value.toFixed(0)}</span>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
+function filterByPosition(list, pos) {
+  return (pos === "All" ? list : list.filter((r) => r.position === pos)).slice(0, WIRE_LIST_SIZE);
+}
+
+function renderAwardsMetricsSection(s) {
+  const m = s.metrics;
+  if (!m) return "";
+  const label = `<div class="yard-divider"><span class="tick"></span><div class="line"></div><span class="label">MVP &amp; Draft Awards</span><div class="line"></div></div>`;
+
+  if (m.kind === "total") {
+    const rows = [...m.awards]
+      .reverse()
+      .filter((a) => a.mvp.All.length)
+      .map((a) => ({ ...a.mvp.All[0], season: a.season, inProgress: !a.complete }));
+    return `${label}
+    <div class="wrap">
+      <div class="panel">
+        <h2>League MVP By Season</h2>
+        ${mvpRowsHtml(rows, true)}
+        <p class="heatmap-note">The player with the most points above a replacement-level player at his position over the regular season, in games he played, shown in wins (1 win is about ${m.constants.pointsPerWin.toFixed(0)} season points in this league). Picks only count where the season is over.</p>
+      </div>
+      <div class="section-grid" style="margin-top:24px;">
+        <div class="panel"><h2>Biggest Draft Steals Of All Time</h2>${draftValueRowsHtml(m.steals, true)}</div>
+        <div class="panel"><h2>Biggest Draft Busts Of All Time</h2>${draftValueRowsHtml(m.busts, true)}</div>
+      </div>
+      <div class="panel" style="margin-top:24px;"><h2>Most Cursed Picks Of All Time</h2>${draftValueRowsHtml(m.cursed, true)}
+        <p class="heatmap-note">Picks that missed three or more weeks to the injury report and still came in below their slot. Not counted as busts.</p>
+      </div>
+    </div>`;
+  }
+
+  const a = m.awards;
+  const mvpList = a.mvp.All;
+  const aceHtml = a.championsAce
+    ? `<div class="records-grid" style="margin-top:20px;">${recordCardWithPhoto("Champion's Ace", a.championsAce.playerId, a.championsAce.player, `${a.championsAce.points.toFixed(1)} points as a starter for ${escapeHtml(a.championsAce.team || "the champion")}, playoffs included`)}</div>`
+    : "";
+  const draftHtml = a.complete
+    ? `
+      <div class="section-grid section-grid-even" style="margin-top:24px;">
+        <div class="panel"><h2>Biggest Steals</h2>${draftValueRowsHtml(a.steals)}</div>
+        <div class="panel"><h2>Biggest Busts</h2>${draftValueRowsHtml(a.busts)}
+          <p class="heatmap-note">Picks who missed two or fewer weeks to the injury report.</p></div>
+      </div>
+      ${a.cursed.length ? `<div class="panel" style="margin-top:24px;"><h2>Cursed Picks</h2>${draftValueRowsHtml(a.cursed)}<p class="heatmap-note">Missed three or more weeks to the injury report and still came in below their slot. Not counted as busts.</p></div>` : ""}`
+    : `<div class="panel" style="margin-top:24px;"><h2>Draft Awards</h2><div class="empty-state">Steals, busts and cursed picks are handed out when the season ends.</div></div>`;
+  return `${label}
+    <div class="wrap">
+      <div class="panel">
+        <h2>League MVP${a.complete ? "" : ` · Through Week ${a.regularWeeks}`}</h2>
+        ${metricPillsHtml("mvp", "All")}
+        <div id="metric-mvp-list">${mvpRowsHtml(mvpList)}</div>
+        <p class="heatmap-note">Points above a replacement-level player at his position, in games he played, over the regular season. Shown in wins (about ${m.constants.pointsPerWin.toFixed(0)} season points per win in this league), with how many results he swung for the teams that started him. A QB leading is normal in SuperFlex.</p>
+        ${aceHtml}
+      </div>
+      ${draftHtml}
+    </div>`;
+}
+
+function renderWireMetricsSection(s) {
+  const m = s.metrics;
+  if (!m) return "";
+  const isTotal = m.kind === "total";
+  const pickups = m.wire.pickups;
+  if (!pickups.length) return "";
+  const faabHtml = s.top5FaabPickups && s.top5FaabPickups.length ? `<div class="panel"><h2>Top 5 Priciest FAAB Pickups${isTotal ? " Of All Time" : ""}</h2>${renderFaabList(s.top5FaabPickups, isTotal)}</div>` : "";
+  const managers = !isTotal
+    ? `
+      <div class="panel" style="margin-top:24px;">
+        <h2>Wire Standings</h2>
+        <div class="heatmap-table-wrap stay-scrollable">
+          <table class="stat-table compact-mobile">
+            <thead><tr><th>#</th><th>Manager</th><th>Wire Value</th><th>Claims</th><th>Hits</th><th>FAAB</th><th>Swung</th></tr></thead>
+            <tbody>${m.wire.managers
+              .map(
+                (t, i) => `<tr data-username="${escapeHtml(t.username || "")}"><td class="rank">${i + 1}</td><td class="team-cell">${escapeHtml(t.username || "")}</td><td>${t.value.toFixed(0)}</td><td>${t.claims}</td><td>${t.hits}</td><td>$${t.faab}</td><td>${t.swung}</td></tr>`
+              )
+              .join("")}</tbody>
+          </table>
+        </div>
+        <p class="heatmap-note">Wire Value adds up each manager's pickups that paid off. A "hit" is a pickup worth 15 or more points. FAAB is dollars spent on claims.</p>
+      </div>`
+    : "";
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Waiver Wire</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <h2>Top 5 Best Pickups${isTotal ? " Of All Time" : ""}</h2>
+        ${metricPillsHtml("wire", "All")}
+        <div id="metric-wire-list">${wireRowsHtml(filterByPosition(pickups, "All"), isTotal)}</div>
+        <p class="heatmap-note">Wire Value is points above a replacement-level player at the position in the games the claiming team started him, from the claim until he left that roster, playoff games included. Waivers and free agents count the same. Kickers and defenses count ${Math.round(Metrics.WIRE_LOW_IMPACT_FACTOR * 100)}% as much, so they appear only when truly outstanding.</p>
+      </div>
+      ${managers}
+      ${faabHtml ? `<div style="margin-top:24px;">${faabHtml}</div>` : ""}
+    </div>`;
+}
+
+function injuryTeamRowsHtml(teams) {
+  if (!teams.length) return `<div class="empty-state">No injury data recorded for this season.</div>`;
+  return `<div class="rank-list">${teams
+    .map((t, i) => {
+      const sub = `${t.resultsLost} result${t.resultsLost === 1 ? "" : "s"} lost · ${t.resultsGifted} gifted`;
+      const summary = `
+      <span class="rank-num">${i + 1}</span>
+      <span class="desc">${escapeHtml(t.username || "")}<span class="sub">${sub}</span></span>
+      <span class="val">${t.pointsLost.toFixed(1)} pts lost</span>`;
+      const players = (t.players || []).filter((p) => p.pointsLost > 0.05);
+      if (!players.length) return `<div class="rank-list-row">${summary}</div>`;
+      const playersHtml = players
+        .map(
+          (p) => `
+        <div class="injury-detail-row">
+          ${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-xs"))}
+          <span class="injury-detail-name">${playerLinkHtml(p.playerId, escapeHtml(p.player))} <span class="muted-inline">(${escapeHtml(p.position || "")})</span></span>
+          <span class="injury-detail-pts">${p.pointsLost.toFixed(1)} pts lost</span>
+        </div>`
+        )
+        .join("");
+      return `
+      <details class="rank-list-item">
+        <summary class="rank-list-row">${summary}</summary>
+        <div class="injury-detail-list">${playersHtml}</div>
+      </details>`;
+    })
+    .join("")}</div>`;
+}
+
+function injuryPlayerRowsHtml(items, withSeason) {
+  if (!items.length) return `<div class="empty-state">No significant injuries recorded.</div>`;
+  return `<div class="rank-list">${items
+    .map(
+      (p, i) => `
+    <div class="rank-list-row faab-row">
+      <span class="rank-num">${i + 1}</span>
+      ${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-sm"))}
+      <span class="desc">${playerLinkHtml(p.playerId, escapeHtml(p.player))}<span class="sub">${escapeHtml(p.position || "")} · ${escapeHtml(p.username || "")} · ${p.weeks} week${p.weeks === 1 ? "" : "s"}${
+        withSeason ? ` · ${escapeHtml(String(p.season))}` : ""
+      }</span></span>
+      <span class="val">${p.pointsLost.toFixed(1)} pts lost</span>
+    </div>`
+    )
+    .join("")}</div>`;
+}
+
+function renderInjuryMetricsSection(s) {
+  const m = s.metrics;
+  if (!m) return "";
+  const isTotal = m.kind === "total";
+  const topPlayers = isTotal ? m.injury.topPlayers : m.injury.playerInjuries.slice(0, 5);
+  const teamsHtml = isTotal
+    ? `<div class="rank-list">${m.injury.topTeamSeasons
+        .map(
+          (t, i) => `
+        <div class="rank-list-row"><span class="rank-num">${i + 1}</span><span class="desc">${escapeHtml(t.username || "")}<span class="sub">${escapeHtml(String(t.season))} · ${t.resultsLost} results lost · ${t.resultsGifted} gifted</span></span><span class="val">${t.pointsLost.toFixed(1)} pts lost</span></div>`
+        )
+        .join("")}</div>`
+    : injuryTeamRowsHtml(m.injury.teams);
+  return `
+    <div class="yard-divider">
+      <span class="tick"></span><div class="line"></div>
+      <span class="label">Injury Luck</span>
+      <div class="line"></div>
+    </div>
+    <div class="wrap">
+      <div class="panel">
+        <h2>Top 5 Most Costly Player Injuries${isTotal ? " Of All Time" : ""}</h2>
+        ${injuryPlayerRowsHtml(topPlayers, isTotal)}
+        <p class="heatmap-note">"Points lost" is what an injury took out of the team's best possible lineup: each week a player is on the injury report, compare the best lineup with him at what he would reasonably have scored (his own healthy average blended with what a pick at his draft slot normally returns) against the best lineup the team could actually field. A bench player who stepped in cushions the loss.</p>
+      </div>
+      <div class="panel" style="margin-top:24px;">
+        <h2>${isTotal ? "Top 5 Team Seasons With The Worst Injury Luck" : "Injury Luck Ranking"}</h2>
+        ${teamsHtml}
+        <p class="heatmap-note">${
+          isTotal
+            ? "Points lost to injuries, with the games that would have flipped to wins (results lost) and the games a team won that would have flipped had its opponent's injuries not happened (gifted)."
+            : "Worst luck first. \"Results lost\" are losses that become wins with the lost points added back; \"gifted\" are wins that would have flipped without the opponent's injuries. Each week an injury is charged to the team holding the player; if nobody holds him (he was dropped), to the last team that did. Click a team to see which players cost it the most."
+        }</p>
+      </div>
+    </div>`;
+}
+
+// Position pills redraw their list in place from the metrics on screen.
+function initMetricFilters(root) {
+  if (!root || root.dataset.metricFilters) return;
+  root.dataset.metricFilters = "1";
+  root.addEventListener("click", (e) => {
+    const pill = e.target.closest("[data-metric-group]");
+    if (!pill || !CURRENT_METRICS) return;
+    const group = pill.getAttribute("data-metric-group");
+    const pos = pill.getAttribute("data-metric-value");
+    pill.parentElement.querySelectorAll("[data-metric-group]").forEach((b) => {
+      const on = b === pill;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    if (group === "mvp") {
+      const list = CURRENT_METRICS.awards.mvp[pos] || [];
+      root.querySelector("#metric-mvp-list").innerHTML = mvpRowsHtml(list);
+    } else if (group === "wire") {
+      root.querySelector("#metric-wire-list").innerHTML = wireRowsHtml(filterByPosition(CURRENT_METRICS.wire.pickups, pos), CURRENT_METRICS.kind === "total");
+    }
+  });
+}
+
 function renderSummary(s) {
   const isTotal = s.season === "All-Time";
   const yearTag = (item) => (isTotal && item && item.season ? ` (${item.season})` : "");
@@ -1216,14 +1574,6 @@ function renderSummary(s) {
       }))
     : "";
 
-  const faabListHtml = s.top5FaabPickups
-    ? renderFaabList(s.top5FaabPickups, isTotal)
-    : "";
-
-  const waiverValueListHtml = s.top5WaiverValueAdds
-    ? renderWaiverValueList(s.top5WaiverValueAdds, isTotal)
-    : "";
-
   const POSITION_LABELS = { QB: "QB", RB: "RB", WR: "WR", TE: "TE", K: "K", DEF: "DEF" };
   const bestByPositionCards = Object.entries(POSITION_LABELS)
     .map(([pos, label]) => {
@@ -1233,32 +1583,8 @@ function renderSummary(s) {
     })
     .join("");
 
-  const draftCards = [
-    s.bestValuePick &&
-      recordCardWithPhoto(
-        "Best Late-Round Steal",
-        s.bestValuePick.playerId,
-        s.bestValuePick.player,
-        `${s.bestValuePick.round}.${s.bestValuePick.pickInRound} by ${escapeHtml(s.bestValuePick.username || s.bestValuePick.teamName)} · ${s.bestValuePick.points.toFixed(1)} pts${
-          s.bestValuePick.vbd != null ? ` · +${s.bestValuePick.vbd.toFixed(1)} VBD` : ""
-        }${yearTag(s.bestValuePick)}`
-      ),
-    s.worstValuePick &&
-      recordCardWithPhoto(
-        "Biggest Draft Bust",
-        s.worstValuePick.playerId,
-        s.worstValuePick.player,
-        `${s.worstValuePick.round}.${s.worstValuePick.pickInRound} by ${escapeHtml(s.worstValuePick.username || s.worstValuePick.teamName)} · ${s.worstValuePick.points.toFixed(1)} pts${
-          s.worstValuePick.vbd != null ? ` · ${s.worstValuePick.vbd.toFixed(1)} VBD` : ""
-        }${yearTag(s.worstValuePick)}`
-      ),
-    s.pointsLeader && recordCardWithPhoto("Season Points Leader", s.pointsLeader.playerId, s.pointsLeader.player, `${s.pointsLeader.points.toFixed(1)} total points${yearTag(s.pointsLeader)}`),
-  ]
-    .filter(Boolean)
-    .join("");
-
   return `
-    ${isTotal ? "" : renderChampionshipRecap(s.championshipRecap, s.allTimeRecords, { bestValuePick: s.bestValuePick, worstValuePick: s.worstValuePick, pointsLeader: s.pointsLeader })}
+    ${isTotal ? "" : renderChampionshipRecap(s.championshipRecap, s.allTimeRecords, { bestValuePick: s.bestValuePick, worstValuePick: s.worstValuePick, pointsLeader: s.pointsLeader, leagueMvp: s.leagueMvp })}
 
     ${
       s.bracket
@@ -1372,80 +1698,11 @@ function renderSummary(s) {
       <div class="records-grid">${bestByPositionCards || `<div class="empty-state">No lineup data available.</div>`}</div>
     </div>
 
-    ${
-      isTotal || s.status !== "complete"
-        ? `
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Draft Standouts</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap">
-      <div class="records-grid">${draftCards || `<div class="empty-state">No draft data for this season.</div>`}</div>
-    </div>`
-        : ""
-    }
+    ${renderAwardsMetricsSection(s)}
 
-    ${
-      s.top5FaabPickups && s.top5FaabPickups.length
-        ? `
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Waiver Wire</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap">
-      <div class="panel">
-        <h2>Top 5 Priciest FAAB Pickups${isTotal ? " Of All Time" : ""}</h2>
-        ${faabListHtml}
-      </div>
-    </div>`
-        : ""
-    }
-    ${
-      s.top5WaiverValueAdds && s.top5WaiverValueAdds.length
-        ? `
-    <div class="wrap">
-      <div class="panel" style="margin-top:24px;">
-        <h2>Top 5 Best Waiver Pickups${isTotal ? " Of All Time" : ""}</h2>
-        ${waiverValueListHtml}
-        <p class="heatmap-note">Ranked by standard deviations above the average points-per-game for that position among this league's starter-caliber players that season, accumulated across every week the pickup actually contributed — not raw points, which would favor high-scoring positions like QB in a SuperFlex format, and not a bare per-week rate either, which would let one huge Week 14 game outrank a whole season of sustained production. A pickup has to be both good and lasting to rank highly here.</p>
-      </div>
-    </div>`
-        : ""
-    }
+    ${renderWireMetricsSection(s)}
 
-    ${(() => {
-      const topInjuries = isTotal ? (s.allTimeTopInjuries || []).slice(0, 5) : s.injuryLuck ? s.injuryLuck.playerInjuries.slice(0, 5) : [];
-      const injuryListHtml = renderInjuryList(topInjuries, isTotal);
-
-      const luckSectionHtml = isTotal
-        ? renderRankList((s.allTimeTeamSeasonInjuryLuck || []).slice(0, 5), (t) => ({
-            main: escapeHtml(t.username || t.teamName),
-            sub: escapeHtml(String(t.season)),
-            value: `${t.pointsLost.toFixed(1)} pts lost`,
-          }))
-        : renderTeamInjuryLuckList(s.injuryLuck ? s.injuryLuck.teamInjuryLuck : [], s.injuryLuck ? s.injuryLuck.playerInjuries : []);
-
-      return `
-    <div class="yard-divider">
-      <span class="tick"></span><div class="line"></div>
-      <span class="label">Injury Luck</span>
-      <div class="line"></div>
-    </div>
-    <div class="wrap">
-      <div class="panel">
-        <h2>Top 5 Most Significant Player Injuries${isTotal ? " Of All Time" : ""}</h2>
-        ${injuryListHtml}
-        <p class="heatmap-note">"Points lost" compares a player's actual output on weeks they were Out/Doubtful to what they'd reasonably be expected to score — blending their own healthy-week average with a league-wide baseline for their draft slot and position.</p>
-      </div>
-      <div class="panel" style="margin-top:24px;">
-        <h2>${isTotal ? "Top 5 Team Seasons With The Worst Injury Luck" : "Injury Luck Ranking"}</h2>
-        ${luckSectionHtml}
-        ${isTotal ? "" : `<p class="heatmap-note">Ranked worst luck first — total points lost across the whole roster to significant injuries this season. Click a team to see which players and how much each cost them.</p>`}
-      </div>
-    </div>`;
-    })()}
+    ${renderInjuryMetricsSection(s)}
 
     ${renderAwardsSection(s.season)}
   `;

@@ -15,6 +15,7 @@ function fakePick(overrides) {
     position: "RB",
     points: 200,
     vbd: 10,
+    valueOverSlot: 10,
     grade: "B",
     ownerUsername: "yulovesyou",
     ...overrides,
@@ -30,10 +31,16 @@ test("topPicksForBoard: ranks by letter grade, best first (S before A before B)"
   assert.deepStrictEqual([...top.map((p) => p.player)], ["S Grade Pick", "A Grade Pick", "B Grade Pick"]);
 });
 
-test("topPicksForBoard: within the same grade, breaks ties by VBD descending", () => {
+test("topPicksForBoard: S+ ranks above S", () => {
+  const ctx = setup();
+  const board = { allPicks: [fakePick({ player: "S Pick", grade: "S", valueOverSlot: 90 }), fakePick({ player: "S+ Pick", grade: "S+", valueOverSlot: 80 })] };
+  assert.deepStrictEqual([...ctx.topPicksForBoard(board).map((p) => p.player)], ["S+ Pick", "S Pick"]);
+});
+
+test("topPicksForBoard: within the same grade, breaks ties by points over the slot, descending", () => {
   const ctx = setup();
   const board = {
-    allPicks: [fakePick({ player: "Lower VBD", grade: "A", vbd: 5 }), fakePick({ player: "Higher VBD", grade: "A", vbd: 20 })],
+    allPicks: [fakePick({ player: "Lower VBD", grade: "A", valueOverSlot: 5 }), fakePick({ player: "Higher VBD", grade: "A", valueOverSlot: 20 })],
   };
   const top = ctx.topPicksForBoard(board);
   assert.strictEqual(top[0].player, "Higher VBD");
@@ -52,20 +59,20 @@ test("topPicksForBoard: excludes ungraded picks entirely, rather than sorting th
 
 test("topPicksForBoard: caps at 5, even with more graded picks available", () => {
   const ctx = setup();
-  const board = { allPicks: Array.from({ length: 12 }, (_, i) => fakePick({ player: `Pick ${i}`, grade: "B", vbd: 12 - i })) };
+  const board = { allPicks: Array.from({ length: 12 }, (_, i) => fakePick({ player: `Pick ${i}`, grade: "B", valueOverSlot: 12 - i })) };
   assert.strictEqual(ctx.topPicksForBoard(board).length, 5);
 });
 
-test("renderTopPicks: includes the player photo, name, position, drafted-by owner, grade, and points/VBD", () => {
+test("renderTopPicks: includes the player photo, name, position, drafted-by owner, grade, and points and points over the slot", () => {
   const ctx = setup();
-  const html = ctx.renderTopPicks([fakePick({ round: 2, pickInRound: 5, player: "Derek Holloway", position: "RB", points: 210.4, vbd: 12.3, grade: "A", ownerUsername: "hmart92" })]);
+  const html = ctx.renderTopPicks([fakePick({ round: 2, pickInRound: 5, player: "Derek Holloway", position: "RB", points: 210.4, valueOverSlot: 12.3, grade: "A", ownerUsername: "hmart92" })]);
   assert.ok(html.includes("player-photo-xs"), "should render a small player photo");
   assert.ok(html.includes("2.5"), "should show round.pickInRound");
   assert.ok(html.includes("Derek Holloway"));
   assert.ok(html.includes("(RB)"));
   assert.ok(html.includes("hmart92"), "should show who drafted the player");
   assert.ok(html.includes("210.4 pts"));
-  assert.ok(html.includes("+12.3 VBD"));
+  assert.ok(html.includes("+12 vs slot"));
 });
 
 test("renderTopPicks: returns an empty string when there are no picks to show, rather than an empty table", () => {

@@ -7,9 +7,10 @@ async function renderTradesPage() {
   const listBox = document.getElementById("trades-list");
 
   try {
-    const [seasonChain, playerDirectory] = await Promise.all([
+    const [seasonChain, playerDirectory, injuriesData] = await Promise.all([
       SleeperAPI.getSeasonChain(LEAGUE_ID),
       SleeperAPI.getPlayerDirectory(),
+      fetchJsonSafe(INJURIES_FILE, { players: {} }),
     ]);
     if (seasonChain.length === 0) {
       throw new Error("Couldn't load the league's seasons from Sleeper. Give it a minute and refresh the page.");
@@ -25,6 +26,7 @@ async function renderTradesPage() {
     progressBox.style.display = "none";
 
     ALL_TRADES = DeepHistory.buildTradeLog(seasonChain, deepSeasons, playerDirectory);
+    attachTradeVerdicts(ALL_TRADES, Metrics.analyze(seasonChain, deepSeasons, playerDirectory, injuriesData));
 
     document.getElementById("sb-title").textContent = `${ALL_TRADES.length} Trade${ALL_TRADES.length === 1 ? "" : "s"}`;
     document.getElementById("sb-sub").textContent = ALL_TRADES.length
@@ -58,17 +60,53 @@ function renderFilterPills(activeKey) {
   return allPill + seasonPills;
 }
 
-function tradePlayerLine(p) {
+// Each trade gets its verdict from Metrics: what the trade did to each roster's
+// best possible lineup from the trade on (the roster as it was against the roster
+// without the players it received and with the ones it sent), plus FAAB at the
+// league's own dollars-to-points rate. A trade in a season still being played is
+// "Pending".
+function attachTradeVerdicts(trades, analysis) {
+  const byId = new Map();
+  analysis.contexts.forEach((ctx) => analysis.trades(ctx.season).forEach((t) => byId.set(String(t.transactionId), t)));
+  trades.forEach((trade) => {
+    const verdict = byId.get(String(trade.transactionId));
+    if (!verdict) return;
+    trade.verdict = verdict;
+    trade.teams.forEach((team) => {
+      team.verdict = verdict.sides.find((x) => x.rosterId === team.rosterId) || null;
+    });
+  });
+}
+
+function tradePlayerLine(p, verdict) {
+  const detail = verdict ? verdict.receivedDetail.find((d) => d.playerId === p.playerId) : null;
+  const tail = detail
+    ? ` <span class="muted-inline">· ${detail.par >= 0 ? "+" : ""}${detail.par.toFixed(0)} pts above replacement</span>`
+    : p.vbd != null
+      ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>`
+      : "";
   return `<li>${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.name, "player-photo-xs"))}<span>${playerLinkHtml(p.playerId, escapeHtml(p.name))}${
     p.position ? ` <span class="muted-inline">(${escapeHtml(p.position)})</span>` : ""
-  }${p.vbd != null ? ` <span class="muted-inline">· ${p.vbd >= 0 ? "+" : ""}${p.vbd.toFixed(1)} VBD</span>` : ""}</span></li>`;
+  }${tail}</span></li>`;
+}
+
+// The verdict line for one side of a trade: net wins, and what it is made of.
+function tradeVerdictHtml(team, trade) {
+  const v = team.verdict;
+  if (!v) return "";
+  if (trade.verdict.pending) return `<div class="trade-verdict pending">Pending <span class="muted-inline">· graded when the season ends</span></div>`;
+  const sign = (n, d) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(d)}`;
+  const cls = v.wins > 0.005 ? "up" : v.wins < -0.005 ? "down" : "flat";
+  const parts = [`lineup ${sign(v.lineupPoints, 1)} pts`];
+  if (v.faabNet) parts.push(`FAAB ${v.faabNet > 0 ? "+" : "−"}$${Math.abs(v.faabNet)} (${sign(v.faabPoints, 1)} pts)`);
+  return `<div class="trade-verdict ${cls}"><span class="trade-net">${sign(v.wins, 2)} W</span><span class="muted-inline">${parts.join(" · ")}${v.startedWeeks ? ` · started ${v.startedWeeks} wk` : ""}</span></div>`;
 }
 
 function renderTradeCard(trade) {
   const sides = trade.teams
     .map((t) => {
       const items = [
-        ...t.received.players.map(tradePlayerLine),
+        ...t.received.players.map((p) => tradePlayerLine(p, t.verdict)),
         ...t.received.picks.map((p) => `<li>${escapeHtml(p)} pick</li>`),
         ...(t.received.faab ? [`<li>$${t.received.faab} FAAB</li>`] : []),
       ].join("");
@@ -77,6 +115,7 @@ function renderTradeCard(trade) {
         <div class="trade-team-name">${escapeHtml(t.info.username || t.info.teamName)}</div>
         <div class="trade-received-label">Received</div>
         <ul class="trade-item-list">${items || "<li>—</li>"}</ul>
+        ${tradeVerdictHtml(t, trade)}
       </div>`;
     })
     .join(`<div class="trade-arrow">⇄</div>`);

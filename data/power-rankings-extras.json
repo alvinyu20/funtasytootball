@@ -652,5 +652,181 @@
         "total": -13.88
       }
     ]
+  },
+  "mvpRace": {
+    "throughWeek": 7,
+    "remainingWeeks": 7,
+    "sims": 60000,
+    "rows": [
+      {
+        "playerId": "9221",
+        "player": "Jahmyr Gibbs",
+        "position": "RB",
+        "owner": "sofarrsogood",
+        "par": 117.82142857142858,
+        "wins": 1.3738540322127109,
+        "ppg": 27.70833333333334,
+        "gamesPlayed": 6,
+        "weekly": [
+          34.35,
+          21.8,
+          39.9,
+          16.2,
+          37.45,
+          0,
+          16.55
+        ],
+        "projectedPar": 192.6879924478577,
+        "chance": 38.96666666666667
+      },
+      {
+        "playerId": "9488",
+        "player": "Jaxon Smith-Njigba",
+        "position": "WR",
+        "owner": "tduchow",
+        "par": 120.25999999999999,
+        "wins": 1.4022889377354397,
+        "ppg": 25.237142857142857,
+        "gamesPlayed": 7,
+        "weekly": [
+          23.2,
+          39.25,
+          32.36,
+          10.85,
+          21.05,
+          21.4,
+          28.55
+        ],
+        "projectedPar": 186.23086713547005,
+        "chance": 28.606666666666666
+      },
+      {
+        "playerId": "8151",
+        "player": "Kenneth Walker III",
+        "position": "RB",
+        "owner": "sofarrsogood",
+        "par": 98.27142857142857,
+        "wins": 1.1458917111356455,
+        "ppg": 24.45,
+        "gamesPlayed": 6,
+        "weekly": [
+          34.6,
+          23.05,
+          21.05,
+          31.4,
+          0,
+          28.4,
+          8.2
+        ],
+        "projectedPar": 165.753914398456,
+        "chance": 11.533333333333333
+      },
+      {
+        "playerId": "4984",
+        "player": "Josh Allen",
+        "position": "QB",
+        "owner": "YuWillLose",
+        "par": 91.95714285714286,
+        "wins": 1.0722641291728667,
+        "ppg": 26.293333333333333,
+        "gamesPlayed": 6,
+        "weekly": [
+          35.16,
+          40.32,
+          15.96,
+          18.27,
+          30.25,
+          17.8,
+          0
+        ],
+        "projectedPar": 151.65893385217046,
+        "chance": 6.245
+      },
+      {
+        "playerId": "9509",
+        "player": "Bijan Robinson",
+        "position": "RB",
+        "owner": "jspar279879",
+        "par": 85.69999999999999,
+        "wins": 0.999302860169027,
+        "ppg": 20.314285714285713,
+        "gamesPlayed": 7,
+        "weekly": [
+          29.3,
+          10.1,
+          36.8,
+          28.2,
+          14.8,
+          6.55,
+          16.45
+        ],
+        "projectedPar": 146.2500651162798,
+        "chance": 4.996666666666667
+      },
+      {
+        "playerId": "6813",
+        "player": "Jonathan Taylor",
+        "position": "RB",
+        "owner": "paty23",
+        "par": 80.5,
+        "wins": 0.9386683809055623,
+        "ppg": 19.571428571428573,
+        "gamesPlayed": 7,
+        "weekly": [
+          24.85,
+          28.95,
+          8.95,
+          23.2,
+          10.45,
+          21.85,
+          18.75
+        ],
+        "projectedPar": 138.09566992424442,
+        "chance": 1.3033333333333332
+      },
+      {
+        "playerId": "6786",
+        "player": "CeeDee Lamb",
+        "position": "WR",
+        "owner": "jspar279879",
+        "par": 80.34999999999998,
+        "wins": 0.9369193093883467,
+        "ppg": 19.535714285714285,
+        "gamesPlayed": 7,
+        "weekly": [
+          13.9,
+          32.55,
+          17.95,
+          35.3,
+          1.9,
+          12.5,
+          22.65
+        ],
+        "projectedPar": 134.76603343796373,
+        "chance": 2.6166666666666667
+      },
+      {
+        "playerId": "4034",
+        "player": "Christian McCaffrey",
+        "position": "RB",
+        "owner": "yulovesyou",
+        "par": 76.75000000000001,
+        "wins": 0.8949415929751791,
+        "ppg": 19.035714285714285,
+        "gamesPlayed": 7,
+        "weekly": [
+          11.8,
+          21.6,
+          21.1,
+          15.25,
+          16.3,
+          27.2,
+          20
+        ],
+        "projectedPar": 132.894676770767,
+        "chance": 0.815
+      }
+    ],
+    "pointsPerWin": 85.75978656310888
   }
 }

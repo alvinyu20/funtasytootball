@@ -453,7 +453,7 @@ test("teamsDraftBodyHtml: the graded year shows every pick's grade and value, pl
   assert.deepStrictEqual([...picks.matchAll(/<span class="tm-pk-gr"><i class="gr gr-(\w)"/g)].map((m) => m[1]), ["S", "A", "C", "F"]);
   assert.match(picks, /tm-pk-vbd up">\+80.0</);
   assert.match(picks, /tm-pk-vbd down">-40.0</);
-  assert.match(picks, /Value over replacement \(VBD\)/);
+  assert.match(picks, /Points vs\. a typical pick at that slot/);
   assert.match(out, /class="tm-rc-row title on" data-year="2021" aria-pressed="true"/);
   assert.match(out, /Most Common Lineup[\s\S]*2021 · Title/);
 });
@@ -468,7 +468,7 @@ test("teamsDraftBodyHtml: a season in progress has NO grades and NO value over r
   assert.deepStrictEqual([...picks.matchAll(/tm-pk-n">([\d.]+)</g)].map((m) => m[1]), ["1.1", "1.2"]);
   assert.match(picks, /tm-pk-pts">55.0</);
   assert.ok(!/class="gr /.test(picks), "no grade squares");
-  assert.ok(!/tm-pk-gr|tm-pk-vbd|tm-cbar|VBD|Value over/.test(picks), "no value-over-replacement either");
+  assert.ok(!/tm-pk-gr|tm-pk-vbd|tm-cbar|typical pick|vs slot/.test(picks), "no value versus the slot either");
   const cards = out.slice(out.indexOf('id="tm-reports"'), out.indexOf('id="tm-picks"'));
   assert.deepStrictEqual([...cards.matchAll(/class="tm-rc-row[^"]*" data-year="(\d+)"/g)].map((m) => m[1]), ["2021"], "2022 has no report card yet");
   assert.ok(!/tm-rc-row[^>]*\bon\b/.test(cards), "the report card for the open year isn't there, so no row is lit");
@@ -492,21 +492,21 @@ test("teamsReportCardsHtml: a square per pick in order, S + A and D + F counts, 
 
 test("teamsPicksHtml: ten picks to begin with and a button for the rest, which turns into 'Show fewer'", () => {
   const ctx = setup();
-  const table = `{ graded: true, maxVbd: 40, picks: Array.from({ length: 12 }, (_, i) => ({ label: "1." + (i + 1), player: "P" + i, playerId: "p" + i, position: "WR", points: 100 - i, vbd: 10 - i, grade: "B" })) }`;
+  const table = `{ graded: true, maxVsSlot: 40, picks: Array.from({ length: 12 }, (_, i) => ({ label: "1." + (i + 1), player: "P" + i, playerId: "p" + i, position: "WR", points: 100 - i, vsSlot: 10 - i, grade: "B" })) }`;
   const closed = html(ctx, `return teamsPicksHtml(${table}, false)`);
   assert.strictEqual(count(closed, /<li class="tm-pk-row">/g), 10);
   assert.match(closed, /data-more="picks">Show all 12 picks</);
   const open = html(ctx, `return teamsPicksHtml(${table}, true)`);
   assert.strictEqual(count(open, /<li class="tm-pk-row">/g), 12);
   assert.match(open, /Show fewer picks/);
-  const few = html(ctx, `return teamsPicksHtml({ graded: true, maxVbd: 1, picks: [{ label: "1.1", player: "A", playerId: "a", position: "QB", points: 1, vbd: 1, grade: "S" }] }, false)`);
+  const few = html(ctx, `return teamsPicksHtml({ graded: true, maxVsSlot: 1, picks: [{ label: "1.1", player: "A", playerId: "a", position: "QB", points: 1, vsSlot: 1, grade: "S" }] }, false)`);
   assert.ok(!/data-more/.test(few), "a short list has no button");
   assert.match(html(ctx, `return teamsPicksHtml(null, false)`), /No draft data for this season/);
 });
 
 test("teamsPicksHtml: a pick without a position or points still draws, and names are escaped", () => {
   const ctx = setup();
-  const out = html(ctx, `return teamsPicksHtml({ graded: false, maxVbd: 0, picks: [{ label: "3.4", player: "<u>X</u>", playerId: null, position: null, points: null, vbd: null, grade: null }] }, false)`);
+  const out = html(ctx, `return teamsPicksHtml({ graded: false, maxVsSlot: 0, picks: [{ label: "3.4", player: "<u>X</u>", playerId: null, position: null, points: null, vsSlot: null, grade: null }] }, false)`);
   assert.ok(!/<u>X<\/u>/.test(out));
   assert.match(out, /&lt;u&gt;X&lt;\/u&gt;/);
   assert.match(out, /tm-pk-pts">–</);

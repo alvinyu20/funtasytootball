@@ -523,3 +523,50 @@ test("10,000 runs: odds come in steps of 0.01%, so a long shot shows up as a num
   const byName = new Map(b.rows.map((r) => [r.teamName, r]));
   a.rows.forEach((row) => assert.ok(Math.abs(row.playoffPct - byName.get(row.teamName).playoffPct) < 3, `${row.teamName}: ${row.playoffPct} vs ${byName.get(row.teamName).playoffPct}`));
 });
+
+// ------------------------------------------------------------------
+// the MVP race that the weekly run writes into data/power-rankings-extras.json
+// ------------------------------------------------------------------
+const { loadSiteModules } = require("./helpers/site-env.js");
+const { buildLeague } = require("./helpers/metrics-fixture.js");
+const { buildMvpRaceForRun, pointsPerWinFromArchive } = require("../scripts/update-power-rankings.js");
+
+function raceInputs() {
+  const ppg = { q1: 30, q2: 24, q3: 22, q4: 20, rb1: 18, rb2: 16, rb3: 14, rb4: 12, w1: 15, w2: 13, w3: 11, w4: 10 };
+  const pos = (pid) => (pid.startsWith("q") ? "QB" : pid.startsWith("rb") ? "RB" : "WR");
+  const players = {};
+  Object.keys(ppg).forEach((pid) => (players[pid] = { position: pos(pid), name: pid }));
+  return buildLeague({
+    status: "in_season",
+    rosterPositions: ["QB", "RB", "WR", "BN"],
+    players,
+    playoffStart: 15,
+    weeks: [1, 2, 3, 4, 5, 6, 7],
+    rosterOf: (rid) => [`q${rid}`, `rb${rid}`, `w${rid}`],
+    pointsOf: (pid) => ppg[pid],
+  });
+}
+
+test("buildMvpRaceForRun: projects to the last regular-season week of the league's own calendar, and carries the points-per-win it used", () => {
+  const { Metrics } = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "metrics.js"]);
+  const league = raceInputs();
+  const race = buildMvpRaceForRun(Metrics, {
+    currentSeasonEntry: league.seasonEntry,
+    deep: league.deep,
+    playerDirectory: league.playerDirectory,
+    injuriesData: { players: {} },
+    pointsPerWin: 90,
+    sims: 1000,
+  });
+  assert.strictEqual(race.throughWeek, 7);
+  assert.strictEqual(race.remainingWeeks, 7); // regular season is weeks 1-14
+  assert.strictEqual(race.pointsPerWin, 90);
+  assert.strictEqual(race.rows[0].player, "q1");
+  assert.ok(Math.abs(race.rows[0].wins - race.rows[0].par / 90) < 1e-9);
+});
+
+test("pointsPerWinFromArchive: a believable number of season points per win from the saved seasons", () => {
+  const { Metrics } = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "metrics.js"]);
+  const ppw = pointsPerWinFromArchive(Metrics);
+  assert.ok(Number.isFinite(ppw) && ppw > 20 && ppw < 300, `points per win ${ppw}`);
+});

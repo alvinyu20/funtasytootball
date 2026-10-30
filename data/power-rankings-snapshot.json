@@ -42,7 +42,8 @@
       "recentPpg": 144.67666666666665,
       "prScore": 1.43,
       "powerRank": 1,
-      "luckRank": 3
+      "luckRank": 3,
+      "titlePct": 24.391
     },
     {
       "rosterId": 7,
@@ -78,7 +79,8 @@
       "recentPpg": 131.86666666666667,
       "prScore": 2.18,
       "powerRank": 2,
-      "luckRank": 5
+      "luckRank": 5,
+      "titlePct": 23.8535
     },
     {
       "rosterId": 2,
@@ -114,7 +116,8 @@
       "recentPpg": 124.26333333333332,
       "prScore": 2.89,
       "powerRank": 3,
-      "luckRank": 5
+      "luckRank": 5,
+      "titlePct": 16.4645
     },
     {
       "rosterId": 3,
@@ -150,7 +153,8 @@
       "recentPpg": 122.94333333333333,
       "prScore": 4.61,
       "powerRank": 4,
-      "luckRank": 5
+      "luckRank": 5,
+      "titlePct": 15.995000000000001
     },
     {
       "rosterId": 12,
@@ -186,7 +190,8 @@
       "recentPpg": 107.91666666666667,
       "prScore": 5.9,
       "powerRank": 5,
-      "luckRank": 7.5
+      "luckRank": 7.5,
+      "titlePct": 4.156499999999999
     },
     {
       "rosterId": 11,
@@ -222,7 +227,8 @@
       "recentPpg": 126.68333333333334,
       "prScore": 6.14,
       "powerRank": 6,
-      "luckRank": 12
+      "luckRank": 12,
+      "titlePct": 2.3975
     },
     {
       "rosterId": 10,
@@ -258,7 +264,8 @@
       "recentPpg": 105.49333333333334,
       "prScore": 6.58,
       "powerRank": 7,
-      "luckRank": 2
+      "luckRank": 2,
+      "titlePct": 7.4385
     },
     {
       "rosterId": 5,
@@ -294,7 +301,8 @@
       "recentPpg": 123.47666666666665,
       "prScore": 8.62,
       "powerRank": 8,
-      "luckRank": 9
+      "luckRank": 9,
+      "titlePct": 0.8059999999999999
     },
     {
       "rosterId": 1,
@@ -330,7 +338,8 @@
       "recentPpg": 116.03666666666665,
       "prScore": 9.19,
       "powerRank": 9,
-      "luckRank": 1
+      "luckRank": 1,
+      "titlePct": 2.2475
     },
     {
       "rosterId": 4,
@@ -366,7 +375,8 @@
       "recentPpg": 121.67666666666666,
       "prScore": 10.01,
       "powerRank": 10,
-      "luckRank": 11
+      "luckRank": 11,
+      "titlePct": 0.0625
     },
     {
       "rosterId": 6,
@@ -402,7 +412,8 @@
       "recentPpg": 120.21333333333332,
       "prScore": 10.07,
       "powerRank": 11,
-      "luckRank": 10
+      "luckRank": 10,
+      "titlePct": 0.9625
     },
     {
       "rosterId": 8,
@@ -438,7 +449,9 @@
       "recentPpg": 107.22666666666667,
       "prScore": 10.38,
       "powerRank": 12,
-      "luckRank": 7.5
+      "luckRank": 7.5,
+      "titlePct": 1.225
     }
-  ]
+  ],
+  "titleSimRuns": 200000
 }
