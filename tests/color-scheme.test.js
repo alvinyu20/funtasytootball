@@ -75,6 +75,7 @@ test("Draft: a steal is yellow and a costly pick is blue, from the shared tokens
   assert.match(css, /\.dr-tile\.dr-tone-bad \.dr-tile-main \{ color: var\(--bad\); \}/);
   assert.match(css, /\.page-draft \.gr-S \{ background: #F0A340;/, "an S is the good yellow");
   assert.match(css, /\.page-draft \.gr-F \{ background: #2E6794;/, "an F is a blue, never red");
+  assert.match(css, /\.page-draft \.gr-Splus \{ background: #FFD58A;/, "an S+ is the brighter gold the Teams and Seasons pages use");
 });
 
 test("no green or red left in the page scripts (the team line palette in charts.js is the one exception)", () => {

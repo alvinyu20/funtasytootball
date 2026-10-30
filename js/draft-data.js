@@ -2,20 +2,24 @@
   The Draft page's numbers (no DOM, so tests run it as it is): one season's picks, teams, rounds and
   tiles, the report card across every graded draft, and the all-time best and costliest picks.
 
-  Everything starts from DeepHistory.computeStats(): each manager's seasons[].draftPicks, the league-wide
-  grade curve (draftGradeModel) and the per-season facts (draftSeasons).
+  Everything starts from DeepHistory.computeStats(): each manager's seasons[].draftPicks. The grades and
+  numbers on those picks come from Metrics (js/metrics.js, the same grading the Teams and Seasons pages
+  use): Metrics.applyDraftGrades puts grade, value, typical and valueOverSlot on every pick, and
+  seasonFacts() below turns the same Metrics analysis into the per-season facts (draftSeasons).
 
-  Three words used all over:
-    value    season points above a replacement player at that position (the VBD the grades use), rounded
-    typical  what that draft slot usually returns, from the league's own curve, rounded
-    vs slot  value minus typical, worked out from the two rounded numbers so the page always adds up
+  Three words used all over (all three straight from Metrics, rounded for display):
+    value    the season's points above a replacement player at that position, injuries credited
+    typical  what picks from nearby slots in the same kind of league returned, on average
+    vs slot  value minus typical (Metrics' own valueOverSlot, so every page shows the same number)
 
   A season that is still being played has no grades, value, typical or vs slot (they need a full year),
   so it is described with points and games instead.
 */
 const DraftData = (function () {
   const POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"];
-  const GRADES = ["S", "A", "B", "C", "D", "F"];
+  const GRADES = ["S+", "S", "A", "B", "C", "D", "F"];
+  const UPPER_GRADES = ["S+", "S", "A"]; // the steals
+  const LOW_IMPACT = ["K", "DEF"]; // Metrics holds these at B, and they never count as a steal
 
   // The page's tunable numbers, in one place.
   const BOARD_BANDS = [60, 20, -20, -60]; // a pick's vs slot: b5 at +60 or more, b4 +20 to +59, b3 within 20, b2 -20 to -59, b1 -60 or less
@@ -51,6 +55,9 @@ const DraftData = (function () {
   }
   const nameOf = (m) => (m ? m.username || m.teamName || "" : "");
   const canBeSteal = (p) => !p.capped;
+  const isUpper = (g) => UPPER_GRADES.includes(g);
+  // "S+" is not a legal CSS class name, so the markup and the stylesheet say "Splus".
+  const gradeClass = (g) => (g === "S+" ? "Splus" : g);
 
   // Five bands, b5 the best: `edges` are the cut points from highest to lowest.
   function bandBy(x, edges) {
@@ -64,38 +71,24 @@ const DraftData = (function () {
   const bandOfVs = (vs) => bandBy(vs, BOARD_BANDS);
   const bandOfTotal = (total) => bandBy(total, TEAM_BANDS);
 
-  // The grade a z-score earns before DeepHistory's caps (K and DEF, or a pick who missed over half the season, top out at B).
-  const FALLBACK_BANDS = [{ min: 1.5, grade: "S" }, { min: 0.75, grade: "A" }, { min: 0, grade: "B" }, { min: -0.75, grade: "C" }, { min: -1.5, grade: "D" }, { min: -Infinity, grade: "F" }];
-  function gradeOfZ(z) {
-    const bands = (typeof DeepHistory !== "undefined" && DeepHistory.DRAFT_GRADE_BANDS) || FALLBACK_BANDS;
-    const hit = bands.find((b) => z >= b.min);
-    return hit ? hit.grade : null;
-  }
-
   // ---- one pick ----------------------------------------------------------------------
 
-  function shapePick(entry, manager, season, graded, model) {
+  // `facts` is this season's entry in draftSeasons (weeks played, whether injuries are on record).
+  function shapePick(entry, manager, season, graded, facts) {
     const points = entry.points || 0;
-    let value = null;
-    let typical = null;
-    let vs = null;
-    if (graded) {
-      // The same number the grade is worked out from (DeepHistory's gradeDraftPick), so a pick's grade and
-      // its vs slot always agree: the season's value at the pace he played when he was available.
-      const basis = entry.gradingVbd != null ? entry.gradingVbd : entry.vbd;
-      value = basis != null ? round(basis) : points <= 0 ? 0 : null;
-      const expected = entry.expectedVbd != null ? entry.expectedVbd : model && typeof DeepHistory !== "undefined" ? DeepHistory.predictExpectedVBD(entry.pickNo, model) : null;
-      typical = expected != null ? round(expected) : null;
-      vs = value != null && typical != null ? value - typical : null;
-    }
-    // Capped: the grade was held down to B (a kicker or defense, or a player who missed over half the year), so a big
-    // vs slot is a small-sample or position-scale artifact and he is left out of the steal lists.
-    const rawGrade = graded && entry.z != null && Number.isFinite(entry.z) ? gradeOfZ(entry.z) : null;
-    const capped = !!(rawGrade && entry.grade && GRADES.indexOf(rawGrade) < GRADES.indexOf(entry.grade));
-    const pos = entry.position || entry.posKey || "";
-    const gp = entry.gp == null ? null : entry.gp;
-    const from = entry.posDraftRank != null ? `${pos}${entry.posDraftRank}` : null;
-    const to = entry.posFinishRank != null ? `${pos}${entry.posFinishRank}` : null;
+    // Metrics leaves a pick ungraded when the season is not over, or when he has no position or no peers to compare with
+    const scored = graded && entry.ungraded === false && entry.value != null;
+    const value = scored ? round(entry.value) : null;
+    const typical = scored && entry.typical != null ? round(entry.typical) : null;
+    const vs = scored && entry.valueOverSlot != null ? round(entry.valueOverSlot) : null;
+    const pos = entry.position || "";
+    // Capped: Metrics holds a kicker or defense at B, and their vs slot is a position-scale artifact, so they
+    // are left out of the steal lists (they still count in the totals and in the costliest lists).
+    const capped = LOW_IMPACT.includes(pos);
+    const gp = entry.gamesPlayed == null ? null : entry.gamesPlayed;
+    const from = entry.positionDraftRank != null ? `${pos}${entry.positionDraftRank}` : null;
+    const to = entry.positionFinishRank != null ? `${pos}${entry.positionFinishRank}` : null;
+    const injuryKnown = !facts || facts.injuryKnown !== false;
     return {
       key: `${season}-${entry.pickNo}`,
       season: Number(season),
@@ -106,7 +99,7 @@ const DraftData = (function () {
       player: entry.player,
       playerId: entry.playerId,
       position: pos,
-      grade: graded ? entry.grade || null : null,
+      grade: scored && GRADES.includes(entry.grade) ? entry.grade : null,
       capped,
       points,
       value,
@@ -116,19 +109,37 @@ const DraftData = (function () {
       owner: nameOf(manager),
       isKeeper: !!entry.isKeeper,
       gp,
-      starts: entry.starts == null ? null : entry.starts,
-      injWeeks: entry.injWeeks == null ? null : entry.injWeeks,
-      gamesPossible: entry.gamesPossible == null ? null : entry.gamesPossible,
+      starts: entry.startedWeeks == null ? null : entry.startedWeeks,
+      injWeeks: injuryKnown && entry.injuredWeeks != null ? entry.injuredWeeks : null,
+      gamesPossible: facts && facts.weeksPlayed != null ? facts.weeksPlayed : null,
       // points over games is only a clean "per game" in a season with no playoffs yet (the in-season page)
       ppg: gp ? points / gp : null,
       rank: {
         from,
         to,
         // positive: finished higher at his position than he was taken (moved up)
-        delta: entry.posDraftRank != null && entry.posFinishRank != null ? entry.posDraftRank - entry.posFinishRank : null,
+        delta: entry.positionDraftRank != null && entry.positionFinishRank != null ? entry.positionDraftRank - entry.positionFinishRank : null,
         text: from && to ? `${from} to ${to}` : from ? `${from} to –` : "",
       },
     };
+  }
+
+  // The per-season facts the page needs, from a Metrics.analyze() result: season -> { season, teams, rounds,
+  // weeksPlayed (regular-season weeks with scores), complete, injuryKnown (the season has injury data on record) }.
+  function seasonFacts(analysis) {
+    const out = {};
+    ((analysis && analysis.contexts) || []).forEach((ctx) => {
+      const rounds = (ctx.picks || []).reduce((m, p) => Math.max(m, p.round || 0), 0);
+      out[String(ctx.season)] = {
+        season: String(ctx.season),
+        teams: ctx.numTeams,
+        rounds,
+        weeksPlayed: (ctx.regWeeks || []).length,
+        complete: !!ctx.complete,
+        injuryKnown: Object.keys(ctx.injuries || {}).length > 0,
+      };
+    });
+    return out;
   }
 
   // ---- one season's draft -------------------------------------------------------------
@@ -140,8 +151,7 @@ const DraftData = (function () {
   function buildDraft(stats, season, opts = {}) {
     const meta = ((stats && stats.draftSeasons) || {})[String(season)] || {};
     const complete = opts.complete != null ? !!opts.complete : !!meta.complete;
-    const model = (stats && stats.draftGradeModel) || null;
-    const graded = complete && !!model;
+    const graded = complete;
 
     const picks = [];
     const owners = [];
@@ -149,7 +159,7 @@ const DraftData = (function () {
       const s = (m.seasons || []).find((se) => String(se.season) === String(season));
       if (!s || !(s.draftPicks || []).length) return;
       owners.push(m);
-      s.draftPicks.forEach((e) => picks.push(shapePick(e, m, season, graded, model)));
+      s.draftPicks.forEach((e) => picks.push(shapePick(e, m, season, graded, meta)));
     });
     picks.sort((a, b) => a.pickNo - b.pickNo);
     if (!picks.length) return null;
@@ -295,7 +305,7 @@ const DraftData = (function () {
     const opts = [{ key: "all", label: "All", count: draft.picks.length }];
     if (meId) opts.push({ key: "mine", label: "My picks", count: count((p) => p.userId === meId) }); // dropped below when he has none here
     if (draft.graded) {
-      opts.push({ key: "steals", label: "Steals", count: count((p) => p.grade === "S" || p.grade === "A") });
+      opts.push({ key: "steals", label: "Steals", count: count((p) => isUpper(p.grade)) });
       opts.push({ key: "busts", label: "Busts", count: count((p) => p.grade === "D" || p.grade === "F") });
     } else if (count(isHurt)) {
       opts.push({ key: "hurt", label: "Hurt", count: count(isHurt) });
@@ -311,7 +321,7 @@ const DraftData = (function () {
   function filterPicks(draft, key, meId) {
     const all = draft.picks;
     if (key === "mine") return all.filter((p) => p.userId === meId);
-    if (key === "steals") return all.filter((p) => p.grade === "S" || p.grade === "A");
+    if (key === "steals") return all.filter((p) => isUpper(p.grade));
     if (key === "busts") return all.filter((p) => p.grade === "D" || p.grade === "F");
     if (key === "hurt") return all.filter(isHurt);
     if (key === "keepers") return all.filter((p) => p.isKeeper);
@@ -365,7 +375,7 @@ const DraftData = (function () {
     }
     const counts = GRADES.map((g) => ({ g, n: picks.filter((p) => p.grade === g).length }));
     const gradedCount = counts.reduce((t, c) => t + c.n, 0);
-    const upper = counts.filter((c) => c.g === "S" || c.g === "A").reduce((t, c) => t + c.n, 0);
+    const upper = counts.filter((c) => isUpper(c.g)).reduce((t, c) => t + c.n, 0);
     const best = scored.filter(canBeSteal).reduce((b, p) => (!b || p.vs > b.vs ? p : b), null);
     const costly = scored.reduce((b, p) => (!b || p.vs < b.vs ? p : b), null);
     return [
@@ -457,6 +467,7 @@ const DraftData = (function () {
   return {
     POSITIONS,
     GRADES,
+    UPPER_GRADES,
     BOARD_BANDS,
     TEAM_BANDS,
     LIST_SIZE,
@@ -468,7 +479,9 @@ const DraftData = (function () {
     HALL_SIZE,
     SHORT_LIST,
     round,
-    gradeOfZ,
+    gradeClass,
+    isUpper,
+    seasonFacts,
     signed,
     ordinal,
     lastName,

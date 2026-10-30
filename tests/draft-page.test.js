@@ -139,10 +139,29 @@ test("a keeper is tagged, a capped pick explains its grade, a pick with no grade
   const c = page(2024);
   const ed = run(c, "rowHtml(__D__.picks.find(p => p.player === 'Ed Epsilon'), __D__, null, 'round')");
   assert.ok(ed.includes('<span class="dr-keeper">keeper</span>'));
-  assert.ok(ed.includes("Held at B"), "the grade square says why it is B");
+  assert.ok(ed.includes("top out at a B"), "the grade square says why a kicker is held at B");
   const live = run(c, "rowHtml(__LIVE__.picks[0], __LIVE__, null, 'round')");
   assert.ok(!live.includes('class="gr '), "no grades while the season is on");
   assert.ok(run(c, "gradeSqHtml(null)").includes("gr-none"));
+});
+
+test("S+ has its own square: a class name that works, its letters spoken, in the mini squares and in the grade key", () => {
+  const c = page(2025);
+  const sq = run(c, "gradeSqHtml('S+')");
+  assert.ok(sq.includes('class="gr gr-Splus"') && sq.includes('aria-label="Grade S+"') && sq.includes(">S+<"));
+  assert.ok(!sq.includes("gr-S+"), "a + is not valid in a class selector");
+  const minis = run(c, "minisHtml(['S+', 'A', null])");
+  assert.ok(minis.includes('class="dr-sq gr-Splus"') && minis.includes('class="dr-sq gr-A"') && minis.includes('class="dr-sq gr-none"'));
+  assert.ok(minis.includes("S+, A, none"), "spoken: the letters in draft order");
+  assert.ok(run(c, "lettersHtml(['S+'])").includes("gr-Splus"));
+  const key = run(c, "gradeKeyHtml()");
+  assert.strictEqual(count(key, /class="gr /g), 7, "S+ S A B C D F");
+  assert.ok(key.indexOf(">S+<") < key.indexOf(">S<"), "S+ comes first");
+  // the best pick of 2025 is the S+, and its row says so
+  const cy = run(c, "rowHtml(__D__.picks.find(p => p.player === 'Cy Gamma'), __D__, null, 'round')");
+  assert.ok(cy.includes("gr-Splus"));
+  const css = read("css/draft.css");
+  assert.ok(/\.page-draft \.gr-Splus \{ background: #FFD58A;/.test(css), "S+ is the site's gold, the same as on the Teams and Seasons pages");
 });
 
 test("a season being played shows points, per game and games out of the weeks played; a hot pick is marked", () => {
@@ -238,7 +257,7 @@ test("overview of a season being played is the draft so far: round 1, points, ho
   assert.ok(html.includes('<span class="dr-you">YOU</span>'));
   assert.ok(!html.includes("Draft board"), "no board without grades");
   // without injury data the hurt list and the injury column are left out
-  c.__S2__ = stats({ 2026: D2026.map((p) => ({ ...p, injWeeks: null })) }, META);
+  c.__S2__ = stats({ 2026: D2026 }, { ...META, 2026: { ...META[2026], injuryKnown: false } });
   const quiet = run(c, "liveOverviewHtml(DraftData.buildDraft(__S2__, 2026), null)");
   assert.ok(!quiet.includes("Early picks who are hurt"));
   assert.ok(!quiet.includes("dr-pt-inj"));
@@ -336,7 +355,7 @@ test("table columns: value, typical and vs slot when graded; per game when the s
   assert.strictEqual(heads("__D__"), "Pick,Team,Player,Grade,Points,Value,Typical,Vs slot,Pos. rank,GP,ST");
   assert.strictEqual(heads("__LIVE__"), "Pick,Team,Player,Points,Per game,Pos. rank,GP,ST");
   const graded = run(c, "tableTabHtml(__D__, null, { filter: 'all', sort: { key: 'pick', dir: 1 } })");
-  assert.ok(graded.includes("<b>Typical</b> is what that draft slot usually returns"));
+  assert.ok(graded.includes("<b>Typical</b> is what picks from nearby slots usually return"));
   const live = run(c, "tableTabHtml(__LIVE__, null, { filter: 'all', sort: { key: 'pick', dir: 1 } })");
   assert.ok(live.includes("Grades and value vs slot arrive when the season ends."));
   assert.ok(!live.includes('data-sort="vs"'));
@@ -347,7 +366,7 @@ test("table cells: value and typical are the rounded numbers, hot per-game numbe
   const c = page(2024);
   const row = run(c, "tableHtml([__D__.picks[0]], __D__, null, { sort: { key: 'pick', dir: 1 } }, 'all')");
   assert.ok(row.includes('<td class="t-num">250.0</td>'));
-  assert.ok(row.includes('<td class="t-num">101</td>'));
+  assert.ok(row.includes('<td class="t-num">100</td>'));
   assert.ok(row.includes('<td class="t-num t-dim">60</td>'));
   const live = run(c, "tableHtml([__LIVE__.picks[0]], __LIVE__, null, { sort: { key: 'pick', dir: 1 } }, 'all')");
   assert.ok(live.includes('<td class="t-num dr-hot">20.0</td>'));
@@ -446,7 +465,7 @@ test("pick card (graded): value, typical and vs slot up top, the games and posit
   const html = run(c, "pickCardHtml(__D__.picks[0], 'u1')");
   assert.ok(html.includes("2024 · pick 1.1"));
   assert.ok(html.includes('<h3 class="dr-pc-name">Ann Alpha</h3>'));
-  assert.ok(html.includes("<dt>Value</dt><dd>101</dd>"));
+  assert.ok(html.includes("<dt>Value</dt><dd>100</dd>"));
   assert.ok(html.includes("<dt>Typical</dt><dd>60</dd>"));
   assert.ok(html.includes('<dd><span class="dr-vs b4">+41</span></dd>'));
   assert.ok(html.includes("<dt>Points</dt><dd>250.0</dd>"));
@@ -461,7 +480,7 @@ test("pick card: a keeper says so, a capped grade explains itself, a season bein
   const c = page(2024);
   const ed = run(c, "pickCardHtml(__D__.picks.find(p => p.player === 'Ed Epsilon'), null)");
   assert.ok(ed.includes("· keeper"));
-  assert.ok(ed.includes('<p class="dr-pc-note">Held at B'));
+  assert.ok(ed.includes('<p class="dr-pc-note">Kickers and defenses top out at a B'));
   const live = run(c, "pickCardHtml(__LIVE__.picks[0], null)");
   assert.ok(live.includes("<dt>Points</dt><dd>120.0</dd>"));
   assert.ok(live.includes("<dt>Per game</dt><dd>20.0</dd>"));
@@ -519,6 +538,16 @@ test("draft.html: every element the script looks up exists once, and the scripts
   assert.ok(at("config.js") < at("utils.js") && at("utils.js") < at("sleeper-api.js") && at("sleeper-api.js") < at("deep-history.js"));
   assert.ok(at("rivalries-data.js") < at("draft-data.js") && at("deep-history.js") < at("draft-data.js") && at("draft-data.js") < at("draft.js"));
   assert.ok(at("my-team.js") >= 0 && at("my-team.js") < at("draft.js"), "My Team is picked before the page draws");
+  // the grades come from Metrics (the same grading the Teams and Seasons pages use), so it must be here and ahead of the page
+  assert.ok(at("metrics.js") >= 0, "metrics.js is loaded: without it the page cannot grade a draft");
+  assert.ok(at("deep-history.js") < at("metrics.js") && at("metrics.js") < at("draft.js"));
+});
+
+test("the page grades with Metrics and not with the old DeepHistory curve", () => {
+  const js = read("js/draft.js") + read("js/draft-data.js");
+  assert.ok(/Metrics\.analyze\(/.test(js) && /Metrics\.applyDraftGrades\(/.test(js), "the same two calls the Teams page makes");
+  assert.ok(/draftSeasons = DD\.seasonFacts\(analysis\)/.test(js), "the season facts come from the same analysis");
+  ["draftGradeModel", "predictExpectedVBD", "gradeOfZ", "gradingVbd", "expectedVbd", "attachInjuryWeeks"].forEach((name) => assert.ok(!js.includes(name), `${name} is the old grading and is not used here`));
 });
 
 test("draft.html: the stylesheet is linked here and only here, and the nav marks Draft as the current page", () => {

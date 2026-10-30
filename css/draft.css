@@ -13,6 +13,8 @@
 .page-draft .panel h2 { margin-bottom: 0; }
 
 /* The grade squares on this page: the mockup's colors (the Teams page keeps its own). */
+.page-draft .gr-Splus { background: #FFD58A; color: var(--turf-dark); font-weight: 700; box-shadow: none; } /* the best grade: a lighter gold with a ring (the ring only on a letter square, not a mini one) */
+.page-draft .gr.gr-Splus { box-shadow: 0 0 0 1.5px var(--gold); letter-spacing: -0.02em; }
 .page-draft .gr-S { background: #F0A340; color: var(--turf-dark); }
 .page-draft .gr-A { background: #BF9D5E; color: var(--turf-dark); }
 .page-draft .gr-B { background: #C9CFC6; color: var(--turf-dark); }

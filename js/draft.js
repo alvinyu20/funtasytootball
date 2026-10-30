@@ -11,7 +11,8 @@
     Steals & Busts  the best and costliest picks ever (all seasons too)
   A tap on any pick opens a small card with the numbers behind it.
 
-  The numbers all come from draft-data.js; this file is the page around them. Everything that draws is a
+  The grades come from Metrics (js/metrics.js), the same grading the Teams and Seasons pages use, so a pick
+  shows the same grade and numbers everywhere. The numbers are shaped by draft-data.js; this file is the page around them. Everything that draws is a
   plain function from data to an HTML string, so the tests can run them as they are.
 */
 let SEASON_CHAIN = null;
@@ -104,11 +105,11 @@ const fmtPts = (n) => (n == null ? "" : Number(n).toFixed(1));
 const fmtBig = (n) => Math.round(n).toLocaleString("en-US");
 const toneOf = (n) => (n > 0 ? "good" : n < 0 ? "bad" : "plain");
 
-const CAP_NOTE = "Held at B: a kicker or defense, or a player who missed over half the season, cannot earn a higher grade";
+const CAP_NOTE = "Kickers and defenses top out at a B, so they are never counted as steals";
 
 function gradeSqHtml(g, extra, note) {
   if (!DD.GRADES.includes(g)) return `<span class="gr gr-none${extra ? ` ${extra}` : ""}" aria-label="No grade">–</span>`;
-  return `<span class="gr gr-${g}${extra ? ` ${extra}` : ""}"${note ? ` title="${esc(note)}"` : ""} aria-label="Grade ${g}${note ? `. ${esc(note)}` : ""}">${g}</span>`;
+  return `<span class="gr gr-${DD.gradeClass(g)}${extra ? ` ${extra}` : ""}"${note ? ` title="${esc(note)}"` : ""} aria-label="Grade ${g}${note ? `. ${esc(note)}` : ""}">${g}</span>`;
 }
 const pickGradeHtml = (p, extra) => gradeSqHtml(p.grade, extra, p.capped ? CAP_NOTE : null);
 
@@ -119,14 +120,14 @@ function vsPillHtml(p) {
 
 // The whole draft as a row of grade squares with their letters (the By Team cards).
 function lettersHtml(grades) {
-  const sq = (g) => (DD.GRADES.includes(g) ? `<span class="gr gr-${g}">${g}</span>` : `<span class="gr gr-none">–</span>`);
+  const sq = (g) => (DD.GRADES.includes(g) ? `<span class="gr gr-${DD.gradeClass(g)}">${g}</span>` : `<span class="gr gr-none">–</span>`);
   const spoken = (grades || []).map((g) => g || "none").join(", ");
   return `<span class="dr-letters" role="img" aria-label="Grades in draft order: ${esc(spoken)}">${(grades || []).map(sq).join("")}</span>`;
 }
 
 // One tiny square per pick, colored by grade (a pick with no grade is an empty slot).
 function minisHtml(grades) {
-  const squares = (grades || []).map((g) => `<i class="dr-sq ${DD.GRADES.includes(g) ? `gr-${g}` : "gr-none"}"></i>`).join("");
+  const squares = (grades || []).map((g) => `<i class="dr-sq ${DD.GRADES.includes(g) ? `gr-${DD.gradeClass(g)}` : "gr-none"}"></i>`).join("");
   const spoken = (grades || []).map((g) => g || "none").join(", ");
   return `<span class="dr-minis" role="img" aria-label="Grades in draft order: ${esc(spoken)}">${squares}</span>`;
 }
@@ -523,7 +524,7 @@ function tableHtml(picks, d, me, ui, filterKey) {
 
 function tableNoteHtml(d) {
   return d.graded
-    ? `<p class="dr-foot"><b>Value</b> is season points above a replacement player at that position. <b>Typical</b> is what that draft slot usually returns, so <b>vs slot</b> is the gap. <b>GP</b> games played, <b>ST</b> weeks started, and the small tag is weeks lost to injury.</p>`
+    ? `<p class="dr-foot"><b>Value</b> is season points above a replacement player at that position (weeks lost to injury partly credited). <b>Typical</b> is what picks from nearby slots usually return, so <b>vs slot</b> is the gap. <b>GP</b> games played, <b>ST</b> weeks started, and the small tag is weeks lost to injury.</p>`
     : `<p class="dr-foot"><b>GP</b> games played, <b>ST</b> weeks started, and the small tag is weeks lost to injury. Grades and value vs slot arrive when the season ends.</p>`;
 }
 
@@ -905,10 +906,12 @@ async function renderDraftPage() {
     });
     progressBox.style.display = "none";
 
-    // Grades need the league-wide draft-value curve, which only comes from computeStats (the same full-history
-    // pass the Teams and Records pages make). The injury weeks are added after, so they never change a grade.
+    // The grades, values and per-pick facts (games, starts, injury weeks, position ranks) come from Metrics,
+    // put onto the same pick entries the Teams page renders. These two lines are the ones teams.js makes.
     LEAGUE_STATS = DeepHistory.computeStats(seasonChain, deepSeasons, playerDirectory);
-    DeepHistory.attachInjuryWeeks(LEAGUE_STATS, seasonChain, deepSeasons, injuries);
+    const analysis = Metrics.analyze(seasonChain, deepSeasons, playerDirectory, injuries);
+    Metrics.applyDraftGrades(LEAGUE_STATS.managers, analysis);
+    LEAGUE_STATS.draftSeasons = DD.seasonFacts(analysis);
 
     const withDraft = [...seasonChain].reverse().map((e) => String(e.league.season)).filter((s) => DD.buildDraft(LEAGUE_STATS, s));
     DR = {

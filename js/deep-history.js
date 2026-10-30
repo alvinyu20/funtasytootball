@@ -461,7 +461,6 @@ const DeepHistory = {
     }
 
     const allDraftPickEntries = []; // every draft pick with a valid VBD, across every season — used to fit the league-wide draft grade curve
-    const draftSeasons = {}; // season -> { season, teams, weeksPlayed, complete }, for the Draft page
 
     seasonChain.forEach((seasonEntry, idx) => {
       const { league, rosters, users, bracket } = seasonEntry;
@@ -809,55 +808,6 @@ const DeepHistory = {
           const earlyThreshold = Math.max(1, Math.ceil(maxRound * 0.25));
           const vbdByPlayer = DeepHistory.computeVBD(league.roster_positions, rosters.length, seasonPlayerPoints, playerDirectory);
 
-          // ---- What each drafted player did, for the Draft page: games played, weeks started for
-          //      the team that drafted him, and where he finished among the players at his position.
-          //      Regular season only, and only weeks that are finished (an in-progress year's weeks
-          //      are already cut to the finished ones). Weeks lost to injury are filled in afterwards
-          //      by attachInjuryWeeks, so the grades never depend on whether a page loaded injuries. ----
-          const regularWeeks = deep.weeks.filter(({ week }) => playoffStart == null || week < playoffStart);
-          const gpByPlayer = new Map();
-          const startsByRosterPlayer = new Map(); // "rosterId|playerId" -> weeks started
-          regularWeeks.forEach(({ matchups }) => {
-            matchups.forEach((m) => {
-              Object.entries(m.players_points || {}).forEach(([pid, pts]) => {
-                if (pts) gpByPlayer.set(pid, (gpByPlayer.get(pid) || 0) + 1); // a bye week or a missed game scores nothing
-              });
-              (m.starters || []).forEach((pid) => {
-                if (!pid || pid === "0") return;
-                const key = `${m.roster_id}|${pid}`;
-                startsByRosterPlayer.set(key, (startsByRosterPlayer.get(key) || 0) + 1);
-              });
-            });
-          });
-          const positionOf = (pick) => {
-            const dir = playerDirectory && playerDirectory[pick.player_id];
-            return (dir && dir.position) || (pick.metadata && pick.metadata.position) || "";
-          };
-          const finishRankByPlayer = new Map(); // rank in season points among every player at his position who scored
-          const scorersByPosition = new Map();
-          seasonPlayerPoints.forEach((pts, pid) => {
-            const dir = playerDirectory && playerDirectory[pid];
-            if (!dir || !dir.position || !(pts > 0)) return;
-            if (!scorersByPosition.has(dir.position)) scorersByPosition.set(dir.position, []);
-            scorersByPosition.get(dir.position).push([pid, pts]);
-          });
-          scorersByPosition.forEach((list) => {
-            list.sort((a, b) => b[1] - a[1]);
-            list.forEach(([pid], i) => finishRankByPlayer.set(pid, i + 1));
-          });
-          const draftRankByPickNo = new Map(); // the nth player at his position taken in this draft
-          const takenByPosition = new Map();
-          [...deep.draft.picks]
-            .filter((p) => p.player_id)
-            .sort((a, b) => a.pick_no - b.pick_no)
-            .forEach((p) => {
-              const pos = positionOf(p);
-              if (!pos) return;
-              takenByPosition.set(pos, (takenByPosition.get(pos) || 0) + 1);
-              draftRankByPickNo.set(p.pick_no, takenByPosition.get(pos));
-            });
-          draftSeasons[season] = { season, teams: rosters.length, rounds: maxRound, weeksPlayed: regularWeeks.length, complete: league.status === "complete" };
-
           deep.draft.picks.forEach((pick) => {
             if (!pick.player_id) return;
             if (pick.metadata && (pick.metadata.first_name || pick.metadata.last_name)) {
@@ -905,16 +855,6 @@ const DeepHistory = {
               vbd: vbdEntry ? vbdEntry.vbd : null,
               gradingVbd,
               gamesPlayedFraction,
-              // What he did for the team that drafted him (see above). injWeeks stays null until
-              // attachInjuryWeeks runs (and for a season with no injury data at all).
-              rosterId: pick.roster_id,
-              gp: gpByPlayer.get(pick.player_id) || 0,
-              starts: startsByRosterPlayer.get(`${pick.roster_id}|${pick.player_id}`) || 0,
-              injWeeks: null,
-              gamesPossible: regularWeeks.length,
-              posKey: positionOf(pick) || null,
-              posDraftRank: draftRankByPickNo.get(pick.pick_no) || null,
-              posFinishRank: finishRankByPlayer.get(pick.player_id) || null,
               teamName: info ? info.teamName : "Unknown",
               username: info ? info.username : null,
               season,
@@ -1102,7 +1042,6 @@ const DeepHistory = {
       top5Records: top5Lists,
       pairGameLog: Object.fromEntries(pairGameLog),
       draftGradeModel,
-      draftSeasons,
       expectedPPGModel,
       injuriesBySeason,
       allTimeTopInjuries,
@@ -2138,34 +2077,6 @@ const DeepHistory = {
     return result;
   },
 
-  /*
-    Fills in `injWeeks` on every draft pick: how many finished regular-season weeks the player was on the
-    injury report (Out, Doubtful or on IR). A separate pass on purpose: computeStats grades picks the same way
-    on every page whether or not it was given injuries, and this adds the count without touching a grade.
-    A season with no injury data keeps null, so a page can tell "none" from "unknown".
-  */
-  attachInjuryWeeks(stats, seasonChain, deepSeasons, injuriesData) {
-    if (!stats || !injuriesData || !injuriesData.players) return stats;
-    seasonChain.forEach((chainEntry, idx) => {
-      const deep = deepSeasons[idx];
-      if (!deep || !deep.weeks) return;
-      const season = String(chainEntry.league.season);
-      const injuries = DeepHistory.extractInjuriesForSeason(injuriesData, season);
-      if (!Object.keys(injuries).length) return;
-      const playoffStart = chainEntry.league.settings && chainEntry.league.settings.playoff_week_start;
-      const weeks = new Set(deep.weeks.map(({ week }) => Number(week)).filter((w) => playoffStart == null || w < playoffStart));
-      (stats.managers || []).forEach((m) =>
-        (m.seasons || []).forEach((s) => {
-          if (String(s.season) !== season) return;
-          (s.draftPicks || []).forEach((p) => {
-            p.injWeeks = Object.keys(injuries[p.playerId] || {}).filter((w) => weeks.has(Number(w))).length;
-          });
-        })
-      );
-    });
-    return stats;
-  },
-
   buildStartingLineup(rosterId, seasonEntry, deep, playerDirectory) {
     const { league, bracket } = seasonEntry;
     const playoffStart = league.settings && league.settings.playoff_week_start;
@@ -3109,12 +3020,82 @@ const DeepHistory = {
     rank — works for any number of teams.
   */
   simulatePlayoffOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations) {
+    return DeepHistory.simulateSeasonOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations).finish;
+  },
+
+  /*
+    The bracket Sleeper plays for a 4-, 6- or 8-team playoff, from seeds
+    (index 0 = seed 1), as the list of rounds; each match names where its two
+    teams come from. A 6-team field gives seeds 1-2 a bye: seed 4 plays seed 5
+    and the winner meets seed 1, seed 3 plays seed 6 and the winner meets seed
+    2 (no reseeding; read off the league's own past brackets). Returns null
+    for any other size.
+  */
+  playoffBracket(playoffTeams) {
+    const seed = (n) => ({ seed: n });
+    const win = (round, match) => ({ winnerOf: [round, match] });
+    if (playoffTeams === 6) {
+      return [
+        [[seed(4), seed(5)], [seed(3), seed(6)]],
+        [[seed(1), win(0, 0)], [seed(2), win(0, 1)]],
+        [[win(1, 0), win(1, 1)]],
+      ];
+    }
+    if (playoffTeams === 4) {
+      return [
+        [[seed(1), seed(4)], [seed(2), seed(3)]],
+        [[win(0, 0), win(0, 1)]],
+      ];
+    }
+    if (playoffTeams === 8) {
+      return [
+        [[seed(1), seed(8)], [seed(4), seed(5)], [seed(2), seed(7)], [seed(3), seed(6)]],
+        [[win(0, 0), win(0, 1)], [win(0, 2), win(0, 3)]],
+        [[win(1, 0), win(1, 1)]],
+      ];
+    }
+    return null;
+  },
+
+  /*
+    Plays one simulated bracket. seedTeams: rosterIds in seed order;
+    meanOf(rosterId): that team's simulated scoring level this run;
+    playGame(meanA, meanB): true if A wins. Returns the champion's rosterId.
+  */
+  playBracket(bracket, seedTeams, meanOf, playGame) {
+    const winners = [];
+    bracket.forEach((round, r) => {
+      winners[r] = round.map(([x, y]) => {
+        const team = (side) => (side.seed != null ? seedTeams[side.seed - 1] : winners[side.winnerOf[0]][side.winnerOf[1]]);
+        const a = team(x);
+        const b = team(y);
+        return playGame(meanOf(a), meanOf(b)) ? a : b;
+      });
+    });
+    return winners[winners.length - 1][0];
+  },
+
+  /*
+    Monte Carlo: finish positions (as before) and, played on through the
+    real playoff bracket, each team's chance to win the title. Same strength
+    model as always: every team's scoring level comes from its FantasyPros
+    ROS power score with some random spread, weekly scores are normal around
+    it (SD 20), and the regular season finishes on the real remaining
+    schedule. `bracketTeams` is the number of playoff teams (default 6).
+    Returns { finish: Map(rosterId -> [% per finishing rank]), title: Map(rosterId -> %) }.
+  */
+  simulateSeasonOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations, bracketTeams = 6) {
     const n = rosterIds.length;
     const knownPts = rosterIds.map((id) => rosPtByRoster.get(id)).filter((v) => v != null);
     const fallbackPt = knownPts.length ? knownPts.reduce((a, b) => a + b, 0) / knownPts.length : 70;
+    const bracket = DeepHistory.playoffBracket(bracketTeams);
 
     const finishCounts = new Map();
-    rosterIds.forEach((id) => finishCounts.set(id, new Array(n).fill(0)));
+    const titleCounts = new Map();
+    rosterIds.forEach((id) => {
+      finishCounts.set(id, new Array(n).fill(0));
+      titleCounts.set(id, 0);
+    });
 
     for (let iter = 0; iter < iterations; iter++) {
       const teamMean = new Map();
@@ -3165,11 +3146,25 @@ const DeepHistory = {
       ranked.forEach((id, idx) => {
         finishCounts.get(id)[idx] += 1;
       });
+
+      if (bracket && n >= bracketTeams) {
+        const champion = DeepHistory.playBracket(
+          bracket,
+          ranked.slice(0, bracketTeams),
+          (id) => teamMean.get(id),
+          (meanA, meanB) => gaussianRandom(meanA, 20) >= gaussianRandom(meanB, 20)
+        );
+        titleCounts.set(champion, titleCounts.get(champion) + 1);
+      }
     }
 
-    const result = new Map();
-    rosterIds.forEach((id) => result.set(id, finishCounts.get(id).map((c) => (c / iterations) * 100)));
-    return result;
+    const finish = new Map();
+    const title = new Map();
+    rosterIds.forEach((id) => {
+      finish.set(id, finishCounts.get(id).map((c) => (c / iterations) * 100));
+      title.set(id, bracket ? (titleCounts.get(id) / iterations) * 100 : null);
+    });
+    return { finish, title };
   },
 
   /*
@@ -3233,13 +3228,16 @@ const DeepHistory = {
       currentRecordByRoster.set(s.rosterId, { wins: s.wins, losses: s.losses, ties: s.ties, pf: s.fpts });
     });
 
-    const playoffOddsByRoster = DeepHistory.simulatePlayoffOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations);
 
     // How many teams make the playoffs / get a first-round bye, read
     // straight from the league's own settings — not hardcoded to any one
     // league size. Sleeper's bracket only comes in 4/6/8-team sizes.
     const playoffTeams = (league.settings && league.settings.playoff_teams) || Math.min(6, rosterIds.length);
     const byeTeams = playoffTeams === 6 ? 2 : 0;
+
+    // Finishing positions, and the title chance from playing the real bracket on.
+    const simulated = DeepHistory.simulateSeasonOdds(rosterIds, currentRecordByRoster, remainingWeeks, rosPtByRoster, iterations, playoffTeams);
+    const playoffOddsByRoster = simulated.finish;
 
     const rows = standings.map((s) => {
       const overall = overallByRoster.get(s.rosterId) || { wins: 0, losses: 0, ties: 0 };
@@ -3262,6 +3260,7 @@ const DeepHistory = {
         avgPpg,
         playoffPct,
         byePct,
+        titlePct: simulated.title.get(s.rosterId),
         rosRank: rosRankByRoster.has(s.rosterId) ? rosRankByRoster.get(s.rosterId) : null,
         boom: bb.boom,
         bust: bb.bust,

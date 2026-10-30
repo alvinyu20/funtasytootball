@@ -2965,32 +2965,51 @@ points per game) and early picks who are hurt (rounds 1 to 8, 3 or more injury w
 Round / By Team / Table switch to points, per game, games out of weeks played and injury
 weeks. 20 or more points a game is marked as hot.
 
-**The numbers (`js/draft-data.js`, no DOM).** Three words: *value* is the season's points
-above a replacement player at that position (the same VBD the grades use), *typical* is
-what that draft slot usually returns (the league's own curve), *vs slot* is value minus
-typical. Value is the **prorated** number the grade itself is worked out from (a player's
-healthy-week average over the full season), so a pick's grade and its vs slot always agree.
-Value and typical are rounded first and vs slot is the difference of the rounded numbers, so
-a row always adds up. Bands: a pick is shaded by vs slot (+60 or more, +20, within 20, -20,
--60 or less); a whole draft is shaded by its total (+150, +50, -50, -150).
+**The grades are Metrics' (`js/metrics.js`), the same ones the Teams and Seasons pages use.**
+`draft.html` loads `js/metrics.js` after `deep-history.js`, and the page load makes the same two
+calls `teams.js` makes: `DeepHistory.computeStats(...)`, then
+`Metrics.applyDraftGrades(stats.managers, Metrics.analyze(seasonChain, deepSeasons, playerDirectory, injuries))`.
+That puts `grade`, `ungraded`, `value`, `typical`, `valueOverSlot`, `injuredWeeks`, `gamesPlayed`,
+`startedWeeks`, `heldWeeks`, `positionDraftRank` and `positionFinishRank` on the very pick entries
+every page renders, so a pick shows the same grade and the same numbers on Draft, Teams and Seasons
+(2025 pick 1.1, Josh Allen: S, +95 everywhere). The page does not use `draftGradeModel`,
+`predictExpectedVBD`, `gradeOfZ` or `gradingVbd` any more, and a test checks that.
 
-- **No S+.** The mockup showed one; the site's grades are S, A, B, C, D, F (the earlier
-  "no pluses" decision).
-- **Capped picks are never a "steal".** DeepHistory holds a kicker or defense, or a player who
-  missed over half the season, at a B. Their vs slot can still be huge (small sample, or a
-  position scale thing), so they are flagged `capped`, left out of every steal / best list,
-  and their grade square says why ("Held at B"). They still count in team totals and in the
-  costliest lists.
+**The numbers (`js/draft-data.js`, no DOM).** Three words, all straight from Metrics and rounded
+for display: *value* is the season's points above a replacement player at that position (a missed
+week is credited at half his healthy rate), *typical* is what picks from nearby slots in the same
+kind of league (superflex or not) averaged, *vs slot* is Metrics' own `valueOverSlot` rounded. Vs slot is
+**not** recomputed from the rounded value and typical, so it can differ by 1 from "value minus typical"
+on the page; that is what keeps it identical to the Teams and Seasons pages. Bands: a pick is shaded by
+vs slot (+60 or more, +20, within 20, -20, -60 or less); a whole draft is shaded by its total (+150, +50,
+-50, -150). On the 950 graded picks the pick bands hold 9% / 15% / 53% / 22% / 1% and the 60 team drafts
+hold 12% / 28% / 22% / 28% / 10%.
+
+- **S+ is back** (decided 2026-10-28). The grade list is S+, S, A, B, C, D, F. An S+ is the top
+  half percent of graded picks among the S grades (not kickers or defenses). It has its own square
+  (the brighter gold the Teams and Seasons pages use, with a ring on the letter squares), is in the
+  grade key, counts as a steal and as "A or better". The CSS class is `gr-Splus` (a + cannot go in
+  a selector). An earlier version of this page said "no S+" and used its own grade curve; that was
+  wrong and is gone.
+- **Kickers and defenses are "capped"** (Metrics holds them at B). They are never a "steal" or an
+  S+, are left out of every steal / best list, and their grade square says why. They still count
+  in team totals and in the costliest lists. A player who missed half the year is *not* capped any
+  more: the injury credit already handles him.
+- **Ungraded picks.** Metrics leaves a pick ungraded when his season is not finished (the whole
+  draft in a season being played), or when he has no position or no peers. The page shows no grade,
+  value, typical or vs slot for those, and a team total only adds what is graded.
 - **Keepers** get a small tag. The Keepers pill only appears when a draft has keepers.
 - **A team that holds two picks in a round** shows the earlier one on the board with a
   "+1" and both in the lists.
-- **Injury weeks** are added by a separate pass, `DeepHistory.attachInjuryWeeks`, from
-  `data/injuries.json`: regular-season weeks the player was Out, Doubtful or on IR. It never
-  touches a grade, and a season with no injury data stays `null` ("unknown"), not 0.
-- **`computeStats` now also keeps, per pick:** games played, weeks started for the team that
-  drafted him, where he finished at his position, where he was taken at it, and how many
-  regular-season weeks there were. `stats.draftSeasons` says per season how many teams and
-  rounds, weeks played and whether it is complete.
+- **Games, starts, injury weeks and position ranks are Metrics' too.** *Games* is games he played
+  while healthy (a week on the injury report is not a game, even if he scored); *starts* is regular-season
+  weeks started for the team that drafted him; *injury weeks* is regular-season weeks on the injury
+  report (Out, Doubtful, IR). A season with no injury data on record shows "unknown" instead of 0
+  (every season from 2015 on has data today). The position ranks are where he was taken among the
+  players at his position in that draft, and where he finished among them by points above replacement.
+- **Season facts** (teams, rounds, weeks played, finished or not, injuries on record) come from
+  `DraftData.seasonFacts(Metrics.analyze(...))` and are put on `stats.draftSeasons` by the page load.
+  Nothing in `js/deep-history.js` changed for this page.
 
 **The phone** (720px and under). Tabs become a grid (three across, "Steals & Busts" shrinks to
 fit at 360px). Rows are two lines: round.pick, name, then position / team / rank / games, and the
@@ -3002,31 +3021,33 @@ sheet (a real dialog: Escape, the backdrop or the x closes it, Tab stays inside,
 
 **Things worth knowing.**
 
-- **The league's grades lean negative.** The grade curve is fit on raw VBD but each pick
-  is graded on prorated VBD, so the league's vs slot numbers sum to below zero: about -11 a
-  pick on average (about -1,700 a year over 160 picks; 2022 and 2025 are the closest to 0).
-  Rankings and grades are unaffected, but a negative total does not mean a bad draft. Easy
-  to re-center so each year sums to zero if you would rather.
+- **Vs slot averages about 0.** It should: typical is what a slot returns. On the six finished
+  drafts the average vs slot is -0.1 a pick, by year 2020 +1.8, 2021 -2.3, 2022 +3.4, 2023 -3.8,
+  2024 -3.9, 2025 +4.2. 2023 really was a weak draft year (the draft-day busts and the Week 1
+  waiver finds), a few points a pick, not a bug. The checks to repeat if grading ever changes:
+  the mean per year stays within about 5 of 0, the same pick has the same grade on Draft, Teams
+  and Seasons, and a season still being played stays ungraded.
 - **Numbers differ from the mockup.** The mockup's figures were samples; the page shows what the
-  grading model really produces.
+  grading really produces.
 - **Dead CSS.** The old `.draft-*` rules in `css/styles.css` (about lines 2082 to 2146, and
   one near 2614) are unused now. They were left alone so that file's stamp does not change;
   delete them whenever you next touch it.
 
-**Files.** New: `draft.html` (rewritten), `js/draft.js` (rewritten), `js/draft-data.js`,
-`css/draft.css` (loads after `styles.css`, only on this page). Changed: `js/deep-history.js`
-(per-pick facts, `draftSeasons`, `attachInjuryWeeks`), `tests/helpers/site-env.js`
-(`DraftData` export). The old helpers in `js/draft.js` (`buildDraftBoard`, `topPicksForBoard`,
-the board / list toggle) are gone along with the tests that covered them.
+**Files.** New: `draft.html` (rewritten, loads `js/metrics.js`), `js/draft.js` (rewritten),
+`js/draft-data.js`, `css/draft.css` (loads after `styles.css`, only on this page). Changed:
+`tests/helpers/site-env.js` (`DraftData` export), `tests/color-scheme.test.js` (scans `css/draft.css`).
+Not changed: `js/deep-history.js`, `js/metrics.js`. The old helpers in `js/draft.js`
+(`buildDraftBoard`, `topPicksForBoard`, the board / list toggle) are gone along with the tests that
+covered them (`draft-views`, `draft-top-picks`, `draft-default-season`).
 
-**Tests.** 1,020 passing. New: `tests/draft-data.test.js` (rounding, bands to the edge, value /
-typical / vs slot, capped picks, teams, board, rounds, filters and sorts, tiles, the in-season
-model, report card, hall of fame), `tests/draft-page.test.js` (routes, default season,
-every view's markup, escaping, the report card on a phone, the page's structure: ids, script
-order, the dialog, the 720px switch), `tests/draft-facts.test.js` (games, starts, position
-ranks, `draftSeasons`, `attachInjuryWeeks`) and `tests/helpers/draft-fixture.js` (a small
-hand-made league they share). `tests/color-scheme.test.js` also scans `css/draft.css`. Gone:
-`draft-views`, `draft-top-picks` and `draft-default-season`, which tested the removed helpers.
+**Tests.** New: `tests/draft-data.test.js` (rounding, bands to the edge, Metrics' value / typical / vs
+slot, S+ and the grade list, capped picks, ungraded picks, teams, board, rounds, filters and sorts,
+tiles, season facts, the in-season model, report card, hall of fame), `tests/draft-page.test.js`
+(routes, default season, every view's markup, S+ squares, escaping, the report card on a phone, the
+page's structure: ids, script order with `metrics.js` ahead of the page, no use of the old grading,
+the dialog, the 720px switch) and `tests/helpers/draft-fixture.js` (a small hand-made league in the
+shape `Metrics.applyDraftGrades` leaves on the picks, with one S+). `tests/color-scheme.test.js`
+also scans `css/draft.css`.
 
 ## Known limitations / ideas for later
 
