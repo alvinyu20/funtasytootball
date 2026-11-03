@@ -1,10 +1,100 @@
 {
- "generatedAt": "2026-10-26T21:07:01.195Z",
+ "generatedAt": "2026-11-03T19:42:30.984Z",
  "asOf": {
   "season": "2026",
-  "week": 5
+  "week": 8
  },
  "events": [
+  {
+   "id": "raw-career-pass_int",
+   "title": "Career Interceptions Thrown",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2026",
+   "week": 8,
+   "kind": "broke",
+   "holder": "tduchow",
+   "playerId": null,
+   "value": "111",
+   "detail": "7 seasons",
+   "previous": {
+    "holder": "artmane",
+    "value": "110"
+   }
+  },
+  {
+   "id": "biggest-upset",
+   "title": "Biggest Upset",
+   "category": "matchups",
+   "categoryTitle": "Matchups",
+   "section": "Margins & Drama",
+   "season": "2026",
+   "week": 7,
+   "kind": "broke",
+   "holder": "tduchow",
+   "playerId": null,
+   "value": "10 spots",
+   "detail": "#12 tduchow beat #2 JoeSifBoreDough 151.2–118.5 · 2026 Wk 7",
+   "previous": {
+    "holder": "artmane",
+    "value": "9 spots"
+   }
+  },
+  {
+   "id": "biggest-trade-heist",
+   "title": "Biggest Trade Heist",
+   "category": "front-office",
+   "categoryTitle": "Front Office",
+   "section": "Trades",
+   "season": "2026",
+   "week": 7,
+   "kind": "broke",
+   "holder": "artmane",
+   "playerId": null,
+   "value": "+16.2/wk",
+   "detail": "2026 Wk 4 · got Jameson Williams, Bo Nix, Bucky Irving, sent Ja'Marr Chase",
+   "previous": {
+    "holder": "hmart92",
+    "value": "+11.8/wk"
+   }
+  },
+  {
+   "id": "costliest-trade-side",
+   "title": "Costliest Trade Side",
+   "category": "front-office",
+   "categoryTitle": "Front Office",
+   "section": "Trades",
+   "season": "2026",
+   "week": 7,
+   "kind": "broke-own",
+   "holder": "evangonnerman",
+   "playerId": null,
+   "value": "−16.2/wk",
+   "detail": "2026 Wk 4 · got Ja'Marr Chase, sent Jameson Williams, Bo Nix, Bucky Irving",
+   "previous": {
+    "holder": "evangonnerman",
+    "value": "−11.8/wk"
+   }
+  },
+  {
+   "id": "lowest-pr-score",
+   "title": "Lowest Power Ranking Score",
+   "category": "seasons",
+   "categoryTitle": "Seasons",
+   "section": "Power Rankings & Playoff Odds",
+   "season": "2026",
+   "week": 6,
+   "kind": "broke-own",
+   "holder": "YuWillLose",
+   "playerId": null,
+   "value": "1.14",
+   "detail": "2026 Wk 6 · ranked #1",
+   "previous": {
+    "holder": "YuWillLose",
+    "value": "1.20"
+   }
+  },
   {
    "id": "win-milestones",
    "title": "Win Milestones",
@@ -60,6 +150,24 @@
    }
   },
   {
+   "id": "raw-career-rush_td",
+   "title": "Career Rushing TDs",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2026",
+   "week": 3,
+   "kind": "broke",
+   "holder": "sofarrsogood",
+   "playerId": null,
+   "value": "153",
+   "detail": "7 seasons",
+   "previous": {
+    "holder": "mayshisha",
+    "value": "149"
+   }
+  },
+  {
    "id": "highest-faab-bid",
    "title": "Highest FAAB Bid",
    "category": "front-office",
@@ -71,10 +179,28 @@
    "holder": "LyDaniel",
    "playerId": null,
    "value": "$99",
-   "detail": "Ollie Gordon · 2026 Wk 3",
+   "detail": "Ollie Gordon II · 2026 Wk 3",
    "previous": {
     "holder": "hmart92",
     "value": "$75"
+   }
+  },
+  {
+   "id": "highest-pr-score",
+   "title": "Highest Power Ranking Score",
+   "category": "seasons",
+   "categoryTitle": "Seasons",
+   "section": "Power Rankings & Playoff Odds",
+   "season": "2026",
+   "week": 3,
+   "kind": "broke-own",
+   "holder": "artmane",
+   "playerId": null,
+   "value": "11.70",
+   "detail": "2026 Wk 3 · ranked #12",
+   "previous": {
+    "holder": "artmane",
+    "value": "11.50"
    }
   },
   {
@@ -96,6 +222,24 @@
    }
   },
   {
+   "id": "lowest-pr-score",
+   "title": "Lowest Power Ranking Score",
+   "category": "seasons",
+   "categoryTitle": "Seasons",
+   "section": "Power Rankings & Playoff Odds",
+   "season": "2026",
+   "week": 2,
+   "kind": "broke",
+   "holder": "YuWillLose",
+   "playerId": null,
+   "value": "1.20",
+   "detail": "2026 Wk 2 · ranked #1",
+   "previous": {
+    "holder": "mayshisha",
+    "value": "1.68"
+   }
+  },
+  {
    "id": "longest-losing-skid",
    "title": "Longest Losing Skid",
    "category": "streaks",
@@ -111,6 +255,24 @@
    "previous": {
     "holder": "mayshisha",
     "value": "9"
+   }
+  },
+  {
+   "id": "highest-pr-score",
+   "title": "Highest Power Ranking Score",
+   "category": "seasons",
+   "categoryTitle": "Seasons",
+   "section": "Power Rankings & Playoff Odds",
+   "season": "2026",
+   "week": 1,
+   "kind": "broke",
+   "holder": "artmane",
+   "playerId": null,
+   "value": "11.50",
+   "detail": "2026 Wk 1 · ranked #12",
+   "previous": {
+    "holder": "yulovesyou",
+    "value": "9.32"
    }
   },
   {
@@ -147,6 +309,42 @@
    "previous": {
     "holder": "Patrick Mahomes",
     "value": "757.7"
+   }
+  },
+  {
+   "id": "raw-week-pass_yd",
+   "title": "Most Passing Yards in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2026",
+   "week": 1,
+   "kind": "broke",
+   "holder": "JoeSifBoreDough",
+   "playerId": null,
+   "value": "797",
+   "detail": "2026 Wk 1",
+   "previous": {
+    "holder": "YuWillLose",
+    "value": "775"
+   }
+  },
+  {
+   "id": "raw-week-rush_yd",
+   "title": "Most Rushing Yards in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2026",
+   "week": 1,
+   "kind": "broke",
+   "holder": "sofarrsogood",
+   "playerId": null,
+   "value": "464",
+   "detail": "2026 Wk 1",
+   "previous": {
+    "holder": "JoeSifBoreDough",
+    "value": "461"
    }
   },
   {
@@ -330,6 +528,60 @@
    }
   },
   {
+   "id": "raw-career-rush_td",
+   "title": "Career Rushing TDs",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 14,
+   "kind": "broke",
+   "holder": "mayshisha",
+   "playerId": null,
+   "value": "146",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "yulovesyou",
+    "value": "145"
+   }
+  },
+  {
+   "id": "raw-season-pass_int",
+   "title": "Most Interceptions Thrown in a Season",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Seasons",
+   "season": "2025",
+   "week": 14,
+   "kind": "broke",
+   "holder": "paty23",
+   "playerId": null,
+   "value": "25",
+   "detail": "2025 · 14 weeks",
+   "previous": {
+    "holder": "JoeSifBoreDough",
+    "value": "24"
+   }
+  },
+  {
+   "id": "raw-week-pass_int",
+   "title": "Most Interceptions Thrown in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2025",
+   "week": 14,
+   "kind": "broke",
+   "holder": "hmart92",
+   "playerId": null,
+   "value": "6",
+   "detail": "2025 Wk 14",
+   "previous": {
+    "holder": "mayshisha",
+    "value": "5"
+   }
+  },
+  {
    "id": "lowest-qb-starter",
    "title": "Lowest Scoring QB Starter",
    "category": "players",
@@ -402,6 +654,24 @@
    }
   },
   {
+   "id": "raw-career-rec_yd",
+   "title": "Career Receiving Yards",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 12,
+   "kind": "broke",
+   "holder": "mayshisha",
+   "playerId": null,
+   "value": "23,878",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "YuWillLose",
+    "value": "23,569"
+   }
+  },
+  {
    "id": "best-faab-acquisition",
    "title": "Best FAAB Acquisition",
    "category": "front-office",
@@ -435,6 +705,60 @@
    "previous": {
     "holder": "mayshisha",
     "value": "7,500 pts"
+   }
+  },
+  {
+   "id": "raw-career-rush_td",
+   "title": "Career Rushing TDs",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 10,
+   "kind": "broke",
+   "holder": "yulovesyou",
+   "playerId": null,
+   "value": "141",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "sofarrsogood",
+    "value": "138"
+   }
+  },
+  {
+   "id": "raw-career-rec_yd",
+   "title": "Career Receiving Yards",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 10,
+   "kind": "broke",
+   "holder": "YuWillLose",
+   "playerId": null,
+   "value": "23,217",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "mayshisha",
+    "value": "22,991"
+   }
+  },
+  {
+   "id": "raw-week-rush_yd",
+   "title": "Most Rushing Yards in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2025",
+   "week": 10,
+   "kind": "broke-own",
+   "holder": "JoeSifBoreDough",
+   "playerId": null,
+   "value": "461",
+   "detail": "2025 Wk 10",
+   "previous": {
+    "holder": "JoeSifBoreDough",
+    "value": "447"
    }
   },
   {
@@ -489,6 +813,42 @@
    "previous": {
     "holder": "Josh Allen",
     "value": "681.4"
+   }
+  },
+  {
+   "id": "raw-career-rec_td",
+   "title": "Career Receiving TDs",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 8,
+   "kind": "broke",
+   "holder": "evangonnerman",
+   "playerId": null,
+   "value": "146",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "mayshisha",
+    "value": "144"
+   }
+  },
+  {
+   "id": "raw-week-rush_yd",
+   "title": "Most Rushing Yards in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2025",
+   "week": 8,
+   "kind": "broke",
+   "holder": "JoeSifBoreDough",
+   "playerId": null,
+   "value": "447",
+   "detail": "2025 Wk 8",
+   "previous": {
+    "holder": "yulovesyou",
+    "value": "429"
    }
   },
   {
@@ -564,6 +924,24 @@
    }
   },
   {
+   "id": "raw-career-rec_td",
+   "title": "Career Receiving TDs",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 7,
+   "kind": "broke",
+   "holder": "mayshisha",
+   "playerId": null,
+   "value": "144",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "YuWillLose",
+    "value": "141"
+   }
+  },
+  {
    "id": "highest-score-in-loss",
    "title": "Highest Score in a Loss",
    "category": "matchups",
@@ -579,6 +957,24 @@
    "previous": {
     "holder": "YuWillLose",
     "value": "151.3"
+   }
+  },
+  {
+   "id": "raw-career-rec_td",
+   "title": "Career Receiving TDs",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Careers",
+   "season": "2025",
+   "week": 4,
+   "kind": "broke",
+   "holder": "YuWillLose",
+   "playerId": null,
+   "value": "137",
+   "detail": "6 seasons",
+   "previous": {
+    "holder": "mayshisha",
+    "value": "136"
    }
   },
   {
@@ -688,402 +1084,6 @@
     "holder": "Travis Kelce",
     "value": "72"
    }
-  },
-  {
-   "id": "winning-season-streak",
-   "title": "Winning-Season Streak",
-   "category": "streaks",
-   "categoryTitle": "Streaks & Milestones",
-   "section": "Season Streaks",
-   "season": "2024",
-   "week": 17,
-   "kind": "broke",
-   "holder": "hmart92",
-   "playerId": null,
-   "value": "3",
-   "detail": "3 seasons · 2022–2024 · active",
-   "previous": {
-    "holder": "mayshisha",
-    "value": "2"
-   }
-  },
-  {
-   "id": "biggest-draft-bust",
-   "title": "Biggest Draft Bust",
-   "category": "front-office",
-   "categoryTitle": "Front Office",
-   "section": "Draft",
-   "season": "2024",
-   "week": 17,
-   "kind": "broke",
-   "holder": "YuWillLose",
-   "playerId": null,
-   "value": "−245.7",
-   "detail": "Christian McCaffrey · 1.02 · 2024",
-   "previous": {
-    "holder": "artmane",
-    "value": "−238.4"
-   }
-  },
-  {
-   "id": "most-points-season",
-   "title": "Most Points in a Season",
-   "category": "seasons",
-   "categoryTitle": "Seasons",
-   "section": "Best Seasons",
-   "season": "2024",
-   "week": 15,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "2,023.5",
-   "detail": "2024 · 9-5",
-   "previous": {
-    "holder": "yulovesyou",
-    "value": "1,977.4"
-   }
-  },
-  {
-   "id": "most-weeks-first-pr",
-   "title": "Most Weeks at #1 in a Season",
-   "category": "seasons",
-   "categoryTitle": "Seasons",
-   "section": "Power Rankings & Playoff Odds",
-   "season": "2024",
-   "week": 15,
-   "kind": "broke",
-   "holder": "evangonnerman",
-   "playerId": null,
-   "value": "11",
-   "detail": "2024 · 11 of 14 ranked weeks",
-   "previous": {
-    "holder": "sofarrsogood",
-    "value": "10"
-   }
-  },
-  {
-   "id": "blowout-wins",
-   "title": "Blowout Wins",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Winning",
-   "season": "2024",
-   "week": 14,
-   "kind": "broke",
-   "holder": "sofarrsogood",
-   "playerId": null,
-   "value": "18",
-   "detail": "5 seasons",
-   "previous": {
-    "holder": "YuWillLose",
-    "value": "17"
-   }
-  },
-  {
-   "id": "highest-qb-starter",
-   "title": "Highest Scoring QB Starter",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Starters by Position",
-   "season": "2024",
-   "week": 14,
-   "kind": "broke",
-   "holder": "Josh Allen",
-   "playerId": "4984",
-   "value": "51.9",
-   "detail": "for JoeSifBoreDough · 2024 Wk 14",
-   "previous": {
-    "holder": "Justin Herbert",
-    "value": "42.8"
-   }
-  },
-  {
-   "id": "lowest-dst-starter",
-   "title": "Lowest Scoring D/ST Starter",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Starters by Position",
-   "season": "2024",
-   "week": 14,
-   "kind": "broke",
-   "holder": "Buffalo Bills",
-   "playerId": "BUF",
-   "value": "−8.0",
-   "detail": "for YuWillLose · 2024 Wk 14",
-   "previous": {
-    "holder": "Detroit Lions",
-    "value": "−7.0"
-   }
-  },
-  {
-   "id": "career-trade-value",
-   "title": "Career Trade Value",
-   "category": "front-office",
-   "categoryTitle": "Front Office",
-   "section": "Trades",
-   "season": "2024",
-   "week": 14,
-   "kind": "broke",
-   "holder": "paty23",
-   "playerId": null,
-   "value": "+3.4/wk",
-   "detail": "average across 2 scored trades",
-   "previous": {
-    "holder": "JoeSifBoreDough",
-    "value": "+2.6/wk"
-   }
-  },
-  {
-   "id": "most-career-player-points",
-   "title": "Most Career Player Points",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Player Performances",
-   "season": "2024",
-   "week": 13,
-   "kind": "broke",
-   "holder": "Josh Allen",
-   "playerId": "4984",
-   "value": "1,536.0",
-   "detail": "71 weeks rostered",
-   "previous": {
-    "holder": "Patrick Mahomes",
-    "value": "1,511.3"
-   }
-  },
-  {
-   "id": "best-position-season",
-   "title": "Best Position Season",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Position Crowns",
-   "season": "2024",
-   "week": 13,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "+278.8",
-   "detail": "RB · 2024",
-   "previous": {
-    "holder": "yulovesyou",
-    "value": "+268.5"
-   }
-  },
-  {
-   "id": "career-trade-value",
-   "title": "Career Trade Value",
-   "category": "front-office",
-   "categoryTitle": "Front Office",
-   "section": "Trades",
-   "season": "2024",
-   "week": 13,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "+2.6/wk",
-   "detail": "average across 3 scored trades",
-   "previous": {
-    "holder": "tduchow",
-    "value": "+1.9/wk"
-   }
-  },
-  {
-   "id": "most-career-player-points",
-   "title": "Most Career Player Points",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Player Performances",
-   "season": "2024",
-   "week": 12,
-   "kind": "broke",
-   "holder": "Patrick Mahomes",
-   "playerId": "4046",
-   "value": "1,511.3",
-   "detail": "76 weeks rostered",
-   "previous": {
-    "holder": "Josh Allen",
-    "value": "1,507.6"
-   }
-  },
-  {
-   "id": "highest-team-score",
-   "title": "Highest Team Score",
-   "category": "matchups",
-   "categoryTitle": "Matchups",
-   "section": "Scoring",
-   "season": "2024",
-   "week": 11,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "211.5",
-   "detail": "vs yulovesyou · 2024 Wk 11",
-   "previous": {
-    "holder": "Pathieu",
-    "value": "199.5"
-   }
-  },
-  {
-   "id": "highest-combined-score",
-   "title": "Highest Combined Score",
-   "category": "matchups",
-   "categoryTitle": "Matchups",
-   "section": "Scoring",
-   "season": "2024",
-   "week": 11,
-   "kind": "broke",
-   "holder": "YuWillLose vs evangonnerman",
-   "playerId": null,
-   "value": "346.9",
-   "detail": "142.0–204.8 · 2024 Wk 11",
-   "previous": {
-    "holder": "Pathieu vs evangonnerman",
-    "value": "341.4"
-   }
-  },
-  {
-   "id": "highest-optimal-lineup",
-   "title": "Highest Optimal Lineup",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Lineup Management",
-   "season": "2024",
-   "week": 11,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "221.7",
-   "detail": "actually scored 211.5 · 2024 Wk 11",
-   "previous": {
-    "holder": "Pathieu",
-    "value": "210.6"
-   }
-  },
-  {
-   "id": "biggest-draft-bust",
-   "title": "Biggest Draft Bust",
-   "category": "front-office",
-   "categoryTitle": "Front Office",
-   "section": "Draft",
-   "season": "2024",
-   "week": 10,
-   "kind": "broke",
-   "holder": "artmane",
-   "playerId": null,
-   "value": "−226.5",
-   "detail": "Saquon Barkley · 1.02 · 2020",
-   "previous": {
-    "holder": "JoeSifBoreDough",
-    "value": "−225.5"
-   }
-  },
-  {
-   "id": "career-allplay-wins",
-   "title": "Career Overall Wins",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Winning",
-   "season": "2024",
-   "week": 9,
-   "kind": "broke",
-   "holder": "evangonnerman",
-   "playerId": null,
-   "value": "533",
-   "detail": "8 seasons",
-   "previous": {
-    "holder": "yulovesyou",
-    "value": "527"
-   }
-  },
-  {
-   "id": "hardest-career-schedule",
-   "title": "Hardest Career Schedule",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Luck & Schedule",
-   "season": "2024",
-   "week": 9,
-   "kind": "took-over",
-   "holder": "artmane",
-   "playerId": null,
-   "value": "103.9",
-   "detail": "5 seasons",
-   "previous": {
-    "holder": "JoeSifBoreDough",
-    "value": "104.0"
-   }
-  },
-  {
-   "id": "worst-faab-acquisition",
-   "title": "Worst FAAB Acquisition",
-   "category": "front-office",
-   "categoryTitle": "Front Office",
-   "section": "Waivers & FAAB",
-   "season": "2024",
-   "week": 9,
-   "kind": "broke-own",
-   "holder": "yulovesyou",
-   "playerId": null,
-   "value": "−12.9",
-   "detail": "Isaiah Likely · 2024 Wk 1 · $17",
-   "previous": {
-    "holder": "yulovesyou",
-    "value": "−12.1"
-   }
-  },
-  {
-   "id": "hardest-career-schedule",
-   "title": "Hardest Career Schedule",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Luck & Schedule",
-   "season": "2024",
-   "week": 8,
-   "kind": "took-over",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "104.0",
-   "detail": "4 seasons",
-   "previous": {
-    "holder": "artmane",
-    "value": "104.1"
-   }
-  },
-  {
-   "id": "league-workhorses",
-   "title": "League Workhorses",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Player Performances",
-   "season": "2024",
-   "week": 7,
-   "kind": "broke",
-   "holder": "Travis Kelce",
-   "playerId": "1466",
-   "value": "65",
-   "detail": "997.2 points as a starter",
-   "previous": {
-    "holder": "Patrick Mahomes",
-    "value": "64"
-   }
-  },
-  {
-   "id": "longest-losing-skid",
-   "title": "Longest Losing Skid",
-   "category": "streaks",
-   "categoryTitle": "Streaks & Milestones",
-   "section": "Weekly Streaks",
-   "season": "2024",
-   "week": 7,
-   "kind": "broke",
-   "holder": "mayshisha",
-   "playerId": null,
-   "value": "9",
-   "detail": "9 weeks · 2023 Wk 13 – 2024 Wk 7 · active",
-   "previous": {
-    "holder": "sofarrsogood",
-    "value": "8"
-   }
   }
  ],
  "reach": [
@@ -1095,11 +1095,11 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "yulovesyou",
-   "current": "665",
+   "current": "672",
    "holder": "evangonnerman",
-   "record": "669",
-   "gap": "4",
-   "ratio": 0.006,
+   "record": "678",
+   "gap": "6",
+   "ratio": 0.0088,
    "primary": true
   },
   {
@@ -1110,11 +1110,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "evangonnerman",
-   "current": "17,450.5",
+   "current": "17,754.7",
    "holder": "yulovesyou",
-   "record": "17,750.9",
-   "gap": "300.4",
-   "ratio": 0.0169,
+   "record": "18,055.2",
+   "gap": "300.5",
+   "ratio": 0.0166,
    "primary": true
   },
   {
@@ -1125,11 +1125,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "tduchow",
-   "current": "17,190.0",
+   "current": "17,598.3",
    "holder": "yulovesyou",
-   "record": "17,750.9",
-   "gap": "560.9",
-   "ratio": 0.0316,
+   "record": "18,055.2",
+   "gap": "456.9",
+   "ratio": 0.0253,
    "primary": false
   },
   {
@@ -1155,27 +1155,12 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "evangonnerman",
-   "current": "88",
+   "current": "89",
    "holder": "yulovesyou",
    "record": "92",
-   "gap": "4",
-   "ratio": 0.0435,
+   "gap": "3",
+   "ratio": 0.0326,
    "primary": false
-  },
-  {
-   "id": "blowout-wins",
-   "title": "Blowout Wins",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Winning",
-   "kind": "total",
-   "challenger": "evangonnerman",
-   "current": "21",
-   "holder": "sofarrsogood",
-   "record": "22",
-   "gap": "1",
-   "ratio": 0.0455,
-   "primary": true
   },
   {
    "id": "career-points",
@@ -1185,11 +1170,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "hmart92",
-   "current": "16,905.0",
+   "current": "17,266.7",
    "holder": "yulovesyou",
-   "record": "17,750.9",
-   "gap": "845.9",
-   "ratio": 0.0477,
+   "record": "18,055.2",
+   "gap": "788.6",
+   "ratio": 0.0437,
    "primary": false
   },
   {
@@ -1199,9 +1184,9 @@
    "categoryTitle": "Front Office",
    "section": "Activity",
    "kind": "total",
-   "challenger": "yulovesyou",
+   "challenger": "hmart92",
    "current": "18",
-   "holder": "evangonnerman",
+   "holder": "yulovesyou",
    "record": "19",
    "gap": "1",
    "ratio": 0.0526,
@@ -1215,11 +1200,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "YuWillLose",
-   "current": "11",
+   "current": "12",
    "holder": "sofarrsogood",
-   "record": "12",
+   "record": "13",
    "gap": "1",
-   "ratio": 0.0833,
+   "ratio": 0.0769,
    "primary": true
   },
   {
@@ -1251,6 +1236,21 @@
    "gap": "1",
    "ratio": 0.1111,
    "primary": false
+  },
+  {
+   "id": "top-half-streak",
+   "title": "Top-Half Streak",
+   "category": "streaks",
+   "categoryTitle": "Streaks & Milestones",
+   "section": "Weekly Streaks",
+   "kind": "streak",
+   "challenger": "JoeSifBoreDough",
+   "current": "7",
+   "holder": "yulovesyou",
+   "record": "10",
+   "gap": "3",
+   "ratio": 0.3,
+   "primary": true
   },
   {
    "id": "regular-season-titles",
