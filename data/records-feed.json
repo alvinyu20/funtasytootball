@@ -1,10 +1,46 @@
 {
- "generatedAt": "2026-11-03T19:42:30.984Z",
+ "generatedAt": "2026-11-10T19:54:31.344Z",
  "asOf": {
   "season": "2026",
-  "week": 8
+  "week": 9
  },
  "events": [
+  {
+   "id": "raw-week-pass_td",
+   "title": "Most Passing TDs in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2026",
+   "week": 9,
+   "kind": "broke",
+   "holder": "mayshisha",
+   "playerId": null,
+   "value": "8",
+   "detail": "2026 Wk 9",
+   "previous": {
+    "holder": "sofarrsogood",
+    "value": "7"
+   }
+  },
+  {
+   "id": "raw-week-pass_int",
+   "title": "Most Interceptions Thrown in a Week",
+   "category": "players",
+   "categoryTitle": "Players & Lineups",
+   "section": "Team Raw Stats · Weeks",
+   "season": "2026",
+   "week": 9,
+   "kind": "broke",
+   "holder": "sofarrsogood",
+   "playerId": null,
+   "value": "7",
+   "detail": "2026 Wk 9",
+   "previous": {
+    "holder": "hmart92",
+    "value": "6"
+   }
+  },
   {
    "id": "raw-career-pass_int",
    "title": "Career Interceptions Thrown",
@@ -1048,42 +1084,6 @@
     "holder": "evangonnerman",
     "value": "560"
    }
-  },
-  {
-   "id": "most-regular-season-meetings",
-   "title": "Most Regular Season Meetings",
-   "category": "matchups",
-   "categoryTitle": "Matchups",
-   "section": "Head to Head",
-   "season": "2025",
-   "week": 1,
-   "kind": "broke",
-   "holder": "sofarrsogood vs evangonnerman",
-   "playerId": null,
-   "value": "11 meetings",
-   "detail": "sofarrsogood 4-7 evangonnerman in the regular season",
-   "previous": {
-    "holder": "sofarrsogood vs YuWillLose",
-    "value": "10 meetings"
-   }
-  },
-  {
-   "id": "league-workhorses",
-   "title": "League Workhorses",
-   "category": "players",
-   "categoryTitle": "Players & Lineups",
-   "section": "Player Performances",
-   "season": "2024",
-   "week": 17,
-   "kind": "broke",
-   "holder": "Patrick Mahomes",
-   "playerId": "4046",
-   "value": "73",
-   "detail": "1566.2 points as a starter",
-   "previous": {
-    "holder": "Travis Kelce",
-    "value": "72"
-   }
   }
  ],
  "reach": [
@@ -1095,11 +1095,11 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "yulovesyou",
-   "current": "672",
+   "current": "679",
    "holder": "evangonnerman",
-   "record": "678",
-   "gap": "6",
-   "ratio": 0.0088,
+   "record": "681",
+   "gap": "2",
+   "ratio": 0.0029,
    "primary": true
   },
   {
@@ -1110,11 +1110,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "evangonnerman",
-   "current": "17,754.7",
+   "current": "17,860.9",
    "holder": "yulovesyou",
-   "record": "18,055.2",
-   "gap": "300.5",
-   "ratio": 0.0166,
+   "record": "18,179.3",
+   "gap": "318.4",
+   "ratio": 0.0175,
    "primary": true
   },
   {
@@ -1125,11 +1125,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "tduchow",
-   "current": "17,598.3",
+   "current": "17,676.8",
    "holder": "yulovesyou",
-   "record": "18,055.2",
-   "gap": "456.9",
-   "ratio": 0.0253,
+   "record": "18,179.3",
+   "gap": "502.5",
+   "ratio": 0.0276,
    "primary": false
   },
   {
@@ -1140,12 +1140,27 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "hmart92",
-   "current": "89",
+   "current": "90",
    "holder": "yulovesyou",
-   "record": "92",
+   "record": "93",
    "gap": "3",
-   "ratio": 0.0326,
+   "ratio": 0.0323,
    "primary": true
+  },
+  {
+   "id": "career-points",
+   "title": "Career Points",
+   "category": "careers",
+   "categoryTitle": "Careers",
+   "section": "Scoring",
+   "kind": "total",
+   "challenger": "hmart92",
+   "current": "17,439.6",
+   "holder": "yulovesyou",
+   "record": "18,179.3",
+   "gap": "739.7",
+   "ratio": 0.0407,
+   "primary": false
   },
   {
    "id": "career-wins",
@@ -1157,25 +1172,25 @@
    "challenger": "evangonnerman",
    "current": "89",
    "holder": "yulovesyou",
-   "record": "92",
-   "gap": "3",
-   "ratio": 0.0326,
+   "record": "93",
+   "gap": "4",
+   "ratio": 0.043,
    "primary": false
   },
   {
-   "id": "career-points",
-   "title": "Career Points",
+   "id": "blowout-wins",
+   "title": "Blowout Wins",
    "category": "careers",
    "categoryTitle": "Careers",
-   "section": "Scoring",
+   "section": "Winning",
    "kind": "total",
-   "challenger": "hmart92",
-   "current": "17,266.7",
-   "holder": "yulovesyou",
-   "record": "18,055.2",
-   "gap": "788.6",
-   "ratio": 0.0437,
-   "primary": false
+   "challenger": "JoeSifBoreDough",
+   "current": "22",
+   "holder": "sofarrsogood",
+   "record": "23",
+   "gap": "1",
+   "ratio": 0.0435,
+   "primary": true
   },
   {
    "id": "most-trades",
@@ -1245,11 +1260,11 @@
    "section": "Weekly Streaks",
    "kind": "streak",
    "challenger": "JoeSifBoreDough",
-   "current": "7",
+   "current": "8",
    "holder": "yulovesyou",
    "record": "10",
-   "gap": "3",
-   "ratio": 0.3,
+   "gap": "2",
+   "ratio": 0.2,
    "primary": true
   },
   {
