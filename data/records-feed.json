@@ -1,10 +1,46 @@
 {
- "generatedAt": "2026-11-10T19:54:31.344Z",
+ "generatedAt": "2026-11-17T21:11:24.119Z",
  "asOf": {
   "season": "2026",
-  "week": 9
+  "week": 10
  },
  "events": [
+  {
+   "id": "biggest-trade-heist",
+   "title": "Biggest Trade Heist",
+   "category": "front-office",
+   "categoryTitle": "Front Office",
+   "section": "Trades",
+   "season": "2026",
+   "week": 10,
+   "kind": "took-over",
+   "holder": "hmart92",
+   "playerId": null,
+   "value": "+11.8/wk",
+   "detail": "2022 Wk 9 · got Tyler Lockett, Justin Fields, sent Christian McCaffrey",
+   "previous": {
+    "holder": "artmane",
+    "value": "+14.4/wk"
+   }
+  },
+  {
+   "id": "lowest-pr-score",
+   "title": "Lowest Power Ranking Score",
+   "category": "seasons",
+   "categoryTitle": "Seasons",
+   "section": "Power Rankings & Playoff Odds",
+   "season": "2026",
+   "week": 9,
+   "kind": "broke",
+   "holder": "JoeSifBoreDough",
+   "playerId": null,
+   "value": "1.07",
+   "detail": "2026 Wk 9 · ranked #1",
+   "previous": {
+    "holder": "YuWillLose",
+    "value": "1.14"
+   }
+  },
   {
    "id": "raw-week-pass_td",
    "title": "Most Passing TDs in a Week",
@@ -1048,42 +1084,6 @@
     "holder": "caityb",
     "value": "+93.5"
    }
-  },
-  {
-   "id": "largest-share",
-   "title": "Largest Share of the Game",
-   "category": "matchups",
-   "categoryTitle": "Matchups",
-   "section": "Margins & Drama",
-   "season": "2025",
-   "week": 2,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "76.1%",
-   "detail": "JoeSifBoreDough 185.8, artmane 58.3 · 2025 Wk 2",
-   "previous": {
-    "holder": "YuWillLose",
-    "value": "70.3%"
-   }
-  },
-  {
-   "id": "career-allplay-wins",
-   "title": "Career Overall Wins",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Winning",
-   "season": "2025",
-   "week": 1,
-   "kind": "broke",
-   "holder": "yulovesyou",
-   "playerId": null,
-   "value": "566",
-   "detail": "9 seasons",
-   "previous": {
-    "holder": "evangonnerman",
-    "value": "560"
-   }
   }
  ],
  "reach": [
@@ -1095,11 +1095,11 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "yulovesyou",
-   "current": "679",
+   "current": "688",
    "holder": "evangonnerman",
-   "record": "681",
-   "gap": "2",
-   "ratio": 0.0029,
+   "record": "689",
+   "gap": "1",
+   "ratio": 0.0015,
    "primary": true
   },
   {
@@ -1110,11 +1110,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "evangonnerman",
-   "current": "17,860.9",
+   "current": "18,012.6",
    "holder": "yulovesyou",
-   "record": "18,179.3",
-   "gap": "318.4",
-   "ratio": 0.0175,
+   "record": "18,338.8",
+   "gap": "326.2",
+   "ratio": 0.0178,
    "primary": true
   },
   {
@@ -1125,11 +1125,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "tduchow",
-   "current": "17,676.8",
+   "current": "17,812.9",
    "holder": "yulovesyou",
-   "record": "18,179.3",
-   "gap": "502.5",
-   "ratio": 0.0276,
+   "record": "18,338.8",
+   "gap": "525.9",
+   "ratio": 0.0287,
    "primary": false
   },
   {
@@ -1140,11 +1140,11 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "hmart92",
-   "current": "90",
+   "current": "91",
    "holder": "yulovesyou",
-   "record": "93",
+   "record": "94",
    "gap": "3",
-   "ratio": 0.0323,
+   "ratio": 0.0319,
    "primary": true
   },
   {
@@ -1155,26 +1155,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "hmart92",
-   "current": "17,439.6",
+   "current": "17,611.3",
    "holder": "yulovesyou",
-   "record": "18,179.3",
-   "gap": "739.7",
-   "ratio": 0.0407,
-   "primary": false
-  },
-  {
-   "id": "career-wins",
-   "title": "Career Wins",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Winning",
-   "kind": "total",
-   "challenger": "evangonnerman",
-   "current": "89",
-   "holder": "yulovesyou",
-   "record": "93",
-   "gap": "4",
-   "ratio": 0.043,
+   "record": "18,338.8",
+   "gap": "727.5",
+   "ratio": 0.0397,
    "primary": false
   },
   {
@@ -1185,12 +1170,27 @@
    "section": "Winning",
    "kind": "total",
    "challenger": "JoeSifBoreDough",
-   "current": "22",
+   "current": "23",
    "holder": "sofarrsogood",
-   "record": "23",
+   "record": "24",
    "gap": "1",
-   "ratio": 0.0435,
+   "ratio": 0.0417,
    "primary": true
+  },
+  {
+   "id": "career-wins",
+   "title": "Career Wins",
+   "category": "careers",
+   "categoryTitle": "Careers",
+   "section": "Winning",
+   "kind": "total",
+   "challenger": "evangonnerman",
+   "current": "90",
+   "holder": "yulovesyou",
+   "record": "94",
+   "gap": "4",
+   "ratio": 0.0426,
+   "primary": false
   },
   {
    "id": "most-trades",
@@ -1223,6 +1223,21 @@
    "primary": true
   },
   {
+   "id": "top-half-streak",
+   "title": "Top-Half Streak",
+   "category": "streaks",
+   "categoryTitle": "Streaks & Milestones",
+   "section": "Weekly Streaks",
+   "kind": "streak",
+   "challenger": "JoeSifBoreDough",
+   "current": "9",
+   "holder": "yulovesyou",
+   "record": "10",
+   "gap": "1",
+   "ratio": 0.1,
+   "primary": true
+  },
+  {
    "id": "playoff-appearances",
    "title": "Playoff Appearances",
    "category": "careers",
@@ -1251,21 +1266,6 @@
    "gap": "1",
    "ratio": 0.1111,
    "primary": false
-  },
-  {
-   "id": "top-half-streak",
-   "title": "Top-Half Streak",
-   "category": "streaks",
-   "categoryTitle": "Streaks & Milestones",
-   "section": "Weekly Streaks",
-   "kind": "streak",
-   "challenger": "JoeSifBoreDough",
-   "current": "8",
-   "holder": "yulovesyou",
-   "record": "10",
-   "gap": "2",
-   "ratio": 0.2,
-   "primary": true
   },
   {
    "id": "regular-season-titles",
