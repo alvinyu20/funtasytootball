@@ -1,201 +1,201 @@
 {
   "_instructions": "The Power Rankings page's Strength of Schedule, Weekly Scores and Lineup Slot sections read this file. scripts/update-power-rankings.js writes it next to the snapshot (same week); never edit it by hand.",
-  "generatedAt": "2026-11-11T18:09:38.936Z",
+  "generatedAt": "2026-11-18T19:12:31.403Z",
   "season": "2026",
-  "week": 9,
+  "week": 10,
   "sos": {
-    "leagueAvgPpg": 124.36,
+    "leagueAvgPpg": 124.93,
     "remaining": {
-      "fromWeek": 10,
+      "fromWeek": 11,
       "toWeek": 14,
-      "games": 5,
+      "games": 4,
       "rosWeight": 0.8
     },
     "rows": [
       {
-        "rosterId": 10,
-        "teamName": "evangonnerman",
-        "record": "4-5",
-        "games": 9,
-        "paPerGame": 120.95,
-        "trueSos": 127.92,
-        "paRank": 8,
+        "rosterId": 6,
+        "teamName": "paty23",
+        "record": "3-7",
+        "games": 10,
+        "paPerGame": 117.47,
+        "trueSos": 127.71,
+        "paRank": 11,
         "trueRank": 1,
         "ahead": {
-          "games": 5,
-          "oppPpg": 120,
-          "delta": -4.35
+          "games": 4,
+          "oppPpg": 119.05,
+          "delta": -5.88
         }
       },
       {
-        "rosterId": 8,
-        "teamName": "mayshisha",
-        "record": "3-6",
-        "games": 9,
-        "paPerGame": 131.93,
-        "trueSos": 126.32,
-        "paRank": 2,
+        "rosterId": 10,
+        "teamName": "evangonnerman",
+        "record": "5-5",
+        "games": 10,
+        "paPerGame": 118.47,
+        "trueSos": 127.6,
+        "paRank": 10,
         "trueRank": 2,
         "ahead": {
-          "games": 5,
-          "oppPpg": 122.04,
-          "delta": -2.32
+          "games": 4,
+          "oppPpg": 121.08,
+          "delta": -3.86
         }
       },
       {
         "rosterId": 4,
         "teamName": "tduchow",
-        "record": "3-6",
-        "games": 9,
-        "paPerGame": 126,
-        "trueSos": 126.28,
-        "paRank": 5,
+        "record": "3-7",
+        "games": 10,
+        "paPerGame": 130.57,
+        "trueSos": 126.89,
+        "paRank": 3,
         "trueRank": 3,
         "ahead": {
-          "games": 5,
-          "oppPpg": 128.72,
-          "delta": 4.36
+          "games": 4,
+          "oppPpg": 126.88,
+          "delta": 1.94
         }
       },
       {
-        "rosterId": 11,
-        "teamName": "LyDaniel",
-        "record": "3-6",
-        "games": 9,
-        "paPerGame": 137.5,
-        "trueSos": 126.25,
+        "rosterId": 8,
+        "teamName": "mayshisha",
+        "record": "3-7",
+        "games": 10,
+        "paPerGame": 136.26,
+        "trueSos": 126.26,
         "paRank": 1,
         "trueRank": 4,
         "ahead": {
-          "games": 5,
-          "oppPpg": 127.05,
-          "delta": 2.7
-        }
-      },
-      {
-        "rosterId": 6,
-        "teamName": "paty23",
-        "record": "3-6",
-        "games": 9,
-        "paPerGame": 113.87,
-        "trueSos": 125.38,
-        "paRank": 12,
-        "trueRank": 5,
-        "ahead": {
-          "games": 5,
-          "oppPpg": 124.98,
-          "delta": 0.62
-        }
-      },
-      {
-        "rosterId": 1,
-        "teamName": "yulovesyou",
-        "record": "4-5",
-        "games": 9,
-        "paPerGame": 124.28,
-        "trueSos": 124.93,
-        "paRank": 6,
-        "trueRank": 6,
-        "ahead": {
-          "games": 5,
-          "oppPpg": 124,
-          "delta": -0.36
-        }
-      },
-      {
-        "rosterId": 5,
-        "teamName": "artmane",
-        "record": "4-5",
-        "games": 9,
-        "paPerGame": 120.4,
-        "trueSos": 124.75,
-        "paRank": 10,
-        "trueRank": 7,
-        "ahead": {
-          "games": 5,
-          "oppPpg": 123.43,
-          "delta": -0.93
-        }
-      },
-      {
-        "rosterId": 7,
-        "teamName": "JoeSifBoreDough",
-        "record": "7-2",
-        "games": 9,
-        "paPerGame": 119.27,
-        "trueSos": 123.49,
-        "paRank": 11,
-        "trueRank": 8,
-        "ahead": {
-          "games": 5,
-          "oppPpg": 123.48,
-          "delta": -0.87
-        }
-      },
-      {
-        "rosterId": 12,
-        "teamName": "jspar279879",
-        "record": "5-4",
-        "games": 9,
-        "paPerGame": 127,
-        "trueSos": 122.72,
-        "paRank": 3,
-        "trueRank": 9,
-        "ahead": {
-          "games": 5,
-          "oppPpg": 127.45,
-          "delta": 3.09
+          "games": 4,
+          "oppPpg": 121.36,
+          "delta": -3.57
         }
       },
       {
         "rosterId": 2,
         "teamName": "sofarrsogood",
-        "record": "6-3",
-        "games": 9,
-        "paPerGame": 123.74,
-        "trueSos": 122.04,
-        "paRank": 7,
-        "trueRank": 10,
+        "record": "7-3",
+        "games": 10,
+        "paPerGame": 119.61,
+        "trueSos": 125.54,
+        "paRank": 9,
+        "trueRank": 5,
         "ahead": {
-          "games": 5,
-          "oppPpg": 122.27,
-          "delta": -2.08
+          "games": 4,
+          "oppPpg": 120.99,
+          "delta": -3.94
         }
       },
       {
-        "rosterId": 3,
-        "teamName": "hmart92",
-        "record": "5-4",
-        "games": 9,
-        "paPerGame": 126.48,
-        "trueSos": 121.72,
-        "paRank": 4,
-        "trueRank": 11,
+        "rosterId": 1,
+        "teamName": "yulovesyou",
+        "record": "5-5",
+        "games": 10,
+        "paPerGame": 124.93,
+        "trueSos": 125.31,
+        "paRank": 6,
+        "trueRank": 6,
         "ahead": {
-          "games": 5,
-          "oppPpg": 119.4,
-          "delta": -4.95
+          "games": 4,
+          "oppPpg": 125.45,
+          "delta": 0.52
+        }
+      },
+      {
+        "rosterId": 5,
+        "teamName": "artmane",
+        "record": "4-6",
+        "games": 10,
+        "paPerGame": 123.53,
+        "trueSos": 125.11,
+        "paRank": 7,
+        "trueRank": 7,
+        "ahead": {
+          "games": 4,
+          "oppPpg": 128.03,
+          "delta": 3.09
+        }
+      },
+      {
+        "rosterId": 11,
+        "teamName": "LyDaniel",
+        "record": "4-6",
+        "games": 10,
+        "paPerGame": 133.47,
+        "trueSos": 124.36,
+        "paRank": 2,
+        "trueRank": 8,
+        "ahead": {
+          "games": 4,
+          "oppPpg": 130.89,
+          "delta": 5.96
         }
       },
       {
         "rosterId": 9,
         "teamName": "YuWillLose",
-        "record": "7-2",
-        "games": 9,
-        "paPerGame": 120.87,
-        "trueSos": 120.49,
-        "paRank": 9,
+        "record": "7-3",
+        "games": 10,
+        "paPerGame": 120.85,
+        "trueSos": 123.7,
+        "paRank": 8,
+        "trueRank": 9,
+        "ahead": {
+          "games": 4,
+          "oppPpg": 128.49,
+          "delta": 3.56
+        }
+      },
+      {
+        "rosterId": 12,
+        "teamName": "jspar279879",
+        "record": "5-5",
+        "games": 10,
+        "paPerGame": 130.25,
+        "trueSos": 122.66,
+        "paRank": 4,
+        "trueRank": 10,
+        "ahead": {
+          "games": 4,
+          "oppPpg": 128.72,
+          "delta": 3.78
+        }
+      },
+      {
+        "rosterId": 7,
+        "teamName": "JoeSifBoreDough",
+        "record": "8-2",
+        "games": 10,
+        "paPerGame": 116.34,
+        "trueSos": 122.64,
+        "paRank": 12,
+        "trueRank": 11,
+        "ahead": {
+          "games": 4,
+          "oppPpg": 125.67,
+          "delta": 0.74
+        }
+      },
+      {
+        "rosterId": 3,
+        "teamName": "hmart92",
+        "record": "6-4",
+        "games": 10,
+        "paPerGame": 127.44,
+        "trueSos": 121.41,
+        "paRank": 5,
         "trueRank": 12,
         "ahead": {
-          "games": 5,
-          "oppPpg": 129.46,
-          "delta": 5.1
+          "games": 4,
+          "oppPpg": 122.58,
+          "delta": -2.36
         }
       }
     ]
   },
   "scores": {
-    "leagueAvgPpg": 124.36,
+    "leagueAvgPpg": 124.93,
     "rows": [
       {
         "rosterId": 7,
@@ -209,29 +209,12 @@
           142,
           118.53,
           176.42,
-          170.13
+          170.13,
+          149.83
         ],
-        "avg": 144.1,
+        "avg": 144.67,
         "low": 109.68,
         "high": 176.42
-      },
-      {
-        "rosterId": 9,
-        "teamName": "YuWillLose",
-        "scores": [
-          199.45,
-          146.8,
-          114.07,
-          137.75,
-          143.79,
-          132.9,
-          157.34,
-          122.1,
-          95.76
-        ],
-        "avg": 138.88,
-        "low": 95.76,
-        "high": 199.45
       },
       {
         "rosterId": 2,
@@ -245,29 +228,12 @@
           148.82,
           119.72,
           151.51,
-          112
+          112,
+          120.65
         ],
-        "avg": 136.68,
+        "avg": 135.08,
         "low": 104.25,
         "high": 180.8
-      },
-      {
-        "rosterId": 12,
-        "teamName": "jspar279879",
-        "scores": [
-          144.56,
-          161.08,
-          113.23,
-          158.33,
-          104.7,
-          95.31,
-          123.74,
-          167.2,
-          118.93
-        ],
-        "avg": 131.9,
-        "low": 95.31,
-        "high": 167.2
       },
       {
         "rosterId": 3,
@@ -281,11 +247,50 @@
           115.88,
           115.8,
           130.03,
-          172.93
+          172.93,
+          171.68
         ],
-        "avg": 130.24,
+        "avg": 134.39,
         "low": 110.69,
         "high": 172.93
+      },
+      {
+        "rosterId": 9,
+        "teamName": "YuWillLose",
+        "scores": [
+          199.45,
+          146.8,
+          114.07,
+          137.75,
+          143.79,
+          132.9,
+          157.34,
+          122.1,
+          95.76,
+          82.46
+        ],
+        "avg": 133.24,
+        "low": 82.46,
+        "high": 199.45
+      },
+      {
+        "rosterId": 12,
+        "teamName": "jspar279879",
+        "scores": [
+          144.56,
+          161.08,
+          113.23,
+          158.33,
+          104.7,
+          95.31,
+          123.74,
+          167.2,
+          118.93,
+          130.76
+        ],
+        "avg": 131.78,
+        "low": 95.31,
+        "high": 167.2
       },
       {
         "rosterId": 11,
@@ -299,11 +304,12 @@
           126.89,
           96.8,
           117.11,
-          124.55
+          124.55,
+          175.22
         ],
-        "avg": 123.95,
+        "avg": 129.08,
         "low": 96.8,
-        "high": 156.36
+        "high": 175.22
       },
       {
         "rosterId": 10,
@@ -317,9 +323,10 @@
           71.13,
           112.98,
           120.06,
-          106.24
+          106.24,
+          151.7
         ],
-        "avg": 120.54,
+        "avg": 123.66,
         "low": 71.13,
         "high": 152.87
       },
@@ -335,29 +342,12 @@
           107.28,
           151.21,
           149.77,
-          78.52
+          78.52,
+          136.13
         ],
-        "avg": 117.73,
+        "avg": 119.57,
         "low": 78.52,
         "high": 151.21
-      },
-      {
-        "rosterId": 5,
-        "teamName": "artmane",
-        "scores": [
-          68.14,
-          126.36,
-          100.03,
-          168.09,
-          126.04,
-          90.16,
-          154.23,
-          104.86,
-          112.1
-        ],
-        "avg": 116.67,
-        "low": 68.14,
-        "high": 168.09
       },
       {
         "rosterId": 1,
@@ -371,11 +361,31 @@
           108.02,
           85.21,
           111.12,
-          124.05
+          124.05,
+          159.54
         ],
-        "avg": 112.75,
+        "avg": 117.43,
         "low": 75.48,
-        "high": 154.88
+        "high": 159.54
+      },
+      {
+        "rosterId": 5,
+        "teamName": "artmane",
+        "scores": [
+          68.14,
+          126.36,
+          100.03,
+          168.09,
+          126.04,
+          90.16,
+          154.23,
+          104.86,
+          112.1,
+          96.18
+        ],
+        "avg": 114.62,
+        "low": 68.14,
+        "high": 168.09
       },
       {
         "rosterId": 6,
@@ -389,9 +399,10 @@
           122.29,
           112.27,
           94.05,
-          84.02
+          84.02,
+          89.94
         ],
-        "avg": 110.76,
+        "avg": 108.68,
         "low": 84.02,
         "high": 138.67
       },
@@ -407,9 +418,10 @@
           111.18,
           104.96,
           65.81,
-          129.82
+          129.82,
+          97.21
         ],
-        "avg": 108.08,
+        "avg": 107,
         "low": 65.81,
         "high": 153.94
       }
@@ -459,227 +471,227 @@
       }
     ],
     "leagueAvg": {
-      "QB": 19.93,
-      "RB1": 19.62,
-      "RB2": 10.75,
-      "WR1": 18.91,
-      "WR2": 8.56,
-      "TE": 12.64,
-      "FLEX": 7.01,
-      "SUPER_FLEX": 11.5,
-      "K": 8.64,
-      "DEF": 6.9
+      "QB": 20.12,
+      "RB1": 19.95,
+      "RB2": 10.91,
+      "WR1": 18.94,
+      "WR2": 8.58,
+      "TE": 12.31,
+      "FLEX": 6.85,
+      "SUPER_FLEX": 11.7,
+      "K": 8.63,
+      "DEF": 7.04
     },
     "rows": [
       {
         "rosterId": 7,
         "teamName": "JoeSifBoreDough",
         "cells": {
-          "QB": 3.15,
-          "RB1": 2.24,
-          "RB2": 5.78,
-          "WR1": 3.11,
-          "WR2": 2.07,
-          "TE": -2.91,
-          "FLEX": 3.77,
-          "SUPER_FLEX": 3.2,
-          "K": -0.75,
-          "DEF": -0.01
+          "QB": 1.57,
+          "RB1": 3.1,
+          "RB2": 6.24,
+          "WR1": 3.26,
+          "WR2": 2.01,
+          "TE": -2.66,
+          "FLEX": 3.58,
+          "SUPER_FLEX": 2.41,
+          "K": 0.38,
+          "DEF": -0.24
         },
-        "total": 19.65
-      },
-      {
-        "rosterId": 9,
-        "teamName": "YuWillLose",
-        "cells": {
-          "QB": 5.1,
-          "RB1": -1.69,
-          "RB2": 2.2,
-          "WR1": -4.07,
-          "WR2": -3.79,
-          "TE": 6.14,
-          "FLEX": -1.15,
-          "SUPER_FLEX": 5.79,
-          "K": 1.81,
-          "DEF": 4.1
-        },
-        "total": 14.44
+        "total": 19.64
       },
       {
         "rosterId": 2,
         "teamName": "sofarrsogood",
         "cells": {
-          "QB": 0.7,
-          "RB1": 11.11,
-          "RB2": 8.97,
-          "WR1": -4.84,
-          "WR2": -3.06,
-          "TE": -2.12,
-          "FLEX": 3.59,
-          "SUPER_FLEX": -0.13,
-          "K": -1.19,
-          "DEF": -0.79
+          "QB": -0.09,
+          "RB1": 12,
+          "RB2": 8.82,
+          "WR1": -5.25,
+          "WR2": -3.61,
+          "TE": -2.53,
+          "FLEX": 3.75,
+          "SUPER_FLEX": -0.97,
+          "K": -1.42,
+          "DEF": -0.64
         },
-        "total": 12.23
-      },
-      {
-        "rosterId": 12,
-        "teamName": "jspar279879",
-        "cells": {
-          "QB": -3.93,
-          "RB1": 5.75,
-          "RB2": 0.14,
-          "WR1": 4.06,
-          "WR2": -0.37,
-          "TE": 1.55,
-          "FLEX": 2.58,
-          "SUPER_FLEX": -2.25,
-          "K": 1.03,
-          "DEF": -1.12
-        },
-        "total": 7.45
+        "total": 10.05
       },
       {
         "rosterId": 3,
         "teamName": "hmart92",
         "cells": {
-          "QB": 2.36,
-          "RB1": 0.5,
-          "RB2": 0.91,
-          "WR1": -0.45,
-          "WR2": -0.94,
-          "TE": 3.12,
-          "FLEX": -1.15,
-          "SUPER_FLEX": 3.87,
-          "K": -0.31,
-          "DEF": -2.12
+          "QB": 3.36,
+          "RB1": 0.27,
+          "RB2": 0.41,
+          "WR1": -0.56,
+          "WR2": -0.28,
+          "TE": 4.69,
+          "FLEX": -0.94,
+          "SUPER_FLEX": 5.17,
+          "K": -0.43,
+          "DEF": -2.34
         },
-        "total": 5.79
+        "total": 9.36
+      },
+      {
+        "rosterId": 9,
+        "teamName": "YuWillLose",
+        "cells": {
+          "QB": 4.61,
+          "RB1": -2.92,
+          "RB2": 1.23,
+          "WR1": -4.67,
+          "WR2": -4.15,
+          "TE": 5.52,
+          "FLEX": -1.49,
+          "SUPER_FLEX": 5.85,
+          "K": 1.47,
+          "DEF": 2.76
+        },
+        "total": 8.22
+      },
+      {
+        "rosterId": 12,
+        "teamName": "jspar279879",
+        "cells": {
+          "QB": -2.2,
+          "RB1": 5,
+          "RB2": 0.54,
+          "WR1": 3.48,
+          "WR2": 0.1,
+          "TE": 0.75,
+          "FLEX": 2.04,
+          "SUPER_FLEX": -1.49,
+          "K": 0.57,
+          "DEF": -2.04
+        },
+        "total": 6.76
       },
       {
         "rosterId": 11,
         "teamName": "LyDaniel",
         "cells": {
-          "QB": 5.1,
-          "RB1": -5.56,
-          "RB2": -4.19,
-          "WR1": -0.19,
-          "WR2": 1.89,
-          "TE": -0.37,
-          "FLEX": -1.18,
-          "SUPER_FLEX": 3.88,
-          "K": 0.03,
-          "DEF": 0.1
+          "QB": 5.7,
+          "RB1": -4.58,
+          "RB2": -3.56,
+          "WR1": 1.81,
+          "WR2": 2.13,
+          "TE": -0.74,
+          "FLEX": -0.53,
+          "SUPER_FLEX": 4.19,
+          "K": -0.62,
+          "DEF": 0.26
         },
-        "total": -0.5
+        "total": 4.05
       },
       {
         "rosterId": 10,
         "teamName": "evangonnerman",
         "cells": {
-          "QB": -4,
-          "RB1": -0.94,
-          "RB2": -1.01,
-          "WR1": 0.97,
-          "WR2": 1.33,
-          "TE": 1.71,
-          "FLEX": 1.28,
-          "SUPER_FLEX": -2.38,
-          "K": 0.69,
-          "DEF": -1.56
+          "QB": -4.3,
+          "RB1": -0.58,
+          "RB2": -0.49,
+          "WR1": 2.04,
+          "WR2": 1.35,
+          "TE": 2.05,
+          "FLEX": 0.8,
+          "SUPER_FLEX": -2.37,
+          "K": 0.88,
+          "DEF": -0.74
         },
-        "total": -3.9
+        "total": -1.37
       },
       {
         "rosterId": 4,
         "teamName": "tduchow",
         "cells": {
-          "QB": -4.94,
-          "RB1": -4.09,
-          "RB2": -1.78,
-          "WR1": 4.18,
-          "WR2": 1.73,
-          "TE": -0.83,
-          "FLEX": -0.11,
-          "SUPER_FLEX": -2.68,
-          "K": -0.31,
-          "DEF": 2.1
+          "QB": -5.05,
+          "RB1": -4.43,
+          "RB2": -2.32,
+          "WR1": 4.68,
+          "WR2": 2.43,
+          "TE": 0.03,
+          "FLEX": 0.47,
+          "SUPER_FLEX": -3.2,
+          "K": -0.32,
+          "DEF": 2.26
         },
-        "total": -6.72
-      },
-      {
-        "rosterId": 5,
-        "teamName": "artmane",
-        "cells": {
-          "QB": -0.55,
-          "RB1": 3.22,
-          "RB2": 0.23,
-          "WR1": 1.3,
-          "WR2": -0.04,
-          "TE": -8.3,
-          "FLEX": -2.12,
-          "SUPER_FLEX": -2.31,
-          "K": 2.25,
-          "DEF": -1.45
-        },
-        "total": -7.78
+        "total": -5.45
       },
       {
         "rosterId": 1,
         "teamName": "yulovesyou",
         "cells": {
-          "QB": -3.41,
-          "RB1": 0.11,
-          "RB2": -3.45,
-          "WR1": -1.76,
-          "WR2": -0.77,
-          "TE": 6.05,
-          "FLEX": -3.79,
-          "SUPER_FLEX": -5.15,
-          "K": 0.03,
-          "DEF": 0.44
+          "QB": -3.56,
+          "RB1": 2.34,
+          "RB2": -0.95,
+          "WR1": -0.91,
+          "WR2": -1.06,
+          "TE": 4.95,
+          "FLEX": -3.83,
+          "SUPER_FLEX": -4.51,
+          "K": -0.03,
+          "DEF": -0.04
         },
-        "total": -11.7
+        "total": -7.6
+      },
+      {
+        "rosterId": 5,
+        "teamName": "artmane",
+        "cells": {
+          "QB": -0.75,
+          "RB1": 1.3,
+          "RB2": -0.58,
+          "WR1": 0,
+          "WR2": -0.37,
+          "TE": -7.68,
+          "FLEX": -1.97,
+          "SUPER_FLEX": -2.2,
+          "K": 2.38,
+          "DEF": -0.54
+        },
+        "total": -10.41
       },
       {
         "rosterId": 6,
         "teamName": "paty23",
         "cells": {
-          "QB": -2.09,
-          "RB1": -0.75,
-          "RB2": -2.44,
-          "WR1": -4.41,
-          "WR2": -2.5,
-          "TE": -0.06,
-          "FLEX": -1.19,
-          "SUPER_FLEX": -1.72,
-          "K": -0.53,
-          "DEF": 3.1
+          "QB": -1.41,
+          "RB1": -1.71,
+          "RB2": -3.36,
+          "WR1": -5.36,
+          "WR2": -3.13,
+          "TE": -0.65,
+          "FLEX": -1.46,
+          "SUPER_FLEX": -1.7,
+          "K": -0.62,
+          "DEF": 4.18
         },
-        "total": -12.58
+        "total": -15.23
       },
       {
         "rosterId": 8,
         "teamName": "mayshisha",
         "cells": {
-          "QB": 2.52,
-          "RB1": -9.91,
-          "RB2": -5.36,
-          "WR1": 2.1,
-          "WR2": 4.45,
-          "TE": -3.98,
-          "FLEX": -0.54,
-          "SUPER_FLEX": -0.12,
-          "K": -2.75,
-          "DEF": -2.79
+          "QB": 2.11,
+          "RB1": -9.78,
+          "RB2": -5.99,
+          "WR1": 1.46,
+          "WR2": 4.59,
+          "TE": -3.71,
+          "FLEX": -0.46,
+          "SUPER_FLEX": -1.18,
+          "K": -2.22,
+          "DEF": -2.84
         },
-        "total": -16.36
+        "total": -18.03
       }
     ]
   },
   "mvpRace": {
-    "throughWeek": 9,
-    "remainingWeeks": 5,
+    "throughWeek": 10,
+    "remainingWeeks": 4,
     "sims": 40000,
     "rows": [
       {
@@ -687,10 +699,10 @@
         "player": "Jahmyr Gibbs",
         "position": "RB",
         "owner": "sofarrsogood",
-        "par": 146.76111111111115,
-        "wins": 1.7113045285287953,
-        "ppg": 25.806250000000006,
-        "gamesPlayed": 8,
+        "par": 181.09000000000003,
+        "wins": 2.111595740350165,
+        "ppg": 27.711111111111116,
+        "gamesPlayed": 9,
         "weekly": [
           34.35,
           21.8,
@@ -700,20 +712,21 @@
           0,
           16.55,
           25.8,
-          14.4
+          14.4,
+          42.95
         ],
-        "projectedPar": 202.94714730195693,
-        "chance": 43.3075
+        "projectedPar": 230.89717790910979,
+        "chance": 68.215
       },
       {
         "playerId": "9488",
         "player": "Jaxon Smith-Njigba",
         "position": "WR",
         "owner": "tduchow",
-        "par": 139.96,
-        "wins": 1.6320003303297206,
-        "ppg": 23.09,
-        "gamesPlayed": 9,
+        "par": 161.86,
+        "wins": 1.8873647718431592,
+        "ppg": 23.616,
+        "gamesPlayed": 10,
         "weekly": [
           23.2,
           39.25,
@@ -723,18 +736,67 @@
           21.4,
           28.55,
           22.05,
-          9.1
+          9.1,
+          28.35
         ],
-        "projectedPar": 188.35630298005654,
-        "chance": 19.8175
+        "projectedPar": 203.20926880400577,
+        "chance": 15.5375
+      },
+      {
+        "playerId": "6770",
+        "player": "Joe Burrow",
+        "position": "QB",
+        "owner": "LyDaniel",
+        "par": 148.515,
+        "wins": 1.7317557091949014,
+        "ppg": 25.366666666666664,
+        "gamesPlayed": 9,
+        "weekly": [
+          13.91,
+          14.93,
+          22.33,
+          23.22,
+          24.6,
+          0,
+          28.63,
+          38.73,
+          29.04,
+          32.91
+        ],
+        "projectedPar": 192.34504408303977,
+        "chance": 8.025
+      },
+      {
+        "playerId": "4984",
+        "player": "Josh Allen",
+        "position": "QB",
+        "owner": "YuWillLose",
+        "par": 138.23499999999999,
+        "wins": 1.6118860078817439,
+        "ppg": 24.224444444444444,
+        "gamesPlayed": 9,
+        "weekly": [
+          35.16,
+          40.32,
+          15.96,
+          18.27,
+          30.25,
+          17.8,
+          0,
+          26.31,
+          11.86,
+          22.09
+        ],
+        "projectedPar": 180.29171099829745,
+        "chance": 2.92
       },
       {
         "playerId": "8151",
         "player": "Kenneth Walker III",
         "position": "RB",
         "owner": "sofarrsogood",
-        "par": 134.2111111111111,
-        "wins": 1.5649655449217785,
+        "par": 133.18,
+        "wins": 1.5529422977515874,
         "ppg": 24.237499999999997,
         "gamesPlayed": 8,
         "weekly": [
@@ -746,112 +808,21 @@
           28.4,
           8.2,
           11.65,
-          35.55
+          35.55,
+          0
         ],
-        "projectedPar": 187.7447815002442,
-        "chance": 20.775
-      },
-      {
-        "playerId": "4984",
-        "player": "Josh Allen",
-        "position": "QB",
-        "owner": "YuWillLose",
-        "par": 117.64555555555557,
-        "wins": 1.3718032689946424,
-        "ppg": 24.49125,
-        "gamesPlayed": 8,
-        "weekly": [
-          35.16,
-          40.32,
-          15.96,
-          18.27,
-          30.25,
-          17.8,
-          0,
-          26.31,
-          11.86
-        ],
-        "projectedPar": 165.44288205332722,
-        "chance": 5.0825
-      },
-      {
-        "playerId": "6770",
-        "player": "Joe Burrow",
-        "position": "QB",
-        "owner": "LyDaniel",
-        "par": 117.10555555555557,
-        "wins": 1.3655066115326673,
-        "ppg": 24.42375,
-        "gamesPlayed": 8,
-        "weekly": [
-          13.91,
-          14.93,
-          22.33,
-          23.22,
-          24.6,
-          0,
-          28.63,
-          38.73,
-          29.04
-        ],
-        "projectedPar": 164.7585248141258,
-        "chance": 4.52
-      },
-      {
-        "playerId": "9509",
-        "player": "Bijan Robinson",
-        "position": "RB",
-        "owner": "jspar279879",
-        "par": 108.85,
-        "wins": 1.2692428976592602,
-        "ppg": 19.555555555555554,
-        "gamesPlayed": 9,
-        "weekly": [
-          29.3,
-          10.1,
-          36.8,
-          28.2,
-          14.8,
-          6.55,
-          16.45,
-          8.1,
-          25.7
-        ],
-        "projectedPar": 154.28800129701816,
-        "chance": 2.4625
-      },
-      {
-        "playerId": "6786",
-        "player": "CeeDee Lamb",
-        "position": "WR",
-        "owner": "jspar279879",
-        "par": 108.44999999999999,
-        "wins": 1.2645787069466858,
-        "ppg": 19.58888888888889,
-        "gamesPlayed": 9,
-        "weekly": [
-          13.9,
-          32.55,
-          17.95,
-          35.3,
-          1.9,
-          12.5,
-          22.65,
-          10.3,
-          29.25
-        ],
-        "projectedPar": 151.03397251237166,
-        "chance": 2.085
+        "projectedPar": 176.68314935050313,
+        "chance": 2.6375
       },
       {
         "playerId": "4034",
         "player": "Christian McCaffrey",
         "position": "RB",
         "owner": "yulovesyou",
-        "par": 96.26111111111113,
-        "wins": 1.1224504510662996,
-        "ppg": 19.49375,
-        "gamesPlayed": 8,
+        "par": 132.94,
+        "wins": 1.5501437833240428,
+        "ppg": 22.36111111111111,
+        "gamesPlayed": 9,
         "weekly": [
           11.8,
           21.6,
@@ -861,10 +832,59 @@
           27.2,
           20,
           0,
-          22.7
+          22.7,
+          45.3
         ],
-        "projectedPar": 140.6019331359976,
-        "chance": 0.24
+        "projectedPar": 174.0270151326625,
+        "chance": 1.765
+      },
+      {
+        "playerId": "8183",
+        "player": "Brock Purdy",
+        "position": "QB",
+        "owner": "hmart92",
+        "par": 119.925,
+        "wins": 1.398382678013659,
+        "ppg": 22.19,
+        "gamesPlayed": 9,
+        "weekly": [
+          21.1,
+          28.48,
+          31.28,
+          19.62,
+          15.41,
+          16.86,
+          11.52,
+          0,
+          25.03,
+          30.41
+        ],
+        "projectedPar": 158.6379716811667,
+        "chance": 0.2975
+      },
+      {
+        "playerId": "6786",
+        "player": "CeeDee Lamb",
+        "position": "WR",
+        "owner": "jspar279879",
+        "par": 119.45,
+        "wins": 1.392843951542477,
+        "ppg": 19.375,
+        "gamesPlayed": 10,
+        "weekly": [
+          13.9,
+          32.55,
+          17.95,
+          35.3,
+          1.9,
+          12.5,
+          22.65,
+          10.3,
+          29.25,
+          17.45
+        ],
+        "projectedPar": 154.30961302580235,
+        "chance": 0.26
       }
     ],
     "pointsPerWin": 85.75978656310888
