@@ -1,10 +1,28 @@
 {
- "generatedAt": "2026-11-17T21:11:24.119Z",
+ "generatedAt": "2026-11-24T22:40:08.629Z",
  "asOf": {
   "season": "2026",
-  "week": 10
+  "week": 11
  },
  "events": [
+  {
+   "id": "career-allplay-wins",
+   "title": "Career Overall Wins",
+   "category": "careers",
+   "categoryTitle": "Careers",
+   "section": "Winning",
+   "season": "2026",
+   "week": 11,
+   "kind": "broke",
+   "holder": "yulovesyou",
+   "playerId": null,
+   "value": "696",
+   "detail": "10 seasons",
+   "previous": {
+    "holder": "evangonnerman",
+    "value": "689"
+   }
+  },
   {
    "id": "biggest-trade-heist",
    "title": "Biggest Trade Heist",
@@ -21,6 +39,24 @@
    "previous": {
     "holder": "artmane",
     "value": "+14.4/wk"
+   }
+  },
+  {
+   "id": "lowest-pr-score",
+   "title": "Lowest Power Ranking Score",
+   "category": "seasons",
+   "categoryTitle": "Seasons",
+   "section": "Power Rankings & Playoff Odds",
+   "season": "2026",
+   "week": 10,
+   "kind": "broke-own",
+   "holder": "JoeSifBoreDough",
+   "playerId": null,
+   "value": "1.00",
+   "detail": "2026 Wk 10 · ranked #1",
+   "previous": {
+    "holder": "JoeSifBoreDough",
+    "value": "1.07"
    }
   },
   {
@@ -1048,45 +1084,24 @@
     "holder": "mayshisha",
     "value": "136"
    }
-  },
-  {
-   "id": "most-trades",
-   "title": "Most Trades",
-   "category": "front-office",
-   "categoryTitle": "Front Office",
-   "section": "Activity",
-   "season": "2025",
-   "week": 3,
-   "kind": "broke",
-   "holder": "yulovesyou",
-   "playerId": null,
-   "value": "18",
-   "detail": "6 seasons",
-   "previous": {
-    "holder": "evangonnerman",
-    "value": "17"
-   }
-  },
-  {
-   "id": "biggest-blowout",
-   "title": "Biggest Blowout",
-   "category": "matchups",
-   "categoryTitle": "Matchups",
-   "section": "Margins & Drama",
-   "season": "2025",
-   "week": 2,
-   "kind": "broke",
-   "holder": "JoeSifBoreDough",
-   "playerId": null,
-   "value": "+127.5",
-   "detail": "JoeSifBoreDough 185.8, artmane 58.3 · 2025 Wk 2",
-   "previous": {
-    "holder": "caityb",
-    "value": "+93.5"
-   }
   }
  ],
  "reach": [
+  {
+   "id": "top-half-streak",
+   "title": "Top-Half Streak",
+   "category": "streaks",
+   "categoryTitle": "Streaks & Milestones",
+   "section": "Weekly Streaks",
+   "kind": "streak",
+   "challenger": "JoeSifBoreDough",
+   "current": "10",
+   "holder": "yulovesyou",
+   "record": "10",
+   "gap": "0",
+   "ratio": 0,
+   "primary": true
+  },
   {
    "id": "career-allplay-wins",
    "title": "Career Overall Wins",
@@ -1094,12 +1109,12 @@
    "categoryTitle": "Careers",
    "section": "Winning",
    "kind": "total",
-   "challenger": "yulovesyou",
-   "current": "688",
-   "holder": "evangonnerman",
-   "record": "689",
-   "gap": "1",
-   "ratio": 0.0015,
+   "challenger": "evangonnerman",
+   "current": "693",
+   "holder": "yulovesyou",
+   "record": "696",
+   "gap": "3",
+   "ratio": 0.0043,
    "primary": true
   },
   {
@@ -1110,11 +1125,26 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "evangonnerman",
-   "current": "18,012.6",
+   "current": "18,126.7",
    "holder": "yulovesyou",
-   "record": "18,338.8",
-   "gap": "326.2",
-   "ratio": 0.0178,
+   "record": "18,463.1",
+   "gap": "336.5",
+   "ratio": 0.0182,
+   "primary": true
+  },
+  {
+   "id": "career-wins",
+   "title": "Career Wins",
+   "category": "careers",
+   "categoryTitle": "Careers",
+   "section": "Winning",
+   "kind": "total",
+   "challenger": "hmart92",
+   "current": "92",
+   "holder": "yulovesyou",
+   "record": "94",
+   "gap": "2",
+   "ratio": 0.0213,
    "primary": true
   },
   {
@@ -1125,11 +1155,11 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "tduchow",
-   "current": "17,812.9",
+   "current": "17,919.4",
    "holder": "yulovesyou",
-   "record": "18,338.8",
-   "gap": "525.9",
-   "ratio": 0.0287,
+   "record": "18,463.1",
+   "gap": "543.7",
+   "ratio": 0.0294,
    "primary": false
   },
   {
@@ -1139,13 +1169,13 @@
    "categoryTitle": "Careers",
    "section": "Winning",
    "kind": "total",
-   "challenger": "hmart92",
+   "challenger": "evangonnerman",
    "current": "91",
    "holder": "yulovesyou",
    "record": "94",
    "gap": "3",
    "ratio": 0.0319,
-   "primary": true
+   "primary": false
   },
   {
    "id": "career-points",
@@ -1155,12 +1185,27 @@
    "section": "Scoring",
    "kind": "total",
    "challenger": "hmart92",
-   "current": "17,611.3",
+   "current": "17,788.5",
    "holder": "yulovesyou",
-   "record": "18,338.8",
-   "gap": "727.5",
-   "ratio": 0.0397,
+   "record": "18,463.1",
+   "gap": "674.6",
+   "ratio": 0.0365,
    "primary": false
+  },
+  {
+   "id": "blowout-wins",
+   "title": "Blowout Wins",
+   "category": "careers",
+   "categoryTitle": "Careers",
+   "section": "Winning",
+   "kind": "total",
+   "challenger": "evangonnerman",
+   "current": "23",
+   "holder": "sofarrsogood",
+   "record": "24",
+   "gap": "1",
+   "ratio": 0.0417,
+   "primary": true
   },
   {
    "id": "blowout-wins",
@@ -1175,21 +1220,6 @@
    "record": "24",
    "gap": "1",
    "ratio": 0.0417,
-   "primary": true
-  },
-  {
-   "id": "career-wins",
-   "title": "Career Wins",
-   "category": "careers",
-   "categoryTitle": "Careers",
-   "section": "Winning",
-   "kind": "total",
-   "challenger": "evangonnerman",
-   "current": "90",
-   "holder": "yulovesyou",
-   "record": "94",
-   "gap": "4",
-   "ratio": 0.0426,
    "primary": false
   },
   {
@@ -1220,21 +1250,6 @@
    "record": "13",
    "gap": "1",
    "ratio": 0.0769,
-   "primary": true
-  },
-  {
-   "id": "top-half-streak",
-   "title": "Top-Half Streak",
-   "category": "streaks",
-   "categoryTitle": "Streaks & Milestones",
-   "section": "Weekly Streaks",
-   "kind": "streak",
-   "challenger": "JoeSifBoreDough",
-   "current": "9",
-   "holder": "yulovesyou",
-   "record": "10",
-   "gap": "1",
-   "ratio": 0.1,
    "primary": true
   },
   {
@@ -1296,6 +1311,21 @@
    "gap": "1",
    "ratio": 0.3333,
    "primary": false
+  },
+  {
+   "id": "top-three-streak",
+   "title": "Top-Three Streak",
+   "category": "streaks",
+   "categoryTitle": "Streaks & Milestones",
+   "section": "Weekly Streaks",
+   "kind": "streak",
+   "challenger": "hmart92",
+   "current": "3",
+   "holder": "evangonnerman",
+   "record": "5",
+   "gap": "2",
+   "ratio": 0.4,
+   "primary": true
   },
   {
    "id": "most-last-place-finishes",
