@@ -1,54 +1,54 @@
 {
   "_instructions": "Rest-of-Season (ROS) team strength, pulled from FantasyPros' League Analyzer (My Playbook) whenever you check it -- FantasyPros' expert consensus rankings aren't available live on this site, so this gets updated by hand. To update: open your league in FantasyPros' League Analyzer, note each team's RANK (1 = strongest roster for the rest of the season) and their power SCORE/grade (the numeric value, usually 0-100), and edit the 'teams' object below using the SLEEPER USERNAME as the key (not the team name). Update 'asOf' to today's date so the site can show how fresh the numbers are. Both 'rank' and 'pt' are used -- 'rank' feeds directly into the Power Rankings score, and 'pt' feeds the Monte Carlo playoff-odds simulation (it generates a realistic range of simulated weekly scores for each team) -- 'pt' isn't needed until there's a schedule to simulate against, so it's fine to leave it out until Week 1 is underway. After updating this file, run `node scripts/update-power-rankings.js` to push the changes onto the Power Rankings page -- it does not update automatically. See that script's own comments for more.",
-  "asOf": "2026-11-18",
+  "asOf": "2026-11-25",
   "teams": {
     "mayshisha": {
-      "rank": 11,
-      "pt": 55
+      "rank": 9,
+      "pt": 58
     },
     "evangonnerman": {
       "rank": 10,
-      "pt": 56
+      "pt": 57
     },
     "YuWillLose": {
       "rank": 4,
-      "pt": 80
+      "pt": 86
     },
     "LyDaniel": {
-      "rank": 5,
-      "pt": 78
+      "rank": 6,
+      "pt":  82
     },
     "hmart92": {
       "rank": 3,
-      "pt": 82
+      "pt": 94
     },
     "yulovesyou": {
-      "rank": 6,
-      "pt": 76
+      "rank": 7,
+      "pt": 68
     },
     "jspar279879": {
-      "rank": 7,
-      "pt": 74
+      "rank": 5,
+      "pt": 83
     },
     "sofarrsogood": {
       "rank": 2,
-      "pt": 90
+      "pt": 96
     },
     "JoeSifBoreDough": {
       "rank": 1,
       "pt": 100
     },
     "tduchow": {
-      "rank": 12,
-      "pt": 49
+      "rank": 11,
+      "pt": 54
     },
     "paty23": {
-      "rank": 9,
-      "pt": 57
+      "rank": 12,
+      "pt": 52
     },
     "artmane": {
       "rank": 8,
-      "pt": 59
+      "pt": 60
     }
   }
 }
