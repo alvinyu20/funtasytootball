@@ -5,7 +5,7 @@
   DeepHistory.computeSeasonSummary builds.
 
     standingsRows   the Final Standings table: finish, record, points, all-play, expected wins,
-                    luck (in percent), schedule and the last five results
+                    luck (in percent) and schedule
     seasonGrid      every team's score every week (the Season Grid), with the playoff rounds
     bracketModel    the playoff bracket as columns of games and byes, the champion's route and story
     legacyBracket   the same shape for an ESPN-era season (data/manual-history.json)
@@ -100,8 +100,7 @@ const SeasonData = (function () {
     One row per team in standings order (wins, then points). Points per game is regular season only.
     All-play is the record against every team every week; expected wins is that win rate times the
     games played; luck stays the site's percent (real win % minus all-play win %). Schedule is the
-    average score of the opponents faced, ranked 1 = toughest. Last 5 are the last five regular-season
-    results, oldest first. `finish` is how the season ended, only once it is over.
+    average score of the opponents faced, ranked 1 = toughest. `finish` is how the season ended, only once it is over.
   */
   function standingsRows(summary, seasonEntry, deep) {
     const games = teamGames(seasonEntry, deep);
@@ -132,7 +131,6 @@ const SeasonData = (function () {
         luckPct: t.luckPct != null ? t.luckPct : null,
         sched: t.avgOpponentPF != null ? t.avgOpponentPF : null,
         schedRank: null,
-        last5: g.slice(-5).map((x) => x.result),
         finish: fin.get(t.rosterId) || (complete && fin.size ? { kind: "missed", label: "Missed" } : null),
       };
     });

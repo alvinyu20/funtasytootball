@@ -3065,7 +3065,8 @@ years use the same pieces where they have the data.
 - **Final Standings:** #, team with how the season ended (Champion, Runner-up, 3rd / 4th place, Lost
   quarterfinal / semifinal, Missed), record, PF, PA, diff, points per game (regular season only),
   all-play with its win rate, expected wins (all-play win rate x games), luck in percent (shaded pill),
-  schedule (opponents' average, ranked: "toughest" / "easiest" / #N) and the last five results. A dashed
+  schedule (opponents' average, ranked: "toughest" / "easiest" / #N). (Last 5 was taken out on
+  2026-11-26.) A dashed
   line under the last playoff seed. On a phone: # / team / record / PF / luck, and a tap on a row opens
   the rest. A season still being played has no finish badges.
 - **Season Grid:** every team's score every regular-season week in standings order (gold tint = win,
@@ -3082,18 +3083,35 @@ years use the same pieces where they have the data.
 - **Redesigned:** Season Summary (big champion card with chips and the final score; MVP, points leader,
   Champion's Ace, steal and bust tiles; Records Set as a table with gold honor / blue roast tags),
   Standings Over Time (bump chart with three teams in color, labels at the line ends, tap a line to
-  focus it; Replay kept), Power Rank History (rank grid, power-score small multiples, playoff-odds grid
+  focus it; Replay kept), Power Rank History (rank grid, Power Score History as one line chart with every
+  team on it and hover to pick one out, playoff-odds grid
   with the clinched / out week; 99.x and under-1 odds keep a decimal), Season Extremes (headline scores
   with lineups, closest / blowouts with week chips and margin pills, position cards with a Playoffs flag),
   MVP table with filters beside the Champion's Ace, steals / busts / cursed side by side, pickups beside
   the wire standings (hit rate added), FAAB cards, injury list and an injury table with net results, award
   cards with Honor / Roast tags and an awards tally.
 
+**Player photos (2026-11-26).** Every NFL player the old page showed with a headshot has one again
+(`snPhoto`, the initial when Sleeper has no picture): the summary tiles, the Finals MVP, Best Single Week
+By Position, the MVP table and the Champion's Ace, steals / busts / cursed picks, pickups, FAAB cards,
+the injury list and the players inside each team's injury row, and the season award cards.
+
 **Files.** New: `js/season-data.js` (`SeasonData`: all the numbers, no DOM), `css/season.css` (only on this
 page, `body.page-season`), `tests/season-data.test.js` (checked against the real 2025 numbers in the
 mockup). Changed: `js/season.js` (drawing code rewritten; data loading unchanged), `season.html` (loads
 `history-data.js`, `season-data.js`, `season.css`), `tests/helpers/site-env.js` (`SeasonData` export) and
 the Seasons tests, rewritten for the new markup. `js/deep-history.js` and `js/metrics.js` are unchanged.
+
+## Test Suite Clean-Up — 2026-11-26
+
+The suite is green (1,099 passing, 0 failing). Removed: tests for functions the page redesigns replaced
+(`draft-views`, `draft-top-picks`, `draft-default-season`, `draft-facts`, `teams-season-tables`,
+`teams-picker`, `teams-heatmaps`, `records`, `dashboard`, `records-dropdown-animation` (covered by
+`records-page`), and the `renderCareerRecords` / `sortCareerRows` / `renderChampionshipRings` cases in the
+two `history-career-*` files). Tests pinned to Week 7 of 2026 now follow the live week
+(`home-panels`, `home-standings`, and `update-power-rankings` still checks the frozen Week 7 history).
+`js/newsletters.js` and `data/newsletters.json` were deleted: the Newsletter page was removed earlier,
+nothing loaded them, and the layout test already required them gone (Issue 02 is in git history).
 
 ## Known limitations / ideas for later
 

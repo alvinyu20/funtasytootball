@@ -78,11 +78,6 @@ td:not(.sn-num) > .sn-two, .sn-player .sn-two { align-items: flex-start; }
 .sn-luck-1 { background: var(--heat-high); color: var(--chalk); }
 .sn-luck-m1 { background: var(--heat-low); color: var(--chalk); }
 .sn-luck-m2 { background: var(--bad); color: var(--turf-dark); }
-.sn-last5 { display: inline-flex; gap: 4px; }
-.sn-r { display: inline-grid; place-items: center; width: 22px; height: 22px; font-family: var(--font-mono); font-size: 10.5px; font-style: normal; font-weight: 600; border-radius: 4px; background: #24402F; color: var(--chalk-dim); }
-.sn-r-W { background: var(--heat-high); color: var(--chalk); }
-.sn-r-T { background: #3B4A40; color: var(--chalk); }
-.sn-c-last { text-align: right; }
 .sn-st-more { display: none; }
 
 /* ---- Season Grid ------------------------------------------------------------------------------ */
@@ -272,19 +267,6 @@ td:not(.sn-num) > .sn-two, .sn-player .sn-two { align-items: flex-start; }
 .sn-res { display: inline-block; padding: 3px 9px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; }
 .sn-res-in { color: var(--good); background: rgba(124, 93, 49, 0.45); }
 .sn-res-out { color: var(--bad); background: rgba(51, 107, 122, 0.45); }
-.sn-spark-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.sn-spark-card { padding: 10px 12px 10px; background: var(--turf-dark); border: 1px solid var(--turf-line); border-radius: 10px; min-width: 0; }
-.sn-spark-card.mine, .sn-spark-card:has(.mine-name) { border-color: var(--gold); }
-.sn-spark-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.sn-spark-name { font-size: 13px; font-weight: 600; color: var(--chalk); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sn-spark-head b { font-family: var(--font-display); font-size: 22px; color: var(--chalk-header); }
-.sn-spark { display: block; width: 100%; height: 50px; margin: 6px 0 4px; }
-.sn-spark polyline { fill: none; stroke: var(--chalk-dim); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
-.sn-spark circle { vector-effect: non-scaling-stroke; }
-.sn-spark-best { fill: var(--good); }
-.sn-spark-worst { fill: var(--bad); }
-.sn-spark-now { fill: var(--chalk); }
-.sn-spark-foot { font-family: var(--font-mono); font-size: 10.5px; color: var(--chalk-dim); }
 
 /* ---- Season Extremes ---------------------------------------------------------------------------- */
 .sn-ext-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -405,6 +387,30 @@ details.sn-ext > summary { cursor: pointer; }
 .sn-tally-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 13.5px; color: var(--chalk); background: var(--turf-dark); border: 1px solid var(--turf-line); border-radius: 999px; }
 .sn-tally-chip b { font-family: var(--font-display); font-size: 18px; color: var(--good); }
 
+/* ---- player photos (the headshot, or his initial when there is none) ---------------------------- */
+.page-season .sn-photo { flex: none; border-color: var(--turf-line); }
+.page-season .sn-photo-sm { width: 40px; height: 40px; }
+.page-season .sn-photo-sm .player-photo-fallback { font-size: 15px; }
+.page-season .sn-photo-md { width: 52px; height: 52px; }
+.page-season .sn-photo-md .player-photo-fallback { font-size: 19px; }
+.page-season .sn-photo-lg { width: 64px; height: 64px; }
+.page-season .sn-photo-lg .player-photo-fallback { font-size: 23px; }
+.page-season .sn-photo-xl { width: 84px; height: 84px; }
+.page-season .sn-photo-xl .player-photo-fallback { font-size: 30px; }
+a:has(> .sn-photo) { flex: none; display: inline-flex; text-decoration: none; }
+.sn-sum-tile.sn-has-photo { display: flex; align-items: center; gap: 14px; }
+.sn-sum-text { min-width: 0; }
+.sn-bp-photo { position: relative; flex: none; }
+.sn-bp-photo .sn-bp-pos { position: absolute; right: -6px; bottom: -4px; width: auto; height: auto; padding: 1px 6px; font-size: 12px; border-radius: 6px; }
+.sn-bp { grid-template-columns: 64px minmax(0, 1fr) auto; }
+.sn-faab-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sn-ace-top { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.sn-ace-top .sn-eyebrow { margin: 0; }
+.sn-award-player { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.sn-award-player .sn-award-detail { margin: 0; }
+.sn-mvp .sn-player { gap: 10px; }
+.sn-line-chart { margin-top: 4px; }
+
 /* my team, in the rows and cards this page draws */
 .page-season .sn-li.mine, .page-season .sn-inj-row.mine { background: rgba(232, 178, 61, 0.1); box-shadow: inset 3px 0 0 var(--gold); }
 .page-season .mine-name { color: var(--gold) !important; }
@@ -416,7 +422,6 @@ details.sn-ext > summary { cursor: pointer; }
 @media (max-width: 1100px) {
   .sn-bracket-layout, .sn-mvp-layout { grid-template-columns: minmax(0, 1fr); }
   .sn-bracket-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sn-spark-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sn-faab { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .sn-three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sn-bp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -453,7 +458,6 @@ details.sn-ext > summary { cursor: pointer; }
   .sn-st-row { cursor: pointer; }
   .sn-st-more[aria-hidden="false"] { display: table-row; }
   .sn-st-more td { padding: 2px 8px 12px 36px !important; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.6; color: var(--chalk-dim); }
-  .sn-st-more .sn-last5 { margin-top: 6px; display: flex; }
   .sn-st-row.sn-open td { border-bottom-color: transparent; }
 
   .sn-g { min-width: 38px; height: 32px; font-size: 12px; }
@@ -470,7 +474,9 @@ details.sn-ext > summary { cursor: pointer; }
   .sn-summary { grid-template-columns: minmax(0, 1fr); }
   .sn-champ-big { padding: 16px 16px; }
   .sn-sum-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .sn-sum-name { font-size: 20px; }
+  .sn-sum-name { font-size: 20px; overflow-wrap: break-word; }
+  .sn-sum-tile.sn-has-photo:not(.sn-sum-wide) { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 12px; }
+  .sn-sum-tile:not(.sn-sum-wide) .sn-photo-md { width: 40px; height: 40px; }
   .sn-final { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
   .sn-final-score { grid-column: 1 / -1; grid-row: 1; justify-content: center; }
   .sn-final-score b { font-size: 30px; }
@@ -478,13 +484,17 @@ details.sn-ext > summary { cursor: pointer; }
   .sn-record-detail { grid-column: auto; }
   .sn-records-panel .sn-panel-head { padding: 0 14px; }
 
-  .sn-spark-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sn-ext-pair { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .sn-ext > summary, div.sn-ext { gap: 14px; padding: 12px 14px; }
   .sn-bp-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .sn-mvp .sn-opt, .sn-wire .sn-opt { display: none; }
   .sn-faab { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sn-faab-bid { font-size: 30px; }
+  .page-season .sn-photo-lg { width: 52px; height: 52px; }
+  .page-season .sn-photo-xl { width: 64px; height: 64px; }
+  .sn-bp { grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; }
+  .sn-li .sn-photo-sm { width: 34px; height: 34px; }
+  .sn-mvp .sn-pos { display: none; }
   .sn-award-grid { grid-template-columns: minmax(0, 1fr); }
   .sn-award-winner { font-size: 28px; }
   .sn-li-big b { font-size: 24px; }

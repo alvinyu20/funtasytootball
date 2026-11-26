@@ -48,7 +48,7 @@ test("one finished week (the start of a season) still draws all three views with
   assert.strictEqual(panels(html).length, 3);
   assert.ok(!/NaN|Infinity|undefined/.test(html));
   assert.strictEqual((html.match(/class="sn-pr sn-pr-/g) || []).length, 2, "a rank square per team");
-  assert.strictEqual((html.match(/class="sn-spark"/g) || []).length, 2, "a small chart per team");
+  assert.strictEqual((html.match(/class="lc-dot"/g) || []).length, 2, "both teams on the one Power Score chart");
   assert.ok(html.includes(">80</span>") && html.includes(">40</span>"));
 });
 
@@ -63,7 +63,11 @@ test("the current season: a rank square and an odds square per team per finished
   const pre = teams.filter((t) => year.ranks[t].pre != null).length;
   assert.strictEqual((html.match(/class="sn-pr sn-pr-[1-5]"/g) || []).length, teams.length * weeks + pre);
   assert.strictEqual((html.match(/class="sn-odds sn-odds-(?!none)/g) || []).length, teams.length * weeks);
-  assert.strictEqual((html.match(/class="sn-spark-card"/g) || []).length, teams.length);
+  // Power Score History is one chart with a line per team (hover picks one out), not a card each
+  const score = html.slice(html.indexOf("<h2>Power Score History</h2>"), html.indexOf("<h2>Playoff Odds"));
+  assert.strictEqual((score.match(/class="line-chart-wrap/g) || []).length, 1, "a single chart");
+  for (const team of teams) assert.ok(score.includes(`data-series="${team}"`), `${team} has a line`);
+  assert.ok(!html.includes("sn-spark"), "no small multiples");
 });
 
 test("two teams tied on PR Score share their places, and the grid says 2.5 rather than rounding", () => {

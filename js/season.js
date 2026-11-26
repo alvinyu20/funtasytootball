@@ -291,6 +291,11 @@ function snTile(label, main, sub, tone) {
   return `<div class="sn-tile${tone ? " sn-tile-" + tone : ""}"><p class="sn-tile-label">${escapeHtml(label)}</p><p class="sn-tile-main">${main}</p>${sub ? `<p class="sn-tile-sub">${sub}</p>` : ""}</div>`;
 }
 
+// A player's headshot (an initial when there is none), linked to his page. size: "sm" 40px, "md" 52px, "lg" 72px.
+function snPhoto(playerId, name, size = "sm") {
+  return playerLinkHtml(playerId, playerPhotoHtml(playerId, name, `player-photo-sm sn-photo sn-photo-${size}`));
+}
+
 function posChip(pos) {
   const p = escapeHtml(pos || "");
   return `<span class="sn-pos sn-pos-${p.toLowerCase()}">${p}</span>`;
@@ -310,11 +315,6 @@ function luckPill(pct) {
 function finishBadge(finish) {
   if (!finish) return "";
   return `<span class="sn-finish sn-finish-${finish.kind}">${escapeHtml(finish.label)}</span>`;
-}
-
-function lastFiveHtml(results) {
-  if (!results || !results.length) return "";
-  return `<span class="sn-last5" aria-label="Last ${results.length}: ${results.join(" ")}">${results.map((r) => `<i class="sn-r sn-r-${r}">${r}</i>`).join("")}</span>`;
 }
 
 // ---- lineups behind a game or a score (kept from the old cards: tap to see who started) ----------
@@ -352,7 +352,7 @@ function standingsLabel(s) {
 }
 
 /*
-  rows: SeasonData.standingsRows shape. kind "season" has Exp. W, Schedule and Last 5; "total" and
+  rows: SeasonData.standingsRows shape. kind "season" has Exp. W and Schedule; "total" and
   "manual" leave out what they do not have. A phone keeps # / Team / Rec / PF / Luck and puts the rest in
   a line under the team that a tap opens.
 */
@@ -361,17 +361,16 @@ function standingsTableHtml(rows, opts = {}) {
   const kind = opts.kind || "season";
   const hasExp = rows.some((r) => r.expWins != null);
   const hasSched = kind === "season" && rows.some((r) => r.sched != null);
-  const hasLast = kind === "season" && rows.some((r) => r.last5 && r.last5.length);
   const hasAllPlay = rows.some((r) => r.allPlay);
   const hasLuck = rows.some((r) => r.luckPct != null);
   const cut = opts.playoffTeams && opts.playoffTeams < rows.length ? opts.playoffTeams : null;
-  const cols = 6 + (hasAllPlay ? 1 : 0) + (hasExp ? 1 : 0) + (hasLuck ? 1 : 0) + (hasSched ? 1 : 0) + (hasLast ? 1 : 0) + 1;
+  const cols = 6 + (hasAllPlay ? 1 : 0) + (hasExp ? 1 : 0) + (hasLuck ? 1 : 0) + (hasSched ? 1 : 0) + 1;
 
   const head = `<tr>
       <th class="sn-c-rank">#</th><th class="sn-c-team">Team</th><th class="sn-num">Rec</th><th class="sn-num">PF</th>
       <th class="sn-num sn-opt">PA</th><th class="sn-num sn-opt">Diff</th><th class="sn-num sn-opt">Pts/G</th>
       ${hasAllPlay ? `<th class="sn-num sn-opt">All-play</th>` : ""}${hasExp ? `<th class="sn-num sn-opt">Exp. W</th>` : ""}
-      ${hasLuck ? `<th class="sn-num">Luck</th>` : ""}${hasSched ? `<th class="sn-num sn-opt">Schedule</th>` : ""}${hasLast ? `<th class="sn-c-last sn-opt">Last 5</th>` : ""}
+      ${hasLuck ? `<th class="sn-num">Luck</th>` : ""}${hasSched ? `<th class="sn-num sn-opt">Schedule</th>` : ""}
     </tr>`;
 
   const schedText = (r) => (r.schedRank == null ? "" : r.schedRank === 1 ? "toughest" : r.schedRank === r.schedOf ? "easiest" : `#${r.schedRank}`);
@@ -400,9 +399,8 @@ function standingsTableHtml(rows, opts = {}) {
         ${hasExp ? `<td class="sn-num sn-opt">${fmt1(r.expWins)}</td>` : ""}
         ${hasLuck ? `<td class="sn-num">${luckPill(r.luckPct)}</td>` : ""}
         ${hasSched ? `<td class="sn-num sn-opt"><span class="sn-two">${fmt1(r.sched)}<small class="${r.schedRank === 1 ? "sn-tone-bad" : ""}">${schedText(r)}</small></span></td>` : ""}
-        ${hasLast ? `<td class="sn-c-last sn-opt">${lastFiveHtml(r.last5)}</td>` : ""}
       </tr>
-      <tr class="sn-st-more" aria-hidden="true"><td colspan="${cols}"><span class="sn-more-line">${more.map(escapeHtml).join(" · ")}</span>${hasLast ? lastFiveHtml(r.last5) : ""}</td></tr>`;
+      <tr class="sn-st-more" aria-hidden="true"><td colspan="${cols}"><span class="sn-more-line">${more.map(escapeHtml).join(" · ")}</span></td></tr>`;
     })
     .join("");
 
@@ -415,7 +413,7 @@ function standingsTableHtml(rows, opts = {}) {
     </div>`;
 }
 
-// The standings rows for the All-Time page (no schedule, no last five, titles instead of a finish).
+// The standings rows for the All-Time page (no schedule, titles instead of a finish).
 function totalStandingsRows(s) {
   const avgBy = new Map((s.teamAverages || []).map((t) => [t.userId != null ? t.userId : t.rosterId, t.average]));
   return s.standings.map((t, i) => {
@@ -437,7 +435,6 @@ function totalStandingsRows(s) {
       luckPct: t.luckPct,
       titles: t.championships || 0,
       finish: null,
-      last5: [],
     };
   });
 }
@@ -768,11 +765,15 @@ function buildSeasonRecordHighlights(records, season) {
 
 function summaryTile(label, name, sub, opts = {}) {
   if (!name) return "";
+  const photo = opts.player ? snPhoto(opts.player.playerId, opts.player.player, opts.wide ? "lg" : "md") : "";
   return `
-    <div class="sn-sum-tile${opts.wide ? " sn-sum-wide" : ""}${opts.accent ? " sn-sum-accent" : ""}">
-      <p class="sn-tile-label">${escapeHtml(label)}</p>
-      <p class="sn-sum-name${opts.tone ? " sn-name-" + opts.tone : ""}">${name}</p>
-      ${sub ? `<p class="sn-tile-sub">${sub}</p>` : ""}
+    <div class="sn-sum-tile${opts.wide ? " sn-sum-wide" : ""}${opts.accent ? " sn-sum-accent" : ""}${photo ? " sn-has-photo" : ""}">
+      ${photo}
+      <div class="sn-sum-text">
+        <p class="sn-tile-label">${escapeHtml(label)}</p>
+        <p class="sn-sum-name${opts.tone ? " sn-name-" + opts.tone : ""}">${name}</p>
+        ${sub ? `<p class="sn-tile-sub">${sub}</p>` : ""}
+      </div>
     </div>`;
 }
 
@@ -816,11 +817,11 @@ function renderChampionshipRecap(recap, allTimeRecords, seasonStats, extras = {}
   }
 
   const tiles = [
-    stats.leagueMvp && summaryTile("League MVP", link(stats.leagueMvp), `${stats.leagueMvp.wins.toFixed(1)} wins above replacement${stats.leagueMvp.owner ? ` · ${escapeHtml(stats.leagueMvp.owner)}` : ""}`),
-    stats.pointsLeader && summaryTile("Season points leader", link(stats.pointsLeader), `${stats.pointsLeader.points.toFixed(1)} total points`),
-    ace && summaryTile("Champion's ace", link(ace), `${ace.points.toFixed(1)} points as a starter for ${escapeHtml(ace.team || "the champion")}, playoffs included`, { wide: true, accent: true, tone: "gold" }),
-    stats.bestValuePick && summaryTile("Best draft steal", link(stats.bestValuePick), `Round ${stats.bestValuePick.round}, pick ${stats.bestValuePick.pickInRound} by ${escapeHtml(stats.bestValuePick.username || stats.bestValuePick.teamName)} · ${stats.bestValuePick.points.toFixed(1)} pts`, { tone: "good" }),
-    stats.worstValuePick && summaryTile("Biggest draft bust", link(stats.worstValuePick), `Round ${stats.worstValuePick.round}, pick ${stats.worstValuePick.pickInRound} by ${escapeHtml(stats.worstValuePick.username || stats.worstValuePick.teamName)} · ${stats.worstValuePick.points.toFixed(1)} pts`, { tone: "bad" }),
+    stats.leagueMvp && summaryTile("League MVP", link(stats.leagueMvp), `${stats.leagueMvp.wins.toFixed(1)} wins above replacement${stats.leagueMvp.owner ? ` · ${escapeHtml(stats.leagueMvp.owner)}` : ""}`, { player: stats.leagueMvp }),
+    stats.pointsLeader && summaryTile("Season points leader", link(stats.pointsLeader), `${stats.pointsLeader.points.toFixed(1)} total points`, { player: stats.pointsLeader }),
+    ace && summaryTile("Champion's ace", link(ace), `${ace.points.toFixed(1)} points as a starter for ${escapeHtml(ace.team || "the champion")}, playoffs included`, { wide: true, accent: true, tone: "gold", player: ace }),
+    stats.bestValuePick && summaryTile("Best draft steal", link(stats.bestValuePick), `Round ${stats.bestValuePick.round}, pick ${stats.bestValuePick.pickInRound} by ${escapeHtml(stats.bestValuePick.username || stats.bestValuePick.teamName)} · ${stats.bestValuePick.points.toFixed(1)} pts`, { tone: "good", player: stats.bestValuePick }),
+    stats.worstValuePick && summaryTile("Biggest draft bust", link(stats.worstValuePick), `Round ${stats.worstValuePick.round}, pick ${stats.worstValuePick.pickInRound} by ${escapeHtml(stats.worstValuePick.username || stats.worstValuePick.teamName)} · ${stats.worstValuePick.points.toFixed(1)} pts`, { tone: "bad", player: stats.worstValuePick }),
   ].filter(Boolean);
 
   const records = highlights.length
@@ -1041,21 +1042,6 @@ function findPlayoffOddsAnnotations(playoffOddsDataset) {
 // Two teams on the same PR Score share their places (6th and 7th are both 6.5).
 const rankLabel = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
-function sparkSvg(card, lo, hi) {
-  const W = 200;
-  const H = 54;
-  const pad = 6;
-  const n = card.pts.length;
-  if (!n) return "";
-  const x = (i) => pad + ((W - pad * 2) * i) / Math.max(1, n - 1);
-  // lower is better, so a better week sits higher
-  const y = (v) => pad + ((H - pad * 2) * (v - lo)) / Math.max(1e-9, hi - lo);
-  const pts = card.pts.map((p, i) => `${x(i).toFixed(1)},${y(p.y).toFixed(1)}`).join(" ");
-  const at = (p) => card.pts.indexOf(p);
-  const dot = (p, cls) => (p ? `<circle class="${cls}" cx="${x(at(p)).toFixed(1)}" cy="${y(p.y).toFixed(1)}" r="3.5"></circle>` : "");
-  return `<svg class="sn-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}"></polyline>${dot(card.worst, "sn-spark-worst")}${dot(card.best, "sn-spark-best")}${dot(card.pts[n - 1], "sn-spark-now")}</svg>`;
-}
-
 function renderPowerRankHistorySection(season) {
   if (!POWER_RANK_CSV_HISTORY || !POWER_RANK_CSV_HISTORY.seasons) return "";
   const yearData = POWER_RANK_CSV_HISTORY.seasons[String(season)];
@@ -1082,24 +1068,15 @@ function renderPowerRankHistorySection(season) {
     { side: "1 is best · sorted by latest rank" }
   );
 
+  // Power Score History: every team on one chart (lower is better), hover a line to pick a team out.
   let scorePanel = "";
   const sc = yearData.scores ? SeasonData.scoreCards(yearData.scores) : null;
   if (sc) {
     const nameOf = new Map(grid.rows.map((r) => [r.key, r.name]));
-    scorePanel = snPanel(
-      "Power Score History",
-      `<div class="sn-spark-grid">${sc.cards
-        .map(
-          (c) => `
-        <div class="sn-spark-card" data-username="${escapeHtml(c.key)}">
-          <div class="sn-spark-head"><span class="sn-spark-name">${escapeHtml(nameOf.get(c.key) || c.name)}</span><b>${c.latest != null ? c.latest.toFixed(2) : "–"}</b></div>
-          ${sparkSvg(c, sc.lo, sc.hi)}
-          <div class="sn-spark-foot">${c.best ? `best ${c.best.y.toFixed(2)} (${c.best.x})` : ""}${c.worst ? ` · worst ${c.worst.y.toFixed(2)} (${c.worst.x})` : ""}</div>
-        </div>`
-        )
-        .join("")}</div>`,
-      { side: "lower is better · same scale on every chart" }
-    );
+    const series = sc.cards.map((c, i) => ({ name: nameOf.get(c.key) || c.name, color: MULTI_LINE_COLORS[i % MULTI_LINE_COLORS.length], points: c.pts }));
+    scorePanel = snPanel("Power Score History", `<div class="sn-line-chart">${Charts.multiLineChart(series, { invertY: true, formatter: (v) => v.toFixed(2) })}</div>`, {
+      side: "lower is better · hover a line to pick out a team",
+    });
   }
 
   let oddsPanel = "";
@@ -1144,7 +1121,7 @@ function awardCard(label, winnerLabel, detail, playerId) {
     <div class="sn-award sn-award-${tone}">
       <div class="sn-award-top"><span class="sn-tile-label">${escapeHtml(label)}</span><span class="sn-award-tag">${tone === "roast" ? "Roast" : "Honor"}</span></div>
       <p class="sn-award-winner">${escapeHtml(winnerLabel)}</p>
-      ${detail ? `<p class="sn-award-detail">${playerId ? playerLinkHtml(playerId, escapeHtml(detail)) : escapeHtml(detail)}</p>` : ""}
+      ${detail ? `<div class="sn-award-player">${playerId ? snPhoto(playerId, detail, "md") : ""}<p class="sn-award-detail">${playerId ? playerLinkHtml(playerId, escapeHtml(detail)) : escapeHtml(detail)}</p></div>` : ""}
     </div>`;
 }
 
@@ -1254,7 +1231,7 @@ function mvpRowsHtml(list, withSeason) {
             (r, i) => `
           <tr${i === 0 ? ' class="sn-first"' : ""}>
             <td class="sn-c-rank">${i + 1}</td>
-            <td><span class="sn-player">${posChip(r.position)}<span class="sn-two">${playerLinkHtml(r.playerId, escapeHtml(r.player))}<small>${r.owner ? `<span data-username="${escapeHtml(r.owner)}">${escapeHtml(r.owner)}</span>` : ""}<span class="sn-ph-only"> · ${r.ppg.toFixed(1)} PPG over ${r.gamesPlayed} games${r.swung ? ` · swung ${r.swung} result${r.swung === 1 ? "" : "s"}` : ""}</span></small></span></span></td>
+            <td><span class="sn-player">${snPhoto(r.playerId, r.player)}${posChip(r.position)}<span class="sn-two">${playerLinkHtml(r.playerId, escapeHtml(r.player))}<small>${r.owner ? `<span data-username="${escapeHtml(r.owner)}">${escapeHtml(r.owner)}</span>` : ""}<span class="sn-ph-only"> · ${r.ppg.toFixed(1)} PPG over ${r.gamesPlayed} games${r.swung ? ` · swung ${r.swung} result${r.swung === 1 ? "" : "s"}` : ""}</span></small></span></span></td>
             ${withSeason ? `<td class="sn-num">${escapeHtml(String(r.season))}${r.inProgress ? `<small class="sn-live"> (in progress)</small>` : ""}</td>` : ""}
             <td class="sn-num sn-opt">${r.ppg.toFixed(1)}</td>
             <td class="sn-num sn-opt">${r.gamesPlayed}</td>
@@ -1276,6 +1253,7 @@ function draftValueRowsHtml(list, withSeason) {
       (r, i) => `
     <div class="sn-li rank-list-row">
       <span class="sn-li-rank">${i + 1}</span>
+      ${snPhoto(r.playerId, r.player)}
       <span class="sn-li-main">
         <span class="sn-li-title">${playerLinkHtml(r.playerId, escapeHtml(r.player))} <span class="sn-pos-mini">${escapeHtml(r.position || "")}</span></span>
         <span class="sn-li-sub">by <span data-username="${escapeHtml(r.username || "")}">${escapeHtml(r.username || "Unknown")}</span>${withSeason ? ` · ${escapeHtml(String(r.season))}` : ""}</span>
@@ -1297,7 +1275,7 @@ function aceCardHtml(ace) {
   if (!ace) return "";
   return `
     <div class="sn-ace">
-      <p class="sn-eyebrow">Champion's Ace</p>
+      <div class="sn-ace-top">${snPhoto(ace.playerId, ace.player, "xl")}<p class="sn-eyebrow">Champion's Ace</p></div>
       <p class="sn-ace-name">${playerLinkHtml(ace.playerId, escapeHtml(ace.player))}</p>
       <p class="sn-ace-pts"><b>${ace.points.toFixed(1)}</b><span>points as a starter</span></p>
       <p class="sn-ace-sub">For ${escapeHtml(ace.team || "the champion")}, playoffs included.</p>
@@ -1360,6 +1338,7 @@ function wireRowsHtml(list, withSeason) {
       (r, i) => `
     <div class="sn-li rank-list-row">
       <span class="sn-li-rank">${i + 1}</span>
+      ${snPhoto(r.playerId, r.player)}
       ${posChip(r.position)}
       <span class="sn-li-main">
         <span class="sn-li-title">${playerLinkHtml(r.playerId, escapeHtml(r.player))} <span class="sn-li-owner" data-username="${escapeHtml(r.username)}">${escapeHtml(r.username)}</span></span>
@@ -1383,7 +1362,7 @@ function faabCardsHtml(items, isTotal) {
       const bids = p.competingBids && p.competingBids.length ? `<div class="sn-faab-bids"><span class="sn-dim">Other bids:</span> ${p.competingBids.map((b) => `${escapeHtml(b.username || b.teamName)} $${b.bid}`).join(" · ")}</div>` : "";
       return `
       <div class="sn-faab-card">
-        <p class="sn-faab-bid">$${p.bid}</p>
+        <div class="sn-faab-top"><p class="sn-faab-bid">$${p.bid}</p>${snPhoto(p.playerId, p.player, "md")}</div>
         <p class="sn-faab-name">${playerLinkHtml(p.playerId, escapeHtml(p.player))}</p>
         <p class="sn-faab-sub"><span data-username="${escapeHtml(p.username || p.teamName)}">${escapeHtml(p.username || p.teamName)}</span>${p.week ? ` · Week ${p.week}` : ""}${isTotal && p.season ? ` · ${p.season}` : ""}</p>
         ${bids}
@@ -1432,6 +1411,7 @@ function injuryTeamRowsHtml(teams) {
       .map(
         (p) => `
         <div class="sn-inj-detail">
+          ${playerLinkHtml(p.playerId, playerPhotoHtml(p.playerId, p.player, "player-photo-xs"))}
           ${posChip(p.position)}
           <span>${playerLinkHtml(p.playerId, escapeHtml(p.player))}</span>
           <span class="sn-inj-detail-pts">${p.pointsLost.toFixed(1)} pts lost</span>
@@ -1454,6 +1434,7 @@ function injuryPlayerRowsHtml(items, withSeason) {
       (p, i) => `
     <div class="sn-li rank-list-row">
       <span class="sn-li-rank">${i + 1}</span>
+      ${snPhoto(p.playerId, p.player)}
       ${posChip(p.position)}
       <span class="sn-li-main">
         <span class="sn-li-title">${playerLinkHtml(p.playerId, escapeHtml(p.player))}</span>
@@ -1588,7 +1569,7 @@ function bestByPositionHtml(best, opts) {
     const playoff = opts.playoffStart && x.week >= opts.playoffStart && !opts.isTotal;
     return `
       <div class="sn-bp">
-        <span class="sn-bp-pos">${pos}</span>
+        <span class="sn-bp-photo">${snPhoto(x.playerId, x.player, "lg")}<span class="sn-bp-pos">${pos}</span></span>
         <span class="sn-bp-main">
           <span class="sn-bp-name">${playerLinkHtml(x.playerId, escapeHtml(x.player))}</span>
           <span class="sn-dim">for <span data-username="${escapeHtml(x.teamName)}">${escapeHtml(x.teamName)}</span></span>
@@ -1628,7 +1609,6 @@ function manualStandingsRows(season) {
         expWins: apPct != null ? apPct * games : null,
         luckPct,
         finish: medal[row.medal] || (row.playoffAppearance ? null : { kind: "missed", label: "Missed" }),
-        last5: [],
       };
     });
 }

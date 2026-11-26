@@ -245,7 +245,7 @@ test("Standings notes: where the odds and the ROS ranks come from and how old th
   const ctx = await secondPass();
   run(ctx, `HOME.teamStrength = { asOf: "2026-10-21", teams: {} }; HOME.nowMs = Date.parse("2026-10-27T19:00:00Z"); renderStandingsNotes();`);
   const note = html(ctx, "ros-note");
-  assert.ok(note.includes("Playoff odds") && note.includes("Through Week 7"), note);
+  assert.ok(note.includes("Playoff odds") && note.includes(`Through Week ${json(ctx, "HOME.snapshot.week")}`), note);
   assert.ok(note.includes("ROS ranks") && note.includes("FantasyPros"), note);
   run(ctx, `HOME.snapshot = null; HOME.teamStrength = null; renderStandingsNotes();`);
   assert.strictEqual(html(ctx, "ros-note"), "", "nothing to say, nothing shown");

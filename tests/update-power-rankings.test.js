@@ -386,7 +386,7 @@ test("committed data: Weeks 1-6 of the 2026 Power Rank History are exactly what 
   }
 });
 
-test("committed data: Week 7 of the 2026 Power Rank History, the Δ-arrow history and the snapshot are the numbers the live Power Rankings page showed (league manager's screenshot), not an offline re-run", () => {
+test("committed data: Week 7 of the 2026 Power Rank History, the Δ-arrow history (and the snapshot, while it is Week 7) are the numbers the live Power Rankings page showed (league manager's screenshot), not an offline re-run", () => {
   const shot = JSON.parse(fs.readFileSync(path.join(__dirname, "helpers", "power-rankings-week-7.json"), "utf8"));
   const history = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "power-rank-csv-history.json"), "utf8")).seasons["2026"];
   const arrows = JSON.parse(fs.readFileSync(path.join(ROOT, "data", "power-rank-history.json"), "utf8")).seasons["2026"];
@@ -404,8 +404,9 @@ test("committed data: Week 7 of the 2026 Power Rank History, the Δ-arrow histor
     assert.strictEqual(history.scores[r.team].weekly[6], r.prScore, `${r.team} Week 7 PR Score`);
     assert.strictEqual(history.playoffOdds[r.team][6], r.playoffPct, `${r.team} Week 7 playoff odds`);
     assert.strictEqual(arrows["7"][r.team], r.rank, `${r.team} Week 7 arrow-history rank`);
+    // The live snapshot moves on every week; it only has to match the screenshot while it is still Week 7.
+    if (snapshot.week !== 7) continue;
     const row = snapshot.rows.find((x) => x.teamName === r.team);
-    assert.strictEqual(snapshot.week, 7);
     assert.strictEqual(row.powerRank, r.rank, `${r.team} snapshot rank`);
     assert.strictEqual(row.prScore, r.prScore, `${r.team} snapshot PR Score`);
     assert.strictEqual(row.playoffPct, r.playoffPct, `${r.team} snapshot playoff odds`);
@@ -413,7 +414,8 @@ test("committed data: Week 7 of the 2026 Power Rank History, the Δ-arrow histor
     assert.strictEqual(row.record, r.record, `${r.team} record`);
     assert.strictEqual(row.overallRecord, r.overall, `${r.team} Ovr record`);
   }
-  assert.deepStrictEqual(snapshot.rows.map((x) => x.teamName), shot.rows.map((r) => r.team), "snapshot rows are in table order");
+  if (snapshot.week === 7) assert.deepStrictEqual(snapshot.rows.map((x) => x.teamName), shot.rows.map((r) => r.team), "snapshot rows are in table order");
+  else assert.ok(snapshot.week > 7, "the snapshot has moved past Week 7, and the frozen Week 7 history above still matches the screenshot");
 });
 
 test("buildExtrasForRun: the run's extras carry the snapshot's season, week and timestamp, and are built from the same finished weeks and rows", () => {

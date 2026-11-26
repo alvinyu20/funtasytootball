@@ -71,7 +71,12 @@ test("renderSummary: the All-Time view counts career titles instead of a single-
   );
   assert.match(html, /<span class="sn-titles" title="2 titles">🏆🏆<\/span>/, "All-Time view repeats the trophy per career championship");
   assert.ok(!html.includes("sn-finish"), "no single-season finish on the All-Time table");
-  assert.ok(!html.includes(">Schedule<") && !html.includes(">Last 5<"), "no schedule or last five across many seasons");
+  assert.ok(!html.includes(">Schedule<"), "no schedule across many seasons");
+});
+
+test("renderSummary: there is no Last 5 column", () => {
+  const html = setup().renderSummary(fakeSummary());
+  assert.ok(!/Last 5/.test(html));
 });
 
 test("renderSummary: the standings table keeps luck in percent and draws the playoff line after the last playoff team", () => {

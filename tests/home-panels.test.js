@@ -77,7 +77,7 @@ test("My Team card: record, standing, Power Rank, playoff odds, last seven resul
   assert.ok(card.includes("mt-stat-value gold") && card.includes("%<"), "playoff odds in gold");
   assert.strictEqual((card.match(/<i class="fd /g) || []).length, Math.min(7, FINISHED));
   assert.ok(/Last 7 · (won|lost|tied)/.test(card), "the current run in words");
-  assert.ok(/Week 7 vs <b>/.test(card), "who they play");
+  assert.ok(new RegExp(`Week ${FINISHED} vs <b>`).test(card), "who they play");
   assert.strictEqual(run(ctx, "document.getElementById('my-team-card').classList"), undefined, "the fake element has no classList; the card must not rely on it");
 });
 

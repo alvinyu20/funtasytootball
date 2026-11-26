@@ -25,7 +25,7 @@ function season(year) {
 const s2025 = season(2025);
 const s2026 = season(2026);
 
-test("Final Standings 2025 (page 1): record, points, all-play, expected wins, luck in percent, schedule and the last five", () => {
+test("Final Standings 2025 (page 1): record, points, all-play, expected wins, luck in percent and schedule", () => {
   const rows = s2025("SeasonData.standingsRows(S, __E__, __D__)");
   const byName = (n) => rows.find((r) => r.name === n);
   const yu = byName("yulovesyou");
@@ -39,7 +39,6 @@ test("Final Standings 2025 (page 1): record, points, all-play, expected wins, lu
   assert.strictEqual(yu.luckPct.toFixed(1), "9.5", "luck stays the site's percent");
   assert.strictEqual(yu.sched.toFixed(1), "119.0");
   assert.strictEqual(yu.schedRank, 9);
-  assert.deepStrictEqual(yu.last5, ["W", "W", "W", "W", "L"]);
   assert.deepStrictEqual(yu.finish, { kind: "champion", label: "Champion" });
   assert.strictEqual(byName("evangonnerman").finish.label, "Runner-up");
   assert.strictEqual(byName("YuWillLose").finish.label, "Lost quarterfinal");
@@ -49,14 +48,13 @@ test("Final Standings 2025 (page 1): record, points, all-play, expected wins, lu
   assert.strictEqual(byName("artmane").schedRank, 1, "artmane faced the toughest schedule (141.8)");
   assert.strictEqual(byName("artmane").sched.toFixed(1), "141.8");
   assert.strictEqual(byName("mayshisha").schedRank, 10, "and mayshisha the easiest");
-  assert.deepStrictEqual(byName("tduchow").last5, ["W", "L", "L", "L", "W"]);
+  assert.ok(rows.every((r) => !("last5" in r)), "no Last 5 any more");
 });
 
-test("a season being played has no finish yet, and its last five are its latest games", () => {
+test("a season being played has no finish yet", () => {
   const rows = s2026("SeasonData.standingsRows(S, __E__, __D__)");
   assert.ok(rows.length >= 10);
   assert.ok(rows.every((r) => r.finish === null));
-  assert.ok(rows.every((r) => r.last5.length === 5));
   assert.ok(rows.every((r) => r.wins + r.losses + r.ties >= 5));
 });
 
@@ -164,7 +162,7 @@ test("Standings Over Time 2025: the champion in gold, the runner-up in white and
   assert.ok(b.lines.every((l) => l.ranks.length === 14));
 });
 
-test("a tied game is a T in the last five and in the grid, not a loss", () => {
+test("a tied game is a T in the grid, not a loss", () => {
   const c = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "season-data.js"]);
   c.__E__ = { league: { status: "in_season", settings: { playoff_week_start: 15 } }, bracket: [] };
   c.__D__ = { weeks: [{ week: 1, matchups: [{ roster_id: 1, matchup_id: 1, points: 100 }, { roster_id: 2, matchup_id: 1, points: 100 }] }, { week: 2, matchups: [{ roster_id: 1, matchup_id: 1, points: 90 }, { roster_id: 2, matchup_id: 1, points: 80 }] }] };
