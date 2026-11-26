@@ -8,7 +8,7 @@ const REAL_MANUAL_HISTORY = JSON.parse(fs.readFileSync(path.join(__dirname, ".."
 const REAL_POWER_RANK_CSV_HISTORY = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "power-rank-csv-history.json"), "utf8"));
 
 function setup() {
-  const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "season.js"]);
+  const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "history-data.js", "season-data.js", "season.js"]);
   ctx.__TEST_SEASON_CHAIN__ = [{ league: { season: "2023" } }, { league: { season: "2022" } }];
   ctx.__TEST_MANUAL_HISTORY__ = REAL_MANUAL_HISTORY;
   runInLoadedContext(ctx, "SEASON_CHAIN = __TEST_SEASON_CHAIN__; MANUAL_HISTORY = __TEST_MANUAL_HISTORY__;");
@@ -46,9 +46,10 @@ test("renderManualSeasonSummary: 2019 standings table includes every team with c
   const html = ctx.renderManualSeasonSummary(season2019);
 
   assert.ok(html.includes("evangonnerman"), "should list the champion");
-  assert.ok(html.includes("🏆"), "should show a gold medal emoji somewhere");
-  assert.ok(html.includes("🥈"), "should show a silver medal emoji");
-  assert.ok(html.includes("🥉"), "should show a bronze medal emoji");
+  assert.ok(html.includes('class="sn-finish sn-finish-champion">Champion<'), "the champion carries a Champion badge");
+  assert.ok(html.includes('class="sn-finish sn-finish-runnerup">Runner-up<'), "the runner-up badge");
+  assert.ok(html.includes('class="sn-finish sn-finish-third">3rd place<'), "the 3rd place badge");
+  assert.ok(html.includes(">Missed<"), "teams that missed the playoffs say so");
   assert.ok(html.includes("11-2"), "evangonnerman's regular season record should appear");
 });
 
@@ -60,7 +61,9 @@ test("renderManualSeasonSummary: includes the playoff bracket with the Finals sc
   assert.ok(html.includes("141.5"), "Finals winning score should appear");
   assert.ok(html.includes("101.7"), "Finals losing score should appear");
   assert.ok(html.includes("Saquon Barkley"), "Finals MVP name should appear");
-  assert.ok(html.includes("3rd Place"), "the third-place game should be labeled");
+  assert.ok(html.includes("Third place game"), "the third-place game should be labeled");
+  assert.ok(html.includes("evangonnerman by 39.8"), "the final carries the winning margin");
+  assert.ok(html.includes("seed 1 rests"), "the byes are drawn, with their seed");
 });
 
 test("renderManualSeasonSummary: every one of the 5 real seasons renders without throwing", () => {
@@ -86,8 +89,8 @@ test("renderManualSeasonSummary: Final Standings has an Avg/Wk column instead of
   const season2019 = ctx.ManualHistory.findSeason(REAL_MANUAL_HISTORY, 2019);
   const html = ctx.renderManualSeasonSummary(season2019);
 
-  assert.ok(!/<th>Playoffs<\/th>/.test(html), "the Playoffs column header should be gone");
-  assert.ok(/<th>Avg\/Wk<\/th>/.test(html), "an Avg/Wk column header should be present");
+  assert.ok(!/>Playoffs<\/th>/.test(html), "the Playoffs column header should be gone");
+  assert.ok(/>Pts\/G<\/th>/.test(html), "a Pts/G column header should be present");
   // evangonnerman 2019: 11-2-0 (13 games), 1489.9 PF -> 114.6 pts/wk
   assert.ok(html.includes("114.6"), "evangonnerman's Avg/Wk should be their PF divided by games played");
 });
@@ -147,18 +150,18 @@ test("renderManualSeasonSummary: Final Standings has a Luck column, computed fro
   const season2019 = ctx.ManualHistory.findSeason(REAL_MANUAL_HISTORY, 2019);
   const html = ctx.renderManualSeasonSummary(season2019);
 
-  assert.ok(/<th>Luck<\/th>/.test(html), "a Luck column header should be present");
+  assert.ok(/>Luck<\/th>/.test(html), "a Luck column header should be present");
   // evangonnerman 2019: 11-2 actual vs. 78-39 all-play -> +17.9%
   assert.ok(html.includes("+17.9%"), "evangonnerman's Luck badge should reflect their real vs. all-play win %");
 });
 
-test("renderManualSeasonSummary: Luck column shows an em dash for a season with no Overall Record on file (2015)", () => {
+test("renderManualSeasonSummary: a season with no all-play record on file (2015) leaves out the All-play, Exp. W and Luck columns instead of a column of dashes", () => {
   const ctx = setup();
   const season2015 = ctx.ManualHistory.findSeason(REAL_MANUAL_HISTORY, 2015);
   const html = ctx.renderManualSeasonSummary(season2015);
-
-  assert.ok(/<th>Luck<\/th>/.test(html), "the Luck column header should still appear, even without data for this year");
-  const luckCells = [...html.matchAll(/data-label="Luck">([^<]*)</g)].map((m) => m[1]);
-  assert.strictEqual(luckCells.length, 10, "every one of the 10 teams should have a Luck cell");
-  assert.ok(luckCells.every((c) => c === "—"), "every Luck cell should be an em dash when there's no Overall Record data for the season");
+  assert.ok(!/>Luck<\/th>/.test(html));
+  assert.ok(!/>All-play<\/th>/.test(html));
+  assert.ok(!/>Exp\. W<\/th>/.test(html));
+  assert.ok(/>Rec<\/th>/.test(html) && /class="sn-table sn-standings"/.test(html), "the rest of the table is there");
+  assert.strictEqual((html.match(/class="sn-st-row/g) || []).length, 10, "every one of the 10 teams has a row");
 });

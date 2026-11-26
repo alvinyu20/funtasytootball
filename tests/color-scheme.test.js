@@ -67,6 +67,22 @@ test("no green or red left in the Draft stylesheet", () => {
   assert.deepStrictEqual(judgmentColors(read("css/draft.css")), []);
 });
 
+test("no green or red left in the Seasons stylesheet", () => {
+  assert.deepStrictEqual(judgmentColors(read("css/season.css")), []);
+});
+
+test("Seasons: good is the yellow token and bad the blue one, in every shaded thing the page draws", () => {
+  const css = read("css/season.css");
+  assert.match(css, /\.sn-tone-good \{ color: var\(--good\); \}/);
+  assert.match(css, /\.sn-tone-bad \{ color: var\(--bad\); \}/);
+  assert.match(css, /\.sn-slot-best \{ background: var\(--good\); \}/, "a slot column's best is yellow");
+  assert.match(css, /\.sn-slot-worst \{ background: var\(--bad\); \}/, "and its worst is blue");
+  assert.match(css, /\.sn-g-top \{ color: var\(--turf-dark\); background: var\(--good\);/, "the week's top score is yellow");
+  assert.match(css, /\.sn-g-low \{ color: var\(--turf-dark\); background: var\(--bad\);/, "the week's lowest is blue");
+  assert.match(css, /\.sn-luck-2 \{ background: var\(--good\);/, "very lucky is yellow");
+  assert.match(css, /\.sn-luck-m2 \{ background: var\(--bad\);/, "very unlucky is blue");
+});
+
 test("Draft: a steal is yellow and a costly pick is blue, from the shared tokens, and the best grade is the yellow", () => {
   const css = read("css/draft.css");
   assert.match(css, /\.dr-tone-good:not\(\.dr-tile\) \{ color: var\(--good\); \}/);
@@ -113,7 +129,6 @@ test("no page text still explains a heatmap as green and red", () => {
 });
 
 test("the yellow/blue legend wording is on the pages that color by best and worst", () => {
-  assert.ok(read("js/season.js").includes("yellow is that column's best, blue is its worst"));
   assert.ok(read("js/player.js").includes("yellow is their best, blue is their worst"));
 });
 

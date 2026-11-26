@@ -3,7 +3,7 @@ const assert = require("node:assert");
 const { loadSiteModules } = require("./helpers/site-env.js");
 
 function setup() {
-  return loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "season.js"]);
+  return loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "history-data.js", "season-data.js", "season.js"]);
 }
 
 // A minimal-but-complete fake single-season summary, matching the shape
@@ -47,17 +47,16 @@ function fakeSummary(overrides) {
   };
 }
 
-test("renderSummary: shows gold/silver/bronze medals next to champion/runner-up/3rd place, same as the manual (ESPN-era) seasons", () => {
+test("renderSummary: the champion, runner-up and 3rd place carry their finish in the standings, same as the ESPN-era seasons", () => {
   const ctx = setup();
   const html = ctx.renderSummary(fakeSummary());
-
-  assert.match(html, /Team Gold 🏆/, "champion should get the trophy emoji");
-  assert.match(html, /Team Silver 🥈/, "runner-up should get the silver medal emoji");
-  assert.match(html, /Team Bronze 🥉/, "third place should get the bronze medal emoji");
-  assert.ok(!/Team Fourth[^<]*(🏆|🥈|🥉)/.test(html), "a team that didn't finish top 3 should get no medal");
+  assert.match(html, /Team Gold<\/span><span class="sn-finish sn-finish-champion">Champion</);
+  assert.match(html, /Team Silver<\/span><span class="sn-finish sn-finish-runnerup">Runner-up</);
+  assert.match(html, /Team Bronze<\/span><span class="sn-finish sn-finish-third">3rd place</);
+  assert.ok(!/Team Fourth<\/span><span class="sn-finish/.test(html), "a team that didn't finish top 3 gets no badge here");
 });
 
-test("renderSummary: the All-Time view doesn't attach a single-season medal (it has its own repeated-trophy convention for career championships instead)", () => {
+test("renderSummary: the All-Time view counts career titles instead of a single-season finish", () => {
   const ctx = setup();
   const html = ctx.renderSummary(
     fakeSummary({
@@ -70,9 +69,18 @@ test("renderSummary: the All-Time view doesn't attach a single-season medal (it 
       top5Unluckiest: [],
     })
   );
+  assert.match(html, /<span class="sn-titles" title="2 titles">🏆🏆<\/span>/, "All-Time view repeats the trophy per career championship");
+  assert.ok(!html.includes("sn-finish"), "no single-season finish on the All-Time table");
+  assert.ok(!html.includes(">Schedule<") && !html.includes(">Last 5<"), "no schedule or last five across many seasons");
+});
 
-  assert.match(html, /Team Gold 🏆🏆/, "All-Time view should still repeat the trophy per career championship");
-  assert.ok(!html.includes("🥈") && !html.includes("🥉"), "All-Time view shouldn't show single-season runner-up/3rd-place medals");
+test("renderSummary: the standings table keeps luck in percent and draws the playoff line after the last playoff team", () => {
+  const ctx = setup();
+  const html = ctx.renderSummary(fakeSummary({ playoffTeams: 2 }));
+  assert.ok(html.includes(">+2.1%<") && html.includes(">-1.4%<"), "luck is the site's percent");
+  const rows = [...html.matchAll(/<tr class="(sn-st-row[^"]*)"/g)].map((m) => m[1]);
+  assert.deepStrictEqual(rows.map((r) => r.includes("sn-cut")), [false, true, false, false], "the dashed line sits under the 2nd team");
+  assert.deepStrictEqual(rows.map((r) => r.includes("sn-in")), [true, true, false, false]);
 });
 
 test("renderSummary: Closest Matchups reports the margin to hundredths (2 decimals), not tenths", () => {

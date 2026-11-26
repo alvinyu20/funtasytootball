@@ -47,6 +47,7 @@ const KNOWN_EXPORTS = {
   "sleeper-api.js": ["SleeperAPI"],
   "manual-history.js": ["ManualHistory"],
   "history-data.js": ["HistoryData"],
+  "season-data.js": ["SeasonData"],
   "teams-data.js": ["TeamsData"],
   "record-book.js": ["RecordBook"],
   "metrics.js": ["Metrics"],

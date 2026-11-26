@@ -3,7 +3,7 @@ const assert = require("node:assert");
 const { loadSiteModules } = require("./helpers/site-env.js");
 
 function setup() {
-  return loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "season.js"]);
+  return loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "history-data.js", "season-data.js", "season.js"]);
 }
 
 // A 3-week standings history for 3 teams, matching computeStandingsHistory's
@@ -80,8 +80,10 @@ test("renderStandingsReplaySection: the Rank Chart tab is active and visible by 
 test("renderStandingsReplaySection: the Rank Chart panel (visible by default) still contains a real bump chart, not an empty placeholder", () => {
   const ctx = setup();
   const html = ctx.renderStandingsReplaySection(fakeStandingsHistory(), 2);
-  assert.ok(html.includes("lc-playoff-band"), "the visible-by-default chart should render with the playoff cutoff band");
+  assert.ok(html.includes('class="sn-bump"'), "the visible-by-default panel holds the bump chart");
+  assert.ok(html.includes('class="sn-bump-band"') && html.includes('class="sn-bump-cut"'), "with the playoff band and the cutoff line");
   assert.ok(html.includes("teamA"), "the visible-by-default chart should include the real series data");
+  assert.strictEqual((html.match(/data-bump="/g) || []).length, fakeStandingsHistory()[0].standings.length, "one line per team");
 });
 
 test("findPlayoffOddsAnnotations: finds the earliest week a team's odds lock in at 100% and stay there", () => {

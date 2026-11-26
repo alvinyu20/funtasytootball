@@ -50,7 +50,7 @@ test("stacked panels get a gap, but panels inside a grid don't get extra margin 
 });
 
 test("standingsLabel: an in-progress season is 'Standings · Through Week N', not 'Final Standings'", () => {
-  const c = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "season.js"]);
+  const c = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "charts.js", "manual-history.js", "history-data.js", "season-data.js", "season.js"]);
   assert.strictEqual(c.standingsLabel({ season: 2026, status: "in_season", weeksPlayed: 5 }), "Standings · Through Week 5");
   assert.strictEqual(c.standingsLabel({ season: 2026, status: "in_season", weeksPlayed: 0 }), "Standings");
   assert.strictEqual(c.standingsLabel({ season: 2025, status: "complete", weeksPlayed: 14 }), "Final Standings");

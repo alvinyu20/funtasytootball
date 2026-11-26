@@ -3049,6 +3049,52 @@ the dialog, the 720px switch) and `tests/helpers/draft-fixture.js` (a small hand
 shape `Metrics.applyDraftGrades` leaves on the picks, with one S+). `tests/color-scheme.test.js`
 also scans `css/draft.css`.
 
+## Seasons Page Redesign (from the mockup PDF) — 2026-11-26
+
+From "Funtasy Tootball – Seasons Page Mockups" (20 pages). Asked for: the standings of page 1 (final
+standings with Last 5, Luck kept in percent, without the takeaway cards and the glossary underneath),
+the Season Grid of page 3, the bracket of page 6, Points by Roster of page 8 (without the league-average
+row and the cards and notes under the table), and every other existing Seasons display kept but
+redesigned (pages 13 to 20 were the guide), on desktop and phone.
+
+**Order on the page (a Sleeper season):** Season Summary · Final Standings · Playoff Bracket · Season Grid ·
+Standings Over Time · Power Rank History · Points By Starting Slot · Season Extremes (with Best Single Week
+By Position) · MVP & Draft Awards · Waiver Wire · Injury Luck · Season Awards. All-Time and the ESPN-era
+years use the same pieces where they have the data.
+
+- **Final Standings:** #, team with how the season ended (Champion, Runner-up, 3rd / 4th place, Lost
+  quarterfinal / semifinal, Missed), record, PF, PA, diff, points per game (regular season only),
+  all-play with its win rate, expected wins (all-play win rate x games), luck in percent (shaded pill),
+  schedule (opponents' average, ranked: "toughest" / "easiest" / #N) and the last five results. A dashed
+  line under the last playoff seed. On a phone: # / team / record / PF / luck, and a tap on a row opens
+  the rest. A season still being played has no finish badges.
+- **Season Grid:** every team's score every regular-season week in standings order (gold tint = win,
+  solid gold = the week's top score, solid blue = its lowest), then the playoff rounds (QF / SF / F, byes
+  dashed, the 3rd-place game in F, the 5th-place game left out), average and spread (standard deviation),
+  league average and top scorer per week, two tiles (most weeks on top, most consistent / wildest).
+- **Bracket:** columns by round with the week; byes drawn where their team comes back in; seeds, scores
+  and "X by margin"; the champion's games and bye outlined in gold; the 3rd-place game under the final;
+  a game with lineups opens to them. Beside it: the champion's story and Finals MVP, and "Who has won, by
+  seed" (every champion on record, from `HistoryData.podiumsBySeed`). Shown once the playoffs start.
+- **Points By Starting Slot:** each cell is the average per week from that slot and the gap to the
+  league's average for the slot; the column's best is solid yellow, its worst solid blue; sorted by total;
+  Strongest / Weakest are each team's biggest gaps above / below.
+- **Redesigned:** Season Summary (big champion card with chips and the final score; MVP, points leader,
+  Champion's Ace, steal and bust tiles; Records Set as a table with gold honor / blue roast tags),
+  Standings Over Time (bump chart with three teams in color, labels at the line ends, tap a line to
+  focus it; Replay kept), Power Rank History (rank grid, power-score small multiples, playoff-odds grid
+  with the clinched / out week; 99.x and under-1 odds keep a decimal), Season Extremes (headline scores
+  with lineups, closest / blowouts with week chips and margin pills, position cards with a Playoffs flag),
+  MVP table with filters beside the Champion's Ace, steals / busts / cursed side by side, pickups beside
+  the wire standings (hit rate added), FAAB cards, injury list and an injury table with net results, award
+  cards with Honor / Roast tags and an awards tally.
+
+**Files.** New: `js/season-data.js` (`SeasonData`: all the numbers, no DOM), `css/season.css` (only on this
+page, `body.page-season`), `tests/season-data.test.js` (checked against the real 2025 numbers in the
+mockup). Changed: `js/season.js` (drawing code rewritten; data loading unchanged), `season.html` (loads
+`history-data.js`, `season-data.js`, `season.css`), `tests/helpers/site-env.js` (`SeasonData` export) and
+the Seasons tests, rewritten for the new markup. `js/deep-history.js` and `js/metrics.js` are unchanged.
+
 ## Known limitations / ideas for later
 
 - Champion detection relies on Sleeper's playoff bracket data (`p: 1` game).

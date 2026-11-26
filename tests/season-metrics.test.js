@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const { loadSiteModules } = require("./helpers/site-env.js");
 
-const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "metrics.js", "charts.js", "manual-history.js", "season.js"]);
+const ctx = loadSiteModules(["config.js", "utils.js", "sleeper-api.js", "deep-history.js", "metrics.js", "charts.js", "manual-history.js", "history-data.js", "season-data.js", "season.js"]);
 
 const mvp = (over) => ({
   playerId: "1",
@@ -64,9 +64,9 @@ test("mvpRowsHtml: shows wins and points above replacement, and says so when a p
 });
 
 test("mvpRowsHtml: the all-time list names the season and marks one that is still being played", () => {
-  const html = ctx.mvpRowsHtml([mvp({ season: "2026", inProgress: true }), mvp({ season: "2025", playerId: "2" })], true);
+  const html = ctx.mvpRowsHtml([mvp({ season: "2026", inProgress: true }), mvp({ season: "2025", playerId: "2" })], true).replace(/<[^>]+>/g, "");
   assert.ok(html.includes("2026 (in progress)"));
-  assert.ok(html.includes("2025 ·"));
+  assert.ok(/2025\s/.test(html));
   assert.ok(!html.includes("2025 (in progress)"));
 });
 
@@ -95,11 +95,11 @@ function totalMetrics() {
 }
 
 test("renderAwardsMetricsSection: the all-time view lists an MVP per season, newest first, and flags the current one", () => {
-  const html = ctx.renderAwardsMetricsSection({ metrics: totalMetrics() });
+  const html = ctx.renderAwardsMetricsSection({ metrics: totalMetrics() }).replace(/<[^>]+>/g, "");
   assert.ok(html.includes("League MVP By Season"));
-  assert.ok(html.indexOf("2026 (in progress)") < html.indexOf("2025 ·"));
+  assert.ok(html.indexOf("2026 (in progress)") < html.indexOf("2025\n"));
   assert.ok(html.includes("Biggest Draft Steals Of All Time"));
-  assert.ok(html.includes("about 86 season points"));
+  assert.ok(html.includes("About 86 season points make one win"));
 });
 
 test("renderAwardsMetricsSection: a season in progress gets the MVP list with filters but no steals or busts yet", () => {
